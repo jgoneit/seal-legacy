@@ -8,6 +8,7 @@ import sys
 from collections.abc import Sequence
 
 from . import __version__
+from .bundle import BundleError, BundleEvidenceError, create_verification_bundle
 from .evidence import CompletionError, EvidenceRepositoryError, complete_task, verify_task
 from .exit_codes import ExitCode
 from .gitdiff import GitDiffError, GitDiffTaskError
@@ -50,6 +51,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="override the Task snapshot baseline for this verification run",
     )
 
+    verifier_parser = commands.add_parser(
+        "verifier", help="prepare evidence for an independent verifier"
+    )
+    verifier_commands = verifier_parser.add_subparsers(dest="verifier_command")
+    bundle_parser = verifier_commands.add_parser(
+        "bundle", help="export one saved Task/run as a portable verifier bundle"
+    )
+    bundle_parser.add_argument("task_id", metavar="TASK_ID")
+    bundle_parser.add_argument(
+        "--run-id",
+        metavar="RUN_ID",
+        required=True,
+        help="explicit verification run id to export",
+    )
+    bundle_parser.add_argument(
+        "--output",
+        metavar="DIR",
+        required=True,
+        help="new directory to receive the verifier bundle",
+    )
+
     complete_parser = commands.add_parser(
         "complete", help="validate saved evidence and record a Task completion"
     )
@@ -88,6 +110,27 @@ def main(argv: Sequence[str] | None = None) -> int:
                     sort_keys=True,
                 )
             )
+        elif arguments.command == "verifier" and arguments.verifier_command == "bundle":
+            bundle = create_verification_bundle(
+                arguments.task_id,
+                arguments.run_id,
+                arguments.output,
+            )
+            print(
+                json.dumps(
+                    {
+                        "task_id": bundle.task_id,
+                        "run_id": bundle.run_id,
+                        "bundle_path": str(bundle.bundle_path),
+                        "manifest_path": str(bundle.manifest_path),
+                        "total_size_bytes": bundle.manifest["total_size_bytes"],
+                        "bundle_sha256": bundle.manifest["bundle_sha256"],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
         elif arguments.command == "complete":
             completion = complete_task(arguments.task_id, arguments.run_id)
             print(
@@ -108,9 +151,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     return int(ExitCode.SUCCESS)
 
 
-def _exit_code_for(error: TaskError | GitDiffError) -> int:
+def _exit_code_for(error: TaskError | GitDiffError | BundleError) -> int:
     """Return the documented stable exit code for a handled command error."""
     if isinstance(error, CompletionError):
+        return int(error.exit_code)
+    if isinstance(error, BundleEvidenceError):
         return int(error.exit_code)
     if isinstance(error, (TaskRepositoryError, EvidenceRepositoryError)):
         return int(ExitCode.GIT_OR_REPOSITORY_ERROR)

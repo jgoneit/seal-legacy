@@ -21,8 +21,9 @@ Outcome Harness는 Agent가 어떻게 작업하는지 통제하지 않는다. Ag
 ## 현재 상태
 
 experimental, Phase 1c = Task Spec snapshot, 변경 수집, check 실행, mechanical
-verification 및 explicit evidence completion. independent verifier는 아직 구현되지
-않았다.
+verification 및 explicit evidence completion. 저장된 특정 run을 독립 검증자에게
+전달할 portable bundle export는 구현되어 있지만, verdict 기록과 `complete` 통합은 아직
+구현되지 않았다.
 
 Task Spec은 저장소의 `.harness/checks.json` 카탈로그를 참조하거나 인라인 check
 정의를 사용할 수 있다. `harness task create --file task.json`은 현재 Git `HEAD`를
@@ -62,8 +63,8 @@ snapshot `baseline` 대신 해당 Git ref를 사용한다.
 - check별 stdout/stderr 파일
 
 `verification.json`은 scope와 required check 결과로 계산한 `mechanical_result`만
-기록한다. 이 mechanical verification은 independent verifier, bundle, ledger를
-구현하지 않는다.
+기록한다. 이 mechanical verification은 independent verifier의 verdict, completion
+integration, ledger를 구현하지 않는다.
 
 ## Phase 1c: 저장 evidence의 complete 판정
 
@@ -83,12 +84,42 @@ mechanical evidence만으로 complete할 수 있다.
 
 안정적인 CLI exit code는 [docs/exit-codes.md](docs/exit-codes.md)에 기록한다.
 
+## Verifier bundle export
+
+저장된 evidence를 재실행하거나 저장소 전체를 읽지 않고, 지정한 Task/run만 독립
+검증자에게 전달할 수 있다.
+
+```text
+harness verifier bundle <TASK_ID> --run-id <RUN_ID> --output <DIR>
+```
+
+`--output`은 아직 존재하지 않는 새 디렉터리여야 한다. bundle에는 Task Spec snapshot,
+mechanical `verification.json`, changed files, `diff.patch`, `checks.json`, 각 check가
+참조하는 stdout/stderr, 그리고 `verifier.md` instructions가 들어간다. 명령은 verdict를
+기록하거나 `complete`를 호출하지 않는다.
+
+`manifest.json`은 schema version, Task/run identity, 생성 시각, payload 파일별 상대 경로,
+SHA-256, 크기, payload 총 크기, 그리고 `bundle_sha256`을 기록한다. self-referential hash를
+피하기 위해 manifest 자신은 `files` 목록과 `total_size_bytes`에서 제외된다.
+`bundle_sha256`은 hash를 제외한 canonical manifest의 integrity hash일 뿐, 승인 authority나
+completion authority가 아니다.
+
+bundle writer는 저장 evidence와 check가 참조한 log만 선택한다. 임의의 저장소 파일이나
+전체 process environment를 직렬화하지 않으며, Harness metadata와 gitignored product path는
+bundle changed-files에서 제외하거나 거부한다. structured evidence와 log의 절대 경로 및
+사용자 home 경로는 portable placeholder로 정리한다.
+
+> 경고: check stdout/stderr에는 secret이 있을 수 있다. path 정리는 secret redaction이 아니며,
+> Harness는 자동 redaction이 완전하다고 주장하지 않는다. 민감한 값을 출력하지 않는 check를
+> 사용하고 bundle 자체도 민감한 artifact로 취급해야 한다.
+
 ## Phase 2 이후
 
 이후 Phase는 Outcome Harness 자신을 이 Harness로 검증한다. 각 Task는
 `.harness/tasks/`에 저장된 Task Spec을 사용하고, 변경에 대한 mechanical evidence는
-`harness verify <TASK_ID>`로 생성한다. independent verifier와 ledger는 이후 Phase의
-별도 작업이며 Phase 1c의 complete가 이를 성공으로 가장하지 않는다.
+`harness verify <TASK_ID>`로 생성한다. independent verifier verdict 기록, `complete`
+통합, adapter, LLM 호출, ledger는 이후 Phase의 별도 작업이며 현재 `complete`가 이를
+성공으로 가장하지 않는다.
 
 > 경고: check의 stdout과 stderr는 evidence 파일에 그대로 저장된다. Harness는 secret을
 > 자동으로 제거하거나 마스킹한다고 주장하지 않는다. 민감한 값을 출력하지 않는 check를
