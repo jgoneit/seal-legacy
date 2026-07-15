@@ -8,5 +8,10 @@ dist/
 .pytest_cache/
 .coverage
 htmlcov/
+# Local Harness records are generated per repository and are not plugin source.
 .harness/tasks/
+.harness/evidence/
+.harness/runs.jsonl
+.harness/lessons.md
+.harness/config.json
 tests/
