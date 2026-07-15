@@ -20,7 +20,7 @@ Outcome Harness는 Agent가 어떻게 작업하는지 통제하지 않는다. Ag
 
 ## 현재 상태
 
-experimental, Phase 1 = Task Spec의 파싱·검증·snapshot 저장
+experimental, Phase 1b = Task Spec snapshot, 변경 수집, check 실행, mechanical evidence 저장
 
 Task Spec은 저장소의 `.harness/checks.json` 카탈로그를 참조하거나 인라인 check
 정의를 사용할 수 있다. `harness task create --file task.json`은 현재 Git `HEAD`를
@@ -48,5 +48,21 @@ Harness 자체 기록은 수집 결과에서 관찰할 수 있지만 product dif
 - `.harness/lessons.md`
 - `.harness/config.json`
 
-이 단계는 CLI를 노출하지 않으며 Task check 실행, evidence 파일 생성,
-`verification.json`, complete 처리를 수행하지 않는다.
+## Phase 1b: check 실행과 evidence
+
+`harness verify <TASK_ID>`는 저장된 Task Spec의 check를 정의된 순서대로 argv 배열로
+실행한다. shell은 사용하지 않으며, `--base-ref <GIT_REF>`를 지정하면 이번 run에서만
+snapshot `baseline` 대신 해당 Git ref를 사용한다.
+
+각 run은 `.harness/evidence/<TASK_ID>/<RUN_ID>/`에 다음 evidence를 남긴다.
+
+- `task.json`, `changed-files.json`, `diff.patch`, `checks.json`, `verification.json`
+- check별 stdout/stderr 파일
+
+`verification.json`은 scope와 required check 결과로 계산한 `mechanical_result`만
+기록한다. 이것은 complete 판정이 아니며 verifier, bundle, ledger, 별도 exit-code 체계는
+이 단계의 범위에 포함하지 않는다.
+
+> 경고: check의 stdout과 stderr는 evidence 파일에 그대로 저장된다. Harness는 secret을
+> 자동으로 제거하거나 마스킹한다고 주장하지 않는다. 민감한 값을 출력하지 않는 check를
+> 사용해야 한다.
