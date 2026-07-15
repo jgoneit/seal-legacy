@@ -1,0 +1,301 @@
+"""Verification evidence creation for Outcome Harness.
+
+This module records mechanical verification only.  It deliberately does not
+decide Task completion, invoke a verifier, publish a bundle, or append a
+ledger entry.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import tempfile
+import time
+import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, BinaryIO, TextIO
+
+from .checks import CheckExecutionError, run_checks
+from .gitdiff import (
+    HARNESS_METADATA_DIRECTORIES,
+    HARNESS_METADATA_FILES,
+    ChangeCollection,
+    FileChange,
+    GitDiffError,
+    collect_changes,
+    find_repository_root,
+    is_harness_metadata_path,
+)
+from .task import TaskError, show_task, validate_task_id
+
+
+VERIFICATION_SCHEMA_VERSION = 1
+
+
+class EvidenceError(TaskError):
+    """Raised when a verification run cannot safely create its evidence."""
+
+
+@dataclass(frozen=True)
+class VerificationRun:
+    """The identity, location, and final document for one verification run."""
+
+    run_id: str
+    evidence_path: Path
+    verification: dict[str, Any]
+
+
+def verify_task(
+    task_id: str,
+    *,
+    cwd: str | Path | None = None,
+    base_ref: str | None = None,
+) -> VerificationRun:
+    """Run a saved Task's checks and persist its mechanical evidence.
+
+    ``base_ref`` replaces the snapshot baseline for this one run.  Check
+    failures are evidence, not CLI errors: all checks run in Task Spec order
+    and the resulting mechanical pass/fail is written to ``verification.json``.
+    """
+    validate_task_id(task_id)
+    repository = find_repository_root(cwd)
+    task = show_task(task_id, cwd=repository)
+    run_id, evidence_path = create_evidence_directory(repository, task_id)
+    started = time.monotonic()
+
+    try:
+        atomic_write_json(evidence_path / "task.json", task)
+        checks = task.get("checks")
+        if not isinstance(checks, list):
+            raise EvidenceError("Task snapshot checks must be an array.")
+        check_results = run_checks(
+            checks,
+            cwd=repository,
+            evidence_directory=evidence_path,
+        )
+
+        changes = collect_changes(task, cwd=repository, base_ref=base_ref)
+        changed_files = [_file_change_document(change) for change in changes.product_changes]
+        scope_violations = [
+            _file_change_document(change) for change in changes.out_of_scope_changes
+        ]
+        atomic_write_json(
+            evidence_path / "changed-files.json",
+            _changed_files_document(changes),
+        )
+        atomic_write_bytes(
+            evidence_path / "diff.patch",
+            collect_diff_patch(repository, changes),
+        )
+        atomic_write_json(
+            evidence_path / "checks.json",
+            {"schema_version": VERIFICATION_SCHEMA_VERSION, "checks": check_results},
+        )
+
+        required_checks_pass = all(
+            bool(result["passed"])
+            for result in check_results
+            if bool(result["required"])
+        )
+        scope_pass = changes.scope_passed
+        mechanical_result = "pass" if scope_pass and required_checks_pass else "fail"
+        evidence_files = _evidence_file_list(check_results)
+        verification = {
+            "schema_version": VERIFICATION_SCHEMA_VERSION,
+            "task_id": task_id,
+            "run_id": run_id,
+            "baseline": changes.base_ref,
+            "changed_files": changed_files,
+            "scope_pass": scope_pass,
+            "scope_violations": scope_violations,
+            "required_checks_pass": required_checks_pass,
+            "mechanical_result": mechanical_result,
+            "evidence_files": evidence_files,
+            "timestamp": _utc_timestamp(),
+            "duration": max(0.0, time.monotonic() - started),
+        }
+        atomic_write_json(evidence_path / "verification.json", verification)
+    except (GitDiffError, CheckExecutionError) as error:
+        raise EvidenceError(str(error)) from error
+
+    return VerificationRun(
+        run_id=run_id,
+        evidence_path=evidence_path,
+        verification=verification,
+    )
+
+
+def create_evidence_directory(repository: str | Path, task_id: str) -> tuple[str, Path]:
+    """Create and return a collision-free evidence directory for one run."""
+    validate_task_id(task_id)
+    root = Path(repository).resolve() / ".harness" / "evidence" / task_id
+    root.mkdir(parents=True, exist_ok=True)
+    for _ in range(100):
+        run_id = generate_run_id()
+        candidate = root / run_id
+        try:
+            candidate.mkdir()
+        except FileExistsError:
+            continue
+        return run_id, candidate
+    raise EvidenceError("Could not allocate a unique verification run id.")
+
+
+def generate_run_id() -> str:
+    """Return a path-safe, collision-resistant run id without task metadata."""
+    return uuid.uuid4().hex
+
+
+def atomic_write_json(path: str | Path, value: object) -> None:
+    """Write JSON through a same-directory temporary file and rename it atomically."""
+
+    def write(output: TextIO) -> None:
+        json.dump(value, output, ensure_ascii=False, indent=2, sort_keys=True)
+        output.write("\n")
+
+    _atomic_write(Path(path), mode="w", writer=write)
+
+
+def atomic_write_bytes(path: str | Path, value: bytes) -> None:
+    """Atomically write a binary artifact using the same no-partial-file rule."""
+
+    def write(output: BinaryIO) -> None:
+        output.write(value)
+
+    _atomic_write(Path(path), mode="wb", writer=write)
+
+
+def _atomic_write(
+    path: Path,
+    *,
+    mode: str,
+    writer: Callable[[Any], None],
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode=mode,
+            encoding="utf-8" if mode == "w" else None,
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as output:
+            temporary_path = Path(output.name)
+            writer(output)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary_path, path)
+        temporary_path = None
+    finally:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink()
+            except FileNotFoundError:
+                pass
+
+
+def collect_diff_patch(repository: str | Path, changes: ChangeCollection) -> bytes:
+    """Collect a binary-safe patch for product changes, including untracked files."""
+    repository_path = Path(repository).resolve()
+    arguments = [
+        "git",
+        "-C",
+        str(repository_path),
+        "diff",
+        "--binary",
+        "--no-ext-diff",
+        changes.base_ref,
+        "--",
+        ".",
+        *_metadata_exclude_pathspecs(),
+    ]
+    patch = _run_git(arguments, accepted_returncodes={0})
+
+    # Git's regular diff intentionally omits untracked paths.  Record each
+    # product untracked file with no-index so diff.patch is complete evidence.
+    for change in changes.changes:
+        if change.source != "untracked" or is_harness_metadata_path(change.path):
+            continue
+        untracked_patch = _run_git(
+            [
+                "git",
+                "-C",
+                str(repository_path),
+                "diff",
+                "--no-index",
+                "--binary",
+                "--no-ext-diff",
+                "--",
+                "/dev/null",
+                change.path,
+            ],
+            accepted_returncodes={0, 1},
+        )
+        if patch and not patch.endswith(b"\n"):
+            patch += b"\n"
+        patch += untracked_patch
+    return patch
+
+
+def _run_git(arguments: list[str], *, accepted_returncodes: set[int]) -> bytes:
+    try:
+        result = subprocess.run(
+            arguments,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+        )
+    except OSError as error:
+        raise EvidenceError("Git is required to write verification evidence.") from error
+    if result.returncode not in accepted_returncodes:
+        detail = result.stderr.decode("utf-8", "replace").strip()
+        raise EvidenceError(detail or f"Git diff exited with status {result.returncode}.")
+    return result.stdout
+
+
+def _metadata_exclude_pathspecs() -> tuple[str, ...]:
+    directories = tuple(f":(exclude){path}/**" for path in HARNESS_METADATA_DIRECTORIES)
+    files = tuple(f":(exclude){path}" for path in sorted(HARNESS_METADATA_FILES))
+    return directories + files
+
+
+def _changed_files_document(changes: ChangeCollection) -> dict[str, Any]:
+    return {
+        "schema_version": VERIFICATION_SCHEMA_VERSION,
+        "baseline": changes.base_ref,
+        "scope": list(changes.scope),
+        "changes": [_file_change_document(change) for change in changes.changes],
+    }
+
+
+def _file_change_document(change: FileChange) -> dict[str, Any]:
+    return {
+        "source": change.source,
+        "status": change.status,
+        "path": change.path,
+        "previous_path": change.previous_path,
+        "old_mode": change.old_mode,
+        "new_mode": change.new_mode,
+        "mode_changed": change.mode_changed,
+        "is_binary": change.is_binary,
+        "in_scope": change.in_scope,
+    }
+
+
+def _evidence_file_list(check_results: list[dict[str, Any]]) -> list[str]:
+    files = ["task.json", "changed-files.json", "diff.patch", "checks.json"]
+    for result in check_results:
+        files.extend((str(result["stdout_path"]), str(result["stderr_path"])))
+    files.append("verification.json")
+    return files
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
