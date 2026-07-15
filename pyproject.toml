@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "outcome-harness"
+description = "Experimental CLI skeleton for Outcome Harness."
+requires-python = ">=3.11"
+dynamic = ["version"]
+
+[project.scripts]
+harness = "harness.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.dynamic]
+version = {attr = "harness.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
