@@ -20,7 +20,9 @@ Outcome Harness는 Agent가 어떻게 작업하는지 통제하지 않는다. Ag
 
 ## 현재 상태
 
-experimental, Phase 1b = Task Spec snapshot, 변경 수집, check 실행, mechanical evidence 저장
+experimental, Phase 1c = Task Spec snapshot, 변경 수집, check 실행, mechanical
+verification 및 explicit evidence completion. independent verifier는 아직 구현되지
+않았다.
 
 Task Spec은 저장소의 `.harness/checks.json` 카탈로그를 참조하거나 인라인 check
 정의를 사용할 수 있다. `harness task create --file task.json`은 현재 Git `HEAD`를
@@ -60,8 +62,33 @@ snapshot `baseline` 대신 해당 Git ref를 사용한다.
 - check별 stdout/stderr 파일
 
 `verification.json`은 scope와 required check 결과로 계산한 `mechanical_result`만
-기록한다. 이것은 complete 판정이 아니며 verifier, bundle, ledger, 별도 exit-code 체계는
-이 단계의 범위에 포함하지 않는다.
+기록한다. 이 mechanical verification은 independent verifier, bundle, ledger를
+구현하지 않는다.
+
+## Phase 1c: 저장 evidence의 complete 판정
+
+`harness complete <TASK_ID> --run-id <RUN_ID>`는 이미 저장된 특정 run의 evidence를
+검증한다. check를 재실행하거나 Git diff를 다시 수집하지 않으며, `--run-id`가 없는
+latest-run 선택도 하지 않는다.
+
+complete는 Task/run identity, evidence 파일 존재와 JSON 무결성, `scope_pass`, 모든
+required check의 pass, `required_checks_pass`, `mechanical_result="pass"`를 모두
+확인한다. 성공하면 동일한
+`.harness/evidence/<TASK_ID>/<RUN_ID>/completion.json`을 기록한다.
+
+Phase 1c에는 independent verifier evidence가 없으므로 Task Spec의
+`verifier.required=true`는 complete를 항상 거부한다(exit 7). 이는 requirement를
+자동으로 낮추지 않는 의도된 fail-closed 동작이다. `verifier.required=false` Task는
+mechanical evidence만으로 complete할 수 있다.
+
+안정적인 CLI exit code는 [docs/exit-codes.md](docs/exit-codes.md)에 기록한다.
+
+## Phase 2 이후
+
+이후 Phase는 Outcome Harness 자신을 이 Harness로 검증한다. 각 Task는
+`.harness/tasks/`에 저장된 Task Spec을 사용하고, 변경에 대한 mechanical evidence는
+`harness verify <TASK_ID>`로 생성한다. independent verifier와 ledger는 이후 Phase의
+별도 작업이며 Phase 1c의 complete가 이를 성공으로 가장하지 않는다.
 
 > 경고: check의 stdout과 stderr는 evidence 파일에 그대로 저장된다. Harness는 secret을
 > 자동으로 제거하거나 마스킹한다고 주장하지 않는다. 민감한 값을 출력하지 않는 check를

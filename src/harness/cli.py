@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections.abc import Sequence
 
 from . import __version__
-from .evidence import verify_task
-from .gitdiff import GitDiffError
-from .task import TaskError, create_task, show_task
+from .evidence import CompletionError, EvidenceRepositoryError, complete_task, verify_task
+from .exit_codes import ExitCode
+from .gitdiff import GitDiffError, GitDiffTaskError
+from .task import TaskError, TaskRepositoryError, create_task, show_task
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -47,6 +49,17 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="GIT_REF",
         help="override the Task snapshot baseline for this verification run",
     )
+
+    complete_parser = commands.add_parser(
+        "complete", help="validate saved evidence and record a Task completion"
+    )
+    complete_parser.add_argument("task_id", metavar="TASK_ID")
+    complete_parser.add_argument(
+        "--run-id",
+        metavar="RUN_ID",
+        required=True,
+        help="explicit verification run id to validate; latest-run selection is unsupported",
+    )
     return parser
 
 
@@ -75,6 +88,34 @@ def main(argv: Sequence[str] | None = None) -> int:
                     sort_keys=True,
                 )
             )
+        elif arguments.command == "complete":
+            completion = complete_task(arguments.task_id, arguments.run_id)
+            print(
+                json.dumps(
+                    {
+                        "task_id": completion.task_id,
+                        "run_id": completion.run_id,
+                        "completion_path": str(completion.completion_path),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
     except (TaskError, GitDiffError) as error:
-        parser.error(str(error))
-    return 0
+        print(f"error: {error}", file=sys.stderr)
+        return _exit_code_for(error)
+    return int(ExitCode.SUCCESS)
+
+
+def _exit_code_for(error: TaskError | GitDiffError) -> int:
+    """Return the documented stable exit code for a handled command error."""
+    if isinstance(error, CompletionError):
+        return int(error.exit_code)
+    if isinstance(error, (TaskRepositoryError, EvidenceRepositoryError)):
+        return int(ExitCode.GIT_OR_REPOSITORY_ERROR)
+    if isinstance(error, GitDiffTaskError):
+        return int(ExitCode.INVALID_INPUT_OR_SCHEMA)
+    if isinstance(error, GitDiffError):
+        return int(ExitCode.GIT_OR_REPOSITORY_ERROR)
+    return int(ExitCode.INVALID_INPUT_OR_SCHEMA)

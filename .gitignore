@@ -8,10 +8,32 @@ dist/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Generated Python distributions and Codex plugin bundles are release outputs,
+# not plugin source.
+*.whl
+*.tar.gz
+*.zip
+wheelhouse/
+pip-wheel-metadata/
+
+# Local static-analysis and test reports.
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage.*
+coverage.xml
+
+# Operating-system metadata.
+.DS_Store
+
 # Local Harness records are generated per repository and are not plugin source.
 .harness/tasks/
 .harness/evidence/
 .harness/runs.jsonl
 .harness/lessons.md
 .harness/config.json
+
+# Test sources are not included in the distributable plugin bundle.
 tests/
