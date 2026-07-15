@@ -1,8 +1,8 @@
 """Verification evidence creation for Outcome Harness.
 
-This module records mechanical verification only.  It deliberately does not
-decide Task completion, invoke a verifier, publish a bundle, or append a
-ledger entry.
+This module records mechanical verification and validates saved completion
+evidence. It does not invoke a verifier, publish a bundle, or append a ledger
+entry.
 """
 
 from __future__ import annotations
@@ -33,6 +33,7 @@ from .gitdiff import (
     is_harness_metadata_path,
 )
 from .task import TaskError, show_task, validate_task_id
+from .verdict import VerdictEvidenceError, load_recorded_verdict
 
 
 VERIFICATION_SCHEMA_VERSION = 1
@@ -88,7 +89,13 @@ class CompletionTimeoutError(CompletionError):
 
 
 class CompletionVerifierEvidenceMissingError(CompletionError):
-    """Raised when the Task requires verifier evidence unavailable in Phase 1c."""
+    """Raised when a Task requires a verdict that has not been recorded."""
+
+    exit_code = ExitCode.REQUIRED_VERIFIER_EVIDENCE_MISSING
+
+
+class CompletionVerifierRejectedError(CompletionError):
+    """Raised when a recorded verdict does not satisfy the completion gate."""
 
     exit_code = ExitCode.REQUIRED_VERIFIER_EVIDENCE_MISSING
 
@@ -208,12 +215,10 @@ def complete_task(
     *,
     cwd: str | Path | None = None,
 ) -> CompletionRun:
-    """Validate saved mechanical evidence and write its completion record.
+    """Validate saved mechanical and verifier evidence and write completion.
 
     Completion never reruns checks, recalculates the Git diff, or chooses a
     latest run.  The caller supplies the exact Task/run pair to evaluate.
-    Phase 1c intentionally has no independent verifier evidence format, so a
-    Task that requires one cannot complete here.
     """
     validate_task_id(task_id)
     validate_run_id(run_id)
@@ -272,10 +277,35 @@ def complete_task(
             "verification.json mechanical_result does not match its saved evidence."
         )
 
-    if _task_requires_verifier(task):
-        raise CompletionVerifierEvidenceMissingError(
-            "Task requires independent verifier evidence, which Phase 1c does not record."
-        )
+    verifier_required = _task_requires_verifier(task)
+    try:
+        verdict_record = load_recorded_verdict(evidence_path, task_id, run_id)
+    except VerdictEvidenceError as error:
+        raise CompletionEvidenceError(
+            "Saved manual verifier evidence is missing, corrupt, or inconsistent."
+        ) from error
+
+    verifier_runner: str | None = None
+    verifier_verdict: str | None = None
+    finding_counts = {"blocker": 0, "warning": 0, "note": 0}
+    if verdict_record is None:
+        if verifier_required:
+            raise CompletionVerifierEvidenceMissingError(
+                "Task requires a valid manual verifier verdict, but no verdict was recorded."
+            )
+    else:
+        verifier = verdict_record.verdict["verifier"]
+        verifier_runner = verifier["runner"]
+        verifier_verdict = verdict_record.verdict["verdict"]
+        finding_counts = verdict_record.counts
+        if verifier_verdict != "pass":
+            raise CompletionVerifierRejectedError(
+                "Completion rejected because the recorded verifier verdict is not pass."
+            )
+        if finding_counts["blocker"] > 0:
+            raise CompletionVerifierRejectedError(
+                "Completion rejected because the recorded verifier verdict has blocker findings."
+            )
     if not scope_pass:
         raise CompletionScopeViolationError(
             "Completion rejected because saved evidence contains a Scope violation."
@@ -294,6 +324,13 @@ def complete_task(
         "task_id": task_id,
         "run_id": run_id,
         "mechanical_result": "pass",
+        "verifier_required": verifier_required,
+        "verifier_runner": verifier_runner,
+        "verifier_verdict": verifier_verdict,
+        "blocker_count": finding_counts["blocker"],
+        "warning_count": finding_counts["warning"],
+        "note_count": finding_counts["note"],
+        "final_result": "pass",
         "completed_at": _utc_timestamp(),
     }
     completion_path = evidence_path / "completion.json"
