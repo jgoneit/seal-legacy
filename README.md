@@ -20,4 +20,9 @@ Outcome Harness는 Agent가 어떻게 작업하는지 통제하지 않는다. Ag
 
 ## 현재 상태
 
-experimental, Phase 0 = CLI skeleton only
+experimental, Phase 1 = Task Spec의 파싱·검증·snapshot 저장
+
+Task Spec은 저장소의 `.harness/checks.json` 카탈로그를 참조하거나 인라인 check
+정의를 사용할 수 있다. `harness task create --file task.json`은 현재 Git `HEAD`를
+`baseline`으로 기록해 `.harness/tasks/<TASK_ID>.json`에 저장한다. 기존 id는
+`--force` 없이 덮어쓰지 않는다.
