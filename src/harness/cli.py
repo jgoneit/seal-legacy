@@ -13,6 +13,7 @@ from .evidence import CompletionError, EvidenceRepositoryError, complete_task, v
 from .exit_codes import ExitCode
 from .gitdiff import GitDiffError, GitDiffTaskError
 from .task import TaskError, TaskRepositoryError, create_task, show_task
+from .verdict import VerdictError, VerdictEvidenceError, record_verdict, show_verdict
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -52,9 +53,35 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     verifier_parser = commands.add_parser(
-        "verifier", help="prepare evidence for an independent verifier"
+        "verifier", help="record, inspect, or prepare independent verifier evidence"
     )
     verifier_commands = verifier_parser.add_subparsers(dest="verifier_command")
+    record_parser = verifier_commands.add_parser(
+        "record", help="validate and store a manual verifier verdict"
+    )
+    record_parser.add_argument("task_id", metavar="TASK_ID")
+    record_parser.add_argument(
+        "--run-id",
+        metavar="RUN_ID",
+        required=True,
+        help="explicit verification run id to attach the verdict to",
+    )
+    record_parser.add_argument(
+        "--file",
+        metavar="VERDICT_JSON",
+        required=True,
+        help="manual verifier verdict JSON file",
+    )
+    verifier_show_parser = verifier_commands.add_parser(
+        "show", help="print a recorded manual verifier verdict"
+    )
+    verifier_show_parser.add_argument("task_id", metavar="TASK_ID")
+    verifier_show_parser.add_argument(
+        "--run-id",
+        metavar="RUN_ID",
+        required=True,
+        help="explicit verification run id to inspect",
+    )
     bundle_parser = verifier_commands.add_parser(
         "bundle", help="export one saved Task/run as a portable verifier bundle"
     )
@@ -110,6 +137,35 @@ def main(argv: Sequence[str] | None = None) -> int:
                     sort_keys=True,
                 )
             )
+        elif arguments.command == "verifier" and arguments.verifier_command == "record":
+            record = record_verdict(
+                arguments.task_id,
+                arguments.run_id,
+                arguments.file,
+            )
+            print(
+                json.dumps(
+                    {
+                        "task_id": record.task_id,
+                        "run_id": record.run_id,
+                        "raw_verdict_path": str(record.raw_path),
+                        "verdict_path": str(record.snapshot_path),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+        elif arguments.command == "verifier" and arguments.verifier_command == "show":
+            record = show_verdict(arguments.task_id, arguments.run_id)
+            print(
+                json.dumps(
+                    record.verdict,
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
         elif arguments.command == "verifier" and arguments.verifier_command == "bundle":
             bundle = create_verification_bundle(
                 arguments.task_id,
@@ -151,12 +207,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     return int(ExitCode.SUCCESS)
 
 
-def _exit_code_for(error: TaskError | GitDiffError | BundleError) -> int:
+def _exit_code_for(error: TaskError | GitDiffError | BundleError | VerdictError) -> int:
     """Return the documented stable exit code for a handled command error."""
     if isinstance(error, CompletionError):
         return int(error.exit_code)
     if isinstance(error, BundleEvidenceError):
         return int(error.exit_code)
+    if isinstance(error, VerdictEvidenceError):
+        return int(ExitCode.EVIDENCE_MISSING_OR_CORRUPT)
     if isinstance(error, (TaskRepositoryError, EvidenceRepositoryError)):
         return int(ExitCode.GIT_OR_REPOSITORY_ERROR)
     if isinstance(error, GitDiffTaskError):
