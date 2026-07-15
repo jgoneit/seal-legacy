@@ -20,10 +20,10 @@ Outcome Harness는 Agent가 어떻게 작업하는지 통제하지 않는다. Ag
 
 ## 현재 상태
 
-experimental, Phase 1c = Task Spec snapshot, 변경 수집, check 실행, mechanical
-verification 및 explicit evidence completion. 저장된 특정 run을 독립 검증자에게
-전달할 portable bundle export는 구현되어 있지만, verdict 기록과 `complete` 통합은 아직
-구현되지 않았다.
+experimental, Phase 2a = Task Spec snapshot, 변경 수집, check 실행, mechanical
+verification, portable verifier bundle export, manual verifier verdict 기록 및
+`complete` 통합이다. adapter, 외부 API/CLI 호출, fallback 자동 실행, ledger, policy는
+구현하지 않는다.
 
 Task Spec은 저장소의 `.harness/checks.json` 카탈로그를 참조하거나 인라인 check
 정의를 사용할 수 있다. `harness task create --file task.json`은 현재 Git `HEAD`를
@@ -63,8 +63,8 @@ snapshot `baseline` 대신 해당 Git ref를 사용한다.
 - check별 stdout/stderr 파일
 
 `verification.json`은 scope와 required check 결과로 계산한 `mechanical_result`만
-기록한다. 이 mechanical verification은 independent verifier의 verdict, completion
-integration, ledger를 구현하지 않는다.
+기록한다. manual verifier verdict는 별도의 명시적 명령으로 같은 run에 기록되며,
+mechanical 결과를 덮어쓰지 않는다.
 
 ## Phase 1c: 저장 evidence의 complete 판정
 
@@ -77,12 +77,46 @@ required check의 pass, `required_checks_pass`, `mechanical_result="pass"`를 �
 확인한다. 성공하면 동일한
 `.harness/evidence/<TASK_ID>/<RUN_ID>/completion.json`을 기록한다.
 
-Phase 1c에는 independent verifier evidence가 없으므로 Task Spec의
-`verifier.required=true`는 complete를 항상 거부한다(exit 7). 이는 requirement를
-자동으로 낮추지 않는 의도된 fail-closed 동작이다. `verifier.required=false` Task는
-mechanical evidence만으로 complete할 수 있다.
+Task Spec의 `verifier.required=true`이면 유효한 verdict, `verdict="pass"`, blocker
+0개가 모두 필요하다. verdict가 없으면 exit 7로 fail-closed 한다. optional verifier는
+verdict 없이 mechanical evidence만으로 완료할 수 있지만, 기록된 verdict가 `fail` 또는
+`unable`이거나 blocker를 포함하면 그 결과를 무시하고 complete할 수 없다.
+warning과 note는 완료를 차단하지 않는다.
 
 안정적인 CLI exit code는 [docs/exit-codes.md](docs/exit-codes.md)에 기록한다.
+
+## Phase 2a: Manual Verifier verdict
+
+저장된 verification run에 대해 사람이 작성한 JSON verdict를 기록하거나 조회한다.
+
+```text
+harness verifier record <TASK_ID> --run-id <RUN_ID> --file <VERDICT_JSON>
+harness verifier show <TASK_ID> --run-id <RUN_ID>
+```
+
+`record`는 supplied JSON의 Task/run identity, verdict, finding severity와 line 형식을
+검증한 뒤, 입력 원본을 `verdict.raw.json`으로 그대로 보존하고 정규화 snapshot을
+`verdict.json`으로 저장한다. 두 파일 중 하나가 없거나 parse되지 않거나 서로 다른
+의미를 가지면 complete는 이를 pass로 취급하지 않는다. `show`는 검증된 정규화
+snapshot을 출력한다. template 생성 command는 제공하지 않는다.
+
+성공한 `completion.json`에는 mechanical 결과와 함께 다음 verifier 판단을 남긴다.
+
+- `verifier_required`, `verifier_runner`, `verifier_verdict`
+- `blocker_count`, `warning_count`, `note_count`
+- `final_result`
+
+Verifier 지원 우선순위는 다음과 같다.
+
+1. Cross-vendor Verifier (기본)
+2. 같은 벤더의 fresh-context Verifier
+3. Manual Verifier
+4. Task에서 verifier가 optional일 때만 mechanical-only
+
+같은 벤더라도 fresh context, bundle-only 입력, write 권한 없음, Doer 대화 미전달 조건을
+모두 만족하면 Independent Verifier로 기록할 수 있다. Phase 2a의 구현은 manual JSON
+recording만 제공하며, verifier adapter, LLM 호출, network 호출, 외부 CLI fallback은 수행하지
+않는다.
 
 ## Verifier bundle export
 
@@ -113,13 +147,12 @@ bundle changed-files에서 제외하거나 거부한다. structured evidence와 
 > Harness는 자동 redaction이 완전하다고 주장하지 않는다. 민감한 값을 출력하지 않는 check를
 > 사용하고 bundle 자체도 민감한 artifact로 취급해야 한다.
 
-## Phase 2 이후
+## Phase 2a 범위와 다음 단계
 
-이후 Phase는 Outcome Harness 자신을 이 Harness로 검증한다. 각 Task는
-`.harness/tasks/`에 저장된 Task Spec을 사용하고, 변경에 대한 mechanical evidence는
-`harness verify <TASK_ID>`로 생성한다. independent verifier verdict 기록, `complete`
-통합, adapter, LLM 호출, ledger는 이후 Phase의 별도 작업이며 현재 `complete`가 이를
-성공으로 가장하지 않는다.
+Outcome Harness 자신은 `.harness/tasks/`에 저장된 Task Spec과
+`harness verify <TASK_ID>` mechanical evidence로 검증한다. Phase 2a는 manual
+verdict의 기록과 `complete` gate까지만 다룬다. adapter, 실제 LLM 또는 network 호출,
+자동 fallback, ledger, policy는 이후 Phase의 별도 작업이다.
 
 > 경고: check의 stdout과 stderr는 evidence 파일에 그대로 저장된다. Harness는 secret을
 > 자동으로 제거하거나 마스킹한다고 주장하지 않는다. 민감한 값을 출력하지 않는 check를
