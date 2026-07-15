@@ -7,6 +7,8 @@ import json
 from collections.abc import Sequence
 
 from . import __version__
+from .evidence import verify_task
+from .gitdiff import GitDiffError
 from .task import TaskError, create_task, show_task
 
 
@@ -35,6 +37,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     show_parser = task_commands.add_parser("show", help="print a stored Task snapshot")
     show_parser.add_argument("task_id", metavar="TASK_ID")
+
+    verify_parser = commands.add_parser(
+        "verify", help="run Task checks and write mechanical verification evidence"
+    )
+    verify_parser.add_argument("task_id", metavar="TASK_ID")
+    verify_parser.add_argument(
+        "--base-ref",
+        metavar="GIT_REF",
+        help="override the Task snapshot baseline for this verification run",
+    )
     return parser
 
 
@@ -50,6 +62,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif arguments.command == "task" and arguments.task_command == "show":
             snapshot = show_task(arguments.task_id)
             print(json.dumps(snapshot, ensure_ascii=False, indent=2, sort_keys=True))
-    except TaskError as error:
+        elif arguments.command == "verify":
+            run = verify_task(arguments.task_id, base_ref=arguments.base_ref)
+            print(
+                json.dumps(
+                    {
+                        "run_id": run.run_id,
+                        "evidence_path": str(run.evidence_path),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+    except (TaskError, GitDiffError) as error:
         parser.error(str(error))
     return 0
