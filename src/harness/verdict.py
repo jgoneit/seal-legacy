@@ -1,6 +1,6 @@
-"""Manual verifier verdict parsing, storage, and retrieval.
+"""Manual verifier Verdict parsing, storage, and retrieval.
 
-This module only records a supplied manual verdict for one already-saved
+This module records a supplied Manual Verdict for one already-saved
 verification run. It does not invoke a model, call a network service, rerun
 checks, or decide mechanical verification.
 """
@@ -12,38 +12,35 @@ import os
 import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .run_validator import VerdictValidationError, finding_severities, validate_verdict
 from .task import TaskError, find_repository_root, show_task, validate_task_id
 
 
-VERDICT_SCHEMA_VERSION = 1
 RAW_VERDICT_FILENAME = "verdict.raw.json"
 VERDICT_FILENAME = "verdict.json"
-VERDICTS = frozenset({"pass", "fail", "unable"})
-SEVERITIES = frozenset({"blocker", "warning", "note"})
 RUN_ID_CHARACTERS = frozenset(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
 )
 
 
 class VerdictError(TaskError):
-    """Base error for manual verifier verdict operations."""
+    """Base error for Manual Verdict operations."""
 
 
 class VerdictInputError(VerdictError):
-    """Raised when a requested verdict or command identity is invalid."""
+    """Raised when a requested Verdict or command identity is invalid."""
 
 
 class VerdictEvidenceError(VerdictError):
-    """Raised when saved verdict evidence is absent, corrupt, or inconsistent."""
+    """Raised when saved Verdict evidence is absent, corrupt, or inconsistent."""
 
 
 @dataclass(frozen=True)
 class VerdictRecord:
-    """One normalized verdict and its preserved raw source file."""
+    """One validated Verdict and its preserved raw source file."""
 
     task_id: str
     run_id: str
@@ -60,7 +57,7 @@ def record_verdict(
     *,
     cwd: str | Path | None = None,
 ) -> VerdictRecord:
-    """Validate and atomically store one manual verdict for a saved Task run."""
+    """Validate and atomically store one Manual Verdict for a saved Task run."""
     validate_task_id(task_id)
     validate_run_id(run_id)
     repository = find_repository_root(cwd)
@@ -70,22 +67,23 @@ def record_verdict(
 
     source_path = Path(verdict_file)
     raw_bytes = _read_source_bytes(source_path)
-    normalized = _parse_verdict_bytes(
+    snapshot = _parse_verdict_bytes(
         raw_bytes,
         f"Verdict file '{source_path}'",
         persisted=False,
+        expected_task_id=task_id,
+        expected_run_id=run_id,
     )
-    _assert_verdict_identity(normalized, task_id, run_id, persisted=False)
 
     raw_path = evidence_path / RAW_VERDICT_FILENAME
     snapshot_path = evidence_path / VERDICT_FILENAME
     _atomic_write_bytes(raw_path, raw_bytes)
-    _atomic_write_json(snapshot_path, normalized)
+    _atomic_write_json(snapshot_path, snapshot)
     return VerdictRecord(
         task_id=task_id,
         run_id=run_id,
-        verdict=normalized,
-        counts=count_findings(normalized),
+        verdict=snapshot,
+        counts=count_findings(snapshot),
         raw_path=raw_path,
         snapshot_path=snapshot_path,
     )
@@ -97,7 +95,7 @@ def show_verdict(
     *,
     cwd: str | Path | None = None,
 ) -> VerdictRecord:
-    """Load one recorded verdict after validating the Task/run identity."""
+    """Load one recorded Verdict after validating the Task/run identity."""
     validate_task_id(task_id)
     validate_run_id(run_id)
     repository = find_repository_root(cwd)
@@ -107,7 +105,7 @@ def show_verdict(
     record = load_recorded_verdict(evidence_path, task_id, run_id)
     if record is None:
         raise VerdictEvidenceError(
-            "No manual verifier verdict has been recorded for the requested Task run."
+            "No Manual Verifier Verdict has been recorded for the requested Task run."
         )
     return record
 
@@ -117,11 +115,11 @@ def load_recorded_verdict(
     task_id: str,
     run_id: str,
 ) -> VerdictRecord | None:
-    """Load consistent raw and normalized verdict files, or return None if absent.
+    """Load consistent raw and canonical Verdict files, or return None if absent.
 
     A partially-written or malformed record is never interpreted as a passing
-    verdict. The raw source is parsed again and must normalize to exactly the
-    saved snapshot before it can influence completion.
+    Verdict. The raw source is parsed again and must validate to exactly the
+    saved canonical snapshot before it can influence completion.
     """
     validate_task_id(task_id)
     validate_run_id(run_id)
@@ -134,24 +132,26 @@ def load_recorded_verdict(
         return None
     if not raw_exists or not snapshot_exists:
         raise VerdictEvidenceError(
-            "Manual verdict evidence must include both raw and normalized verdict files."
+            "Manual Verdict evidence must include both raw and canonical Verdict files."
         )
 
     raw = _parse_verdict_bytes(
         _read_evidence_bytes(raw_path),
         RAW_VERDICT_FILENAME,
         persisted=True,
+        expected_task_id=task_id,
+        expected_run_id=run_id,
     )
     snapshot = _parse_verdict_bytes(
         _read_evidence_bytes(snapshot_path),
         VERDICT_FILENAME,
         persisted=True,
+        expected_task_id=task_id,
+        expected_run_id=run_id,
     )
-    _assert_verdict_identity(raw, task_id, run_id, persisted=True)
-    _assert_verdict_identity(snapshot, task_id, run_id, persisted=True)
     if raw != snapshot:
         raise VerdictEvidenceError(
-            "Manual verdict raw source does not match its normalized snapshot."
+            "Manual Verdict raw source does not match its canonical snapshot."
         )
 
     return VerdictRecord(
@@ -164,73 +164,28 @@ def load_recorded_verdict(
     )
 
 
-def normalize_verdict(value: object) -> dict[str, Any]:
-    """Validate a Verdict Schema v1 object and return its normalized snapshot."""
-    verdict = _require_object(value, "Verdict")
-    _require_exact_keys(
-        verdict,
-        required={
-            "schema_version",
-            "task_id",
-            "run_id",
-            "verifier",
-            "verdict",
-            "summary",
-            "findings",
-            "reviewed_at",
-        },
-        context="Verdict",
-    )
-
-    if type(verdict["schema_version"]) is not int or verdict["schema_version"] != VERDICT_SCHEMA_VERSION:
-        raise VerdictInputError(
-            f"Verdict schema_version must be {VERDICT_SCHEMA_VERSION}."
-        )
-
-    task_id = _normalize_task_id(verdict["task_id"])
-    run_id = validate_run_id(verdict["run_id"])
-    verifier = _normalize_verifier(verdict["verifier"])
-    verdict_value = verdict["verdict"]
-    if not isinstance(verdict_value, str) or verdict_value not in VERDICTS:
-        allowed = ", ".join(sorted(VERDICTS))
-        raise VerdictInputError(f"Verdict verdict must be one of: {allowed}.")
-    summary = _require_nonempty_string(verdict["summary"], "Verdict summary")
-
-    findings_value = verdict["findings"]
-    if not isinstance(findings_value, list):
-        raise VerdictInputError("Verdict findings must be an array.")
-    findings = [
-        _normalize_finding(finding, index)
-        for index, finding in enumerate(findings_value)
-    ]
-    reviewed_at = _normalize_timestamp(verdict["reviewed_at"])
-
-    return {
-        "schema_version": VERDICT_SCHEMA_VERSION,
-        "task_id": task_id,
-        "run_id": run_id,
-        "verifier": verifier,
-        "verdict": verdict_value,
-        "summary": summary,
-        "findings": findings,
-        "reviewed_at": reviewed_at,
-    }
-
-
 def count_findings(verdict: Mapping[str, Any]) -> dict[str, int]:
-    """Return the blocker, warning, and note totals for a normalized verdict."""
+    """Return counts for the severities declared by the packaged Schema."""
     findings = verdict.get("findings")
     if not isinstance(findings, list):
-        raise VerdictEvidenceError("Normalized verdict findings must be an array.")
-    counts = {"blocker": 0, "warning": 0, "note": 0}
+        raise VerdictEvidenceError("Validated Verdict findings must be an array.")
+    counts = empty_finding_counts()
     for finding in findings:
         if not isinstance(finding, Mapping):
-            raise VerdictEvidenceError("Normalized verdict contains an invalid finding.")
+            raise VerdictEvidenceError("Validated Verdict contains an invalid finding.")
         severity = finding.get("severity")
-        if severity not in counts:
-            raise VerdictEvidenceError("Normalized verdict contains an unknown severity.")
-        counts[severity] += 1
+        if not isinstance(severity, str):
+            raise VerdictEvidenceError("Validated Verdict contains an invalid finding severity.")
+        counts[severity] = counts.get(severity, 0) + 1
     return counts
+
+
+def empty_finding_counts() -> dict[str, int]:
+    """Return zero counts for the severities declared by the packaged Schema."""
+    try:
+        return {severity: 0 for severity in finding_severities()}
+    except VerdictValidationError as error:
+        raise VerdictEvidenceError("Could not load Verdict severity definitions.") from error
 
 
 def validate_run_id(run_id: object) -> str:
@@ -262,7 +217,7 @@ def _validate_saved_run_identity(
     verification = _read_evidence_json_object(evidence_path / "verification.json")
     if task.get("id") != task_id:
         raise VerdictInputError(
-            "Saved evidence task snapshot does not match the requested Task id."
+            "Saved evidence Task snapshot does not match the requested Task id."
         )
     if verification.get("task_id") != task_id or verification.get("run_id") != run_id:
         raise VerdictInputError(
@@ -274,17 +229,17 @@ def _read_source_bytes(path: Path) -> bytes:
     try:
         return path.read_bytes()
     except OSError as error:
-        raise VerdictInputError(f"Could not read verdict file: {path}.") from error
+        raise VerdictInputError(f"Could not read Verdict file: {path}.") from error
 
 
 def _read_evidence_bytes(path: Path) -> bytes:
     if not path.is_file():
-        raise VerdictEvidenceError(f"Required verdict evidence file is missing: {path.name}.")
+        raise VerdictEvidenceError(f"Required Verdict evidence file is missing: {path.name}.")
     try:
         return path.read_bytes()
     except OSError as error:
         raise VerdictEvidenceError(
-            f"Could not read verdict evidence file: {path.name}."
+            f"Could not read Verdict evidence file: {path.name}."
         ) from error
 
 
@@ -304,6 +259,8 @@ def _parse_verdict_bytes(
     description: str,
     *,
     persisted: bool,
+    expected_task_id: str,
+    expected_run_id: str,
 ) -> dict[str, Any]:
     try:
         value = json.loads(raw.decode("utf-8"))
@@ -311,130 +268,14 @@ def _parse_verdict_bytes(
         error_type = VerdictEvidenceError if persisted else VerdictInputError
         raise error_type(f"{description} is not valid JSON.") from error
     try:
-        return normalize_verdict(value)
-    except VerdictError as error:
-        if persisted:
-            raise VerdictEvidenceError(f"{description} does not match Verdict Schema v1.") from error
-        raise
-
-
-def _assert_verdict_identity(
-    verdict: Mapping[str, Any],
-    task_id: str,
-    run_id: str,
-    *,
-    persisted: bool,
-) -> None:
-    if verdict.get("task_id") == task_id and verdict.get("run_id") == run_id:
-        return
-    error_type = VerdictEvidenceError if persisted else VerdictInputError
-    raise error_type("Verdict task_id and run_id must match the requested Task run.")
-
-
-def _normalize_task_id(value: object) -> str:
-    try:
-        return validate_task_id(value)
-    except TaskError as error:
-        raise VerdictInputError(f"Verdict task_id is invalid: {error}") from error
-
-
-def _normalize_verifier(value: object) -> dict[str, Any]:
-    verifier = _require_object(value, "Verdict verifier")
-    _require_exact_keys(
-        verifier,
-        required={"kind", "runner", "model", "fresh_context"},
-        context="Verdict verifier",
-    )
-    if verifier["kind"] != "manual":
-        raise VerdictInputError("Verdict verifier kind must be 'manual'.")
-    runner = _require_nonempty_string(verifier["runner"], "Verdict verifier runner")
-    model = verifier["model"]
-    if model is not None:
-        model = _require_nonempty_string(model, "Verdict verifier model")
-    fresh_context = verifier["fresh_context"]
-    if type(fresh_context) is not bool:
-        raise VerdictInputError("Verdict verifier fresh_context must be a boolean.")
-    return {
-        "kind": "manual",
-        "runner": runner,
-        "model": model,
-        "fresh_context": fresh_context,
-    }
-
-
-def _normalize_finding(value: object, index: int) -> dict[str, Any]:
-    context = f"Verdict findings[{index}]"
-    finding = _require_object(value, context)
-    _require_exact_keys(
-        finding,
-        required={"severity", "code", "title", "detail"},
-        optional={"path", "line"},
-        context=context,
-    )
-    severity = finding["severity"]
-    if not isinstance(severity, str) or severity not in SEVERITIES:
-        allowed = ", ".join(sorted(SEVERITIES))
-        raise VerdictInputError(f"{context} severity must be one of: {allowed}.")
-    normalized: dict[str, Any] = {
-        "severity": severity,
-        "code": _require_nonempty_string(finding["code"], f"{context} code"),
-        "title": _require_nonempty_string(finding["title"], f"{context} title"),
-        "detail": _require_nonempty_string(finding["detail"], f"{context} detail"),
-    }
-    if "path" in finding:
-        normalized["path"] = _require_nonempty_string(finding["path"], f"{context} path")
-    if "line" in finding:
-        line = finding["line"]
-        if type(line) is not int or line <= 0:
-            raise VerdictInputError(f"{context} line must be a positive integer.")
-        normalized["line"] = line
-    return normalized
-
-
-def _normalize_timestamp(value: object) -> str:
-    timestamp = _require_nonempty_string(value, "Verdict reviewed_at")
-    if "T" not in timestamp:
-        raise VerdictInputError("Verdict reviewed_at must be an ISO-8601 date-time.")
-    parseable = f"{timestamp[:-1]}+00:00" if timestamp.endswith("Z") else timestamp
-    try:
-        parsed = datetime.fromisoformat(parseable)
-    except ValueError as error:
-        raise VerdictInputError("Verdict reviewed_at must be an ISO-8601 date-time.") from error
-    if parsed.tzinfo is None:
-        raise VerdictInputError(
-            "Verdict reviewed_at must include an ISO-8601 UTC offset."
+        return validate_verdict(
+            value,
+            expected_task_id=expected_task_id,
+            expected_run_id=expected_run_id,
         )
-    return timestamp
-
-
-def _require_object(value: object, context: str) -> Mapping[str, Any]:
-    if not isinstance(value, Mapping):
-        raise VerdictInputError(f"{context} must be a JSON object.")
-    return value
-
-
-def _require_exact_keys(
-    value: Mapping[str, Any],
-    *,
-    required: set[str],
-    context: str,
-    optional: set[str] | None = None,
-) -> None:
-    optional = optional or set()
-    missing = required - set(value)
-    unexpected = set(value) - required - optional
-    if missing:
-        names = ", ".join(sorted(missing))
-        raise VerdictInputError(f"{context} is missing required field(s): {names}.")
-    if unexpected:
-        names = ", ".join(sorted(unexpected))
-        raise VerdictInputError(f"{context} has unexpected field(s): {names}.")
-
-
-def _require_nonempty_string(value: object, context: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise VerdictInputError(f"{context} must be a non-empty string.")
-    return value
+    except VerdictValidationError as error:
+        error_type = VerdictEvidenceError if persisted else VerdictInputError
+        raise error_type(str(error)) from error
 
 
 def _atomic_write_json(path: Path, value: object) -> None:

@@ -15,11 +15,16 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install -e '.[test]'
+      - run: python scripts/sync_contracts.py --check
       - run: PYTHONPATH=src python -m unittest discover -s tests -v
       - run: git diff --check HEAD^ HEAD
       - run: |
+          python -m pip wheel --no-deps --wheel-dir "$RUNNER_TEMP/wheels" .
+          python -m venv "$RUNNER_TEMP/clean-install"
+          "$RUNNER_TEMP/clean-install/bin/python" -m pip install "$RUNNER_TEMP"/wheels/outcome_harness-*.whl
           cd "$RUNNER_TEMP"
-          harness --help
-          harness --version
-          python -c "import harness; print(harness.__version__)"
-          python -c "from importlib.resources import files; assert files('harness').joinpath('resources', 'verifier.md').is_file()"
+          "$RUNNER_TEMP/clean-install/bin/harness" --help
+          "$RUNNER_TEMP/clean-install/bin/harness" --version
+          "$RUNNER_TEMP/clean-install/bin/python" -c "import harness; print(harness.__version__)"
+          "$RUNNER_TEMP/clean-install/bin/python" -c "from harness.run_validator import validate_verdict; print(validate_verdict)"
+          "$RUNNER_TEMP/clean-install/bin/python" -c "from importlib.resources import files; resource = files('harness').joinpath('resources'); assert resource.joinpath('verifier.md').is_file(); assert resource.joinpath('verdict.schema.json').is_file()"

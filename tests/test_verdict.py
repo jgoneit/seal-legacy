@@ -20,7 +20,7 @@ sys.path.insert(0, str(SOURCE_ROOT))
 from harness import cli
 from harness.evidence import verify_task
 from harness.task import create_task
-from harness.verdict import VerdictInputError, record_verdict, show_verdict
+from harness.verdict import VerdictEvidenceError, VerdictInputError, record_verdict, show_verdict
 
 try:
     from jsonschema import Draft202012Validator, FormatChecker
@@ -251,6 +251,28 @@ class ManualVerdictTests(unittest.TestCase):
 
         with self.assertRaises(VerdictInputError):
             record_verdict("TASK-VERDICT", run_id, source, cwd=self.repository)
+
+    def test_show_rejects_valid_raw_verdict_tampering(self) -> None:
+        run_id = self._run()
+        source = self._write_verdict(self._document(run_id))
+        record = record_verdict("TASK-VERDICT", run_id, source, cwd=self.repository)
+        tampered = self._document(run_id)
+        tampered["summary"] = "Raw Verdict was changed after recording."
+        record.raw_path.write_text(json.dumps(tampered), encoding="utf-8")
+
+        with self.assertRaises(VerdictEvidenceError):
+            show_verdict("TASK-VERDICT", run_id, cwd=self.repository)
+
+    def test_show_rejects_valid_snapshot_tampering(self) -> None:
+        run_id = self._run()
+        source = self._write_verdict(self._document(run_id))
+        record = record_verdict("TASK-VERDICT", run_id, source, cwd=self.repository)
+        tampered = self._document(run_id)
+        tampered["summary"] = "Canonical Verdict was changed after recording."
+        record.snapshot_path.write_text(json.dumps(tampered), encoding="utf-8")
+
+        with self.assertRaises(VerdictEvidenceError):
+            show_verdict("TASK-VERDICT", run_id, cwd=self.repository)
 
 
 @unittest.skipUnless(Draft202012Validator, "install the test extra to run JSON Schema parity")

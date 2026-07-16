@@ -4,21 +4,25 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "outcome-harness"
-description = "Experimental CLI skeleton for Outcome Harness."
+description = "Experimental local CLI for evidence-based Task completion."
 requires-python = ">=3.11"
 dynamic = ["version"]
+dependencies = [
+    "jsonschema>=4.18",
+    "rfc3339-validator>=0.1.4",
+]
 
 [project.scripts]
 harness = "harness.cli:main"
 
 [project.optional-dependencies]
-test = ["jsonschema>=4.18"]
+test = []
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
-harness = ["resources/*.md"]
+harness = ["resources/*.md", "resources/*.json"]
 
 [tool.setuptools.dynamic]
 version = {attr = "harness.__version__"}

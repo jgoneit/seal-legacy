@@ -33,7 +33,7 @@ from .gitdiff import (
     is_harness_metadata_path,
 )
 from .task import TaskError, show_task, validate_task_id
-from .verdict import VerdictEvidenceError, load_recorded_verdict
+from .verdict import VerdictEvidenceError, empty_finding_counts, load_recorded_verdict
 
 
 VERIFICATION_SCHEMA_VERSION = 1
@@ -287,7 +287,12 @@ def complete_task(
 
     verifier_runner: str | None = None
     verifier_verdict: str | None = None
-    finding_counts = {"blocker": 0, "warning": 0, "note": 0}
+    try:
+        finding_counts = empty_finding_counts()
+    except VerdictEvidenceError as error:
+        raise CompletionEvidenceError(
+            "Could not load Manual Verdict severity definitions."
+        ) from error
     if verdict_record is None:
         if verifier_required:
             raise CompletionVerifierEvidenceMissingError(

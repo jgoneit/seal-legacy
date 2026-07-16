@@ -56,10 +56,6 @@ class VerifierBundleTests(unittest.TestCase):
         self._git("init", "--quiet")
         self._write(".gitignore", "ignored.txt\n")
         self._write(".harness/checks.json", '{"checks": []}\n')
-        self._write(
-            "prompts/verifier.md",
-            (PROJECT_ROOT / "prompts" / "verifier.md").read_text(encoding="utf-8"),
-        )
         self._write("src/example.txt", "before\n")
         self._git("add", ".")
         self._git(
@@ -170,18 +166,22 @@ class VerifierBundleTests(unittest.TestCase):
         self.assertEqual(check_records[0]["cwd"], ".")
         self.assertEqual(
             (bundle.bundle_path / "verifier.md").read_text(encoding="utf-8"),
-            (PROJECT_ROOT / "prompts" / "verifier.md").read_text(encoding="utf-8"),
+            (PROJECT_ROOT / "src" / "harness" / "resources" / "verifier.md").read_text(
+                encoding="utf-8"
+            ),
         )
 
-    def test_uses_packaged_instructions_when_repository_prompt_is_missing(self) -> None:
+    def test_ignores_repository_prompt_override(self) -> None:
         self._create_task()
-        (self.repository / "prompts" / "verifier.md").unlink()
+        self._write("prompts/verifier.md", "repository override must not be bundled\n")
 
         bundle = self._bundle(self._run().run_id)
 
         self.assertEqual(
             (bundle.bundle_path / "verifier.md").read_text(encoding="utf-8"),
-            (PROJECT_ROOT / "prompts" / "verifier.md").read_text(encoding="utf-8"),
+            (PROJECT_ROOT / "src" / "harness" / "resources" / "verifier.md").read_text(
+                encoding="utf-8"
+            ),
         )
 
     def test_manifest_hashes_and_total_size_match_payloads(self) -> None:
@@ -325,8 +325,6 @@ class BundleSchemaParityTests(unittest.TestCase):
             subprocess.run(["git", "init", "--quiet"], cwd=repository, check=True)
             (repository / ".harness").mkdir()
             (repository / ".harness" / "checks.json").write_text('{"checks": []}\n')
-            (repository / "prompts").mkdir()
-            shutil.copy(PROJECT_ROOT / "prompts" / "verifier.md", repository / "prompts")
             (repository / "src").mkdir()
             (repository / "src" / "example.txt").write_text("fixture\n", encoding="utf-8")
             subprocess.run(["git", "add", "."], cwd=repository, check=True)
