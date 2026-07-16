@@ -26,5 +26,6 @@ jobs:
           "$RUNNER_TEMP/clean-install/bin/harness" --help
           "$RUNNER_TEMP/clean-install/bin/harness" --version
           "$RUNNER_TEMP/clean-install/bin/python" -c "import harness; print(harness.__version__)"
-          "$RUNNER_TEMP/clean-install/bin/python" -c "from harness.run_validator import validate_verdict; print(validate_verdict)"
+          "$RUNNER_TEMP/clean-install/bin/python" -c "from harness.run_validator import validate_run; print(validate_run)"
+          "$RUNNER_TEMP/clean-install/bin/python" -c "from harness.verdict_validator import validate_verdict; print(validate_verdict)"
           "$RUNNER_TEMP/clean-install/bin/python" -c "from importlib.resources import files; resource = files('harness').joinpath('resources'); assert resource.joinpath('verifier.md').is_file(); assert resource.joinpath('verdict.schema.json').is_file()"
