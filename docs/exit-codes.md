@@ -1,7 +1,7 @@
 # Outcome Harness exit codes
 
-Phase 1c부터 아래 exit code는 공개 CLI 계약이다. 이후 Phase에서 새 명령을
-추가할 수는 있지만, 이미 정의된 숫자의 의미를 바꾸지 않는다.
+아래 exit code는 공개 CLI 계약이다. 이후 새 명령을 추가할 수는 있지만, 이미
+정의된 숫자의 의미를 바꾸지 않는다.
 
 | Code | Meaning | Typical condition |
 | ---: | --- | --- |

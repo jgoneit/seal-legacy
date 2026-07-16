@@ -1,7 +1,13 @@
-# ADR 0001: Outcome Over Process
+# ADR 0000: Outcome Over Process (historical)
 
-Status: Accepted
+Status: Superseded
 Date: 2026-07-16
+
+> Historical design note: this document records an earlier direction and does
+> not describe the current shipped contract. In particular, its references to
+> cross-vendor execution, runs.jsonl, trust summaries, and alternative Verdict
+> states are not implemented. See the README, architecture document, and
+> ADR 0001 for the current supported surface.
 
 ## Context
 
