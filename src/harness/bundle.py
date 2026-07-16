@@ -84,9 +84,10 @@ def create_verification_bundle(
     """Create an atomic, portable verifier bundle for one saved Task/run.
 
     Only the selected run's required evidence, check logs referenced by that
-    evidence, and the repository verifier instructions are copied.  Repository
-    source files, arbitrary ignored files, process environment data, completion
-    records, and verifier verdicts are deliberately outside this operation.
+    evidence, and the installed package's verifier instructions are copied.
+    Repository source files, arbitrary ignored files, process environment data,
+    completion records, and verifier verdicts are deliberately outside this
+    operation.
     """
     validate_task_id(task_id)
     _validate_run_id(run_id)
@@ -114,7 +115,7 @@ def create_verification_bundle(
         verification=verification,
         evidence_path=evidence_path,
     )
-    prompt = _read_verifier_instructions(repository)
+    prompt = _read_verifier_instructions()
     payloads = _bundle_payloads(
         repository=repository,
         evidence_task=evidence_task,
@@ -445,21 +446,16 @@ def _build_manifest(task_id: str, run_id: str, payloads: Mapping[str, bytes]) ->
     }
 
 
-def _read_verifier_instructions(repository: Path) -> str:
-    path = repository / "prompts" / "verifier.md"
+def _read_verifier_instructions() -> str:
+    """Read the installed package's versioned verifier instruction resource."""
     try:
-        return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        try:
-            return (
-                resources.files("harness")
-                .joinpath("resources", "verifier.md")
-                .read_text(encoding="utf-8")
-            )
-        except (FileNotFoundError, ModuleNotFoundError, OSError, UnicodeDecodeError) as error:
-            raise BundleEvidenceError(
-                "Verifier instructions are missing or unreadable."
-            ) from error
+        return (
+            resources.files("harness")
+            .joinpath("resources", "verifier.md")
+            .read_text(encoding="utf-8")
+        )
+    except (FileNotFoundError, ModuleNotFoundError, OSError, UnicodeDecodeError) as error:
+        raise BundleEvidenceError("Verifier instructions are missing or unreadable.") from error
 
 
 def _read_evidence_json(evidence_path: Path, filename: str) -> dict[str, Any]:
