@@ -173,6 +173,17 @@ class VerifierBundleTests(unittest.TestCase):
             (PROJECT_ROOT / "prompts" / "verifier.md").read_text(encoding="utf-8"),
         )
 
+    def test_uses_packaged_instructions_when_repository_prompt_is_missing(self) -> None:
+        self._create_task()
+        (self.repository / "prompts" / "verifier.md").unlink()
+
+        bundle = self._bundle(self._run().run_id)
+
+        self.assertEqual(
+            (bundle.bundle_path / "verifier.md").read_text(encoding="utf-8"),
+            (PROJECT_ROOT / "prompts" / "verifier.md").read_text(encoding="utf-8"),
+        )
+
     def test_manifest_hashes_and_total_size_match_payloads(self) -> None:
         self._create_task()
         bundle = self._bundle(self._run().run_id)

@@ -54,7 +54,7 @@ def task_spec() -> dict[str, object]:
         "scope": ["./src//harness/", "tests\\unit"],
         "checks": ["unit-test"],
         "risk": "medium",
-        "verifier": {"required": True, "preferred_runner": "grok"},
+        "verifier": {"required": True},
     }
 
 

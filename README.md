@@ -85,6 +85,29 @@ warning과 note는 완료를 차단하지 않는다.
 
 안정적인 CLI exit code는 [docs/exit-codes.md](docs/exit-codes.md)에 기록한다.
 
+## Test baseline and clean install
+
+테스트 소스는 repository에 포함된다. source tree에서 빠르게 실행할 때는 다음 명령을
+사용한다.
+
+```text
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+```
+
+JSON Schema parity test까지 포함한 clean test 환경은 project metadata의 `test` extra를
+사용한다.
+
+```text
+python3 -m pip install -e '.[test]'
+python3 -m unittest discover -s tests -v
+```
+
+기존 테스트는 clean checkout에서도 `src/`를 import path에 추가하는 구조다. installed
+package 자체의 CLI와 resource는 별도 smoke test로 검증한다. bundle은 repository의
+`prompts/verifier.md`를 우선 사용하고, 해당 파일이 없는 installed-package 환경에서는
+package에 포함된 동일한 default instruction을 fallback으로 사용한다. runtime은 schema
+파일을 직접 읽지 않으며 schema는 source-tree parity test에서만 사용한다.
+
 ## Phase 2a: Manual Verifier verdict
 
 저장된 verification run에 대해 사람이 작성한 JSON verdict를 기록하거나 조회한다.
