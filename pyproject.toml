@@ -17,6 +17,9 @@ test = ["jsonschema>=4.18"]
 [tool.setuptools]
 package-dir = {"" = "src"}
 
+[tool.setuptools.package-data]
+harness = ["resources/*.md"]
+
 [tool.setuptools.dynamic]
 version = {attr = "harness.__version__"}
 

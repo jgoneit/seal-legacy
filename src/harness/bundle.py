@@ -17,6 +17,7 @@ import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from importlib import resources
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
@@ -448,8 +449,17 @@ def _read_verifier_instructions(repository: Path) -> str:
     path = repository / "prompts" / "verifier.md"
     try:
         return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as error:
-        raise BundleEvidenceError("Verifier instructions are missing or unreadable.") from error
+    except (OSError, UnicodeDecodeError):
+        try:
+            return (
+                resources.files("harness")
+                .joinpath("resources", "verifier.md")
+                .read_text(encoding="utf-8")
+            )
+        except (FileNotFoundError, ModuleNotFoundError, OSError, UnicodeDecodeError) as error:
+            raise BundleEvidenceError(
+                "Verifier instructions are missing or unreadable."
+            ) from error
 
 
 def _read_evidence_json(evidence_path: Path, filename: str) -> dict[str, Any]:
