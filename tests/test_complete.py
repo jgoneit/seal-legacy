@@ -202,6 +202,7 @@ class CompleteCommandTests(unittest.TestCase):
                 "schema_version": 1,
                 "task_id": "TASK-COMPLETE",
                 "run_id": run.run_id,
+                "evidence_sha256": completion["evidence_sha256"],
                 "mechanical_result": "pass",
                 "verifier_required": False,
                 "verifier_runner": None,
