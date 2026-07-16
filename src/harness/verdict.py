@@ -15,8 +15,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .run_validator import VerdictValidationError, finding_severities, validate_verdict
-from .task import TaskError, find_repository_root, show_task, validate_task_id
+from .run_validator import RunIdentityError, RunValidationError, validate_run
+from .task import TaskError, validate_task_id
+from .verdict_validator import VerdictValidationError, finding_severities, validate_verdict
 
 
 RAW_VERDICT_FILENAME = "verdict.raw.json"
@@ -58,12 +59,13 @@ def record_verdict(
     cwd: str | Path | None = None,
 ) -> VerdictRecord:
     """Validate and atomically store one Manual Verdict for a saved Task run."""
-    validate_task_id(task_id)
-    validate_run_id(run_id)
-    repository = find_repository_root(cwd)
-    show_task(task_id, cwd=repository)
-    evidence_path = _evidence_path(repository, task_id, run_id)
-    _validate_saved_run_identity(evidence_path, task_id, run_id)
+    try:
+        validated_run = validate_run(task_id, run_id, cwd=cwd)
+    except RunIdentityError as error:
+        raise VerdictInputError(str(error)) from error
+    except RunValidationError as error:
+        raise VerdictEvidenceError(str(error)) from error
+    evidence_path = validated_run.evidence_path
 
     source_path = Path(verdict_file)
     raw_bytes = _read_source_bytes(source_path)
@@ -96,12 +98,13 @@ def show_verdict(
     cwd: str | Path | None = None,
 ) -> VerdictRecord:
     """Load one recorded Verdict after validating the Task/run identity."""
-    validate_task_id(task_id)
-    validate_run_id(run_id)
-    repository = find_repository_root(cwd)
-    show_task(task_id, cwd=repository)
-    evidence_path = _evidence_path(repository, task_id, run_id)
-    _validate_saved_run_identity(evidence_path, task_id, run_id)
+    try:
+        validated_run = validate_run(task_id, run_id, cwd=cwd)
+    except RunIdentityError as error:
+        raise VerdictInputError(str(error)) from error
+    except RunValidationError as error:
+        raise VerdictEvidenceError(str(error)) from error
+    evidence_path = validated_run.evidence_path
     record = load_recorded_verdict(evidence_path, task_id, run_id)
     if record is None:
         raise VerdictEvidenceError(
@@ -204,27 +207,6 @@ def validate_run_id(run_id: object) -> str:
     return run_id
 
 
-def _evidence_path(repository: Path, task_id: str, run_id: str) -> Path:
-    return repository / ".harness" / "evidence" / task_id / run_id
-
-
-def _validate_saved_run_identity(
-    evidence_path: Path,
-    task_id: str,
-    run_id: str,
-) -> None:
-    task = _read_evidence_json_object(evidence_path / "task.json")
-    verification = _read_evidence_json_object(evidence_path / "verification.json")
-    if task.get("id") != task_id:
-        raise VerdictInputError(
-            "Saved evidence Task snapshot does not match the requested Task id."
-        )
-    if verification.get("task_id") != task_id or verification.get("run_id") != run_id:
-        raise VerdictInputError(
-            "Saved verification evidence does not match the requested Task/run identity."
-        )
-
-
 def _read_source_bytes(path: Path) -> bytes:
     try:
         return path.read_bytes()
@@ -241,17 +223,6 @@ def _read_evidence_bytes(path: Path) -> bytes:
         raise VerdictEvidenceError(
             f"Could not read Verdict evidence file: {path.name}."
         ) from error
-
-
-def _read_evidence_json_object(path: Path) -> dict[str, Any]:
-    raw = _read_evidence_bytes(path)
-    try:
-        value = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise VerdictEvidenceError(f"Evidence file '{path.name}' is not valid JSON.") from error
-    if not isinstance(value, Mapping):
-        raise VerdictEvidenceError(f"Evidence file '{path.name}' must be a JSON object.")
-    return dict(value)
 
 
 def _parse_verdict_bytes(
