@@ -65,6 +65,7 @@ harness complete
 - shell을 사용하지 않는 argv 기반 check 실행
 - stdout, stderr, exit code, timeout 기록
 - diff와 mechanical verification Evidence 저장
+- raw-byte manifest와 digest로 저장 mechanical Evidence 변경을 탐지하는 canonical integrity validator
 - 특정 Task/Run만 포함하는 portable verifier bundle
 - Schema 기반 Manual Verdict 검증
 - raw Verdict와 검증된 snapshot 비교
@@ -295,6 +296,7 @@ Verifier가 optional인 Task는 Verdict 없이 completion할 수 있습니다. �
             │   ├── <check>.stdout
             │   └── <check>.stderr
             ├── verification.json
+            ├── run-manifest.json
             ├── verdict.raw.json
             ├── verdict.json
             └── completion.json
@@ -302,7 +304,8 @@ Verifier가 optional인 Task는 Verdict 없이 completion할 수 있습니다. �
 
 | 파일 | 생성 시점 |
 | --- | --- |
-| `task.json` ~ `verification.json` | `harness verify` |
+| `task.json` ~ `verification.json`, check log | `harness verify` |
+| `run-manifest.json` | `harness verify`가 mechanical Evidence 저장을 마친 마지막 단계 |
 | `verdict.raw.json` | `harness verifier record` |
 | `verdict.json` | `harness verifier record` |
 | `completion.json` | `harness complete` 성공 시 |
@@ -323,6 +326,10 @@ Verifier가 optional인 Task는 Verdict 없이 completion할 수 있습니다. �
 
 Harness가 직접 수집한 diff, 변경 파일, check 결과, scope 판정입니다. 사람의 의미적 판단인 Manual Verdict와는 별개입니다.
 
+### Run Evidence Manifest
+
+`run-manifest.json`은 Task/run identity와 mechanical Evidence 파일·check log의 상대 경로, raw-byte 크기, SHA-256을 정렬해 기록합니다. `evidence_sha256`은 timestamp를 제외한 canonical JSON file record의 local consistency identifier입니다. Verdict와 Completion은 verify 이후에 생기므로 manifest 대상이 아닙니다.
+
 ### Manual Verdict
 
 사람이 Bundle을 검토하고 작성한 Schema-valid JSON입니다. 입력 원본은 `verdict.raw.json`으로 보존하고, schema 검증을 통과한 snapshot은 `verdict.json`으로 저장합니다.
@@ -330,6 +337,10 @@ Harness가 직접 수집한 diff, 변경 파일, check 결과, scope 판정입�
 ### Completion
 
 저장된 Evidence와 Verdict가 완료 조건을 만족하는지 판단하는 마지막 gate입니다. `complete`는 check를 다시 실행하거나 Git diff를 다시 수집하지 않습니다.
+
+### Manifest의 신뢰 경계
+
+manifest는 verify 이후 파일 수정·누락·교체를 소비 시점에 탐지하지만 signature, remote attestation, immutable storage가 아닙니다. 동일한 로컬 사용자가 Evidence와 manifest 전체를 다시 계산해 바꾸는 공격은 막지 못합니다. `evidence_sha256`과 bundle의 `bundle_sha256`은 각각 원본 mechanical Evidence와 portable bundle payload를 식별할 뿐, completion authority나 외부 trust anchor가 아닙니다.
 
 ---
 
@@ -393,6 +404,8 @@ CI에서는 다음을 검사합니다.
 - [Verdict Schema](schemas/verdict.schema.json)
 - [Verifier prompt](prompts/verifier.md)
 - [Canonical Verdict Contract ADR](docs/adr/0001-canonical-verdict-contract.md)
+- [Run Integrity ADR](docs/adr/0002-run-integrity-vs-completion-policy.md)
+- [Run Evidence Manifest ADR](docs/adr/0003-run-evidence-manifest.md)
 
 ---
 
@@ -400,10 +413,8 @@ CI에서는 다음을 검사합니다.
 
 현재 우선순위:
 
-1. Canonical Run Integrity Validator
-2. Evidence manifest와 digest
-3. Pre/Post-check Snapshot binding
-4. `--base-ref` 우회 제거
+1. Pre/Post-check Snapshot binding
+2. `--base-ref` 우회 제거
 
 Roadmap은 구현 순서에 따라 변경될 수 있습니다.
 
