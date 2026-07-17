@@ -23,6 +23,7 @@ from harness import cli
 from harness.bundle import (
     BundleEvidenceError,
     BundleInputError,
+    _pretty_json_bytes,
     create_verification_bundle,
 )
 from harness.evidence import verify_task
@@ -271,6 +272,34 @@ class VerifierBundleTests(unittest.TestCase):
         )
         self.assertNotIn("ignored.txt", contents)
         self.assertNotIn("do-not-bundle", contents)
+
+    def test_bundle_json_escapes_lone_surrogates(self) -> None:
+        path = "src/" + os.fsdecode(b"non-utf8-\xff.txt")
+
+        contents = _pretty_json_bytes({"path": path})
+
+        self.assertIn(b"\\udcff", contents)
+        self.assertEqual(json.loads(contents)["path"], path)
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX surrogateescaped Git paths")
+    def test_bundles_non_utf8_git_path_as_escaped_json(self) -> None:
+        self._create_task()
+        filename = os.fsdecode(b"non-utf8-\xff.txt")
+        try:
+            self._write(f"src/{filename}", b"changed\n")
+        except OSError as error:
+            self.skipTest(f"filesystem rejects non-UTF-8 paths: {error}")
+        run = verify_task("TASK-BUNDLE", cwd=self.repository)
+
+        bundle = self._bundle(run.run_id)
+
+        changed_bytes = (bundle.bundle_path / "changed-files.json").read_bytes()
+        changed = json.loads(changed_bytes)
+        self.assertIn(b"\\udcff", changed_bytes)
+        self.assertIn(
+            f"src/{filename}",
+            {change["path"] for change in changed["changes"]},
+        )
 
     def test_rejects_check_result_that_disagrees_with_exit_code(self) -> None:
         self._create_task()
