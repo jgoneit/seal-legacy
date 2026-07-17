@@ -44,7 +44,7 @@ root의 schemas/verdict.schema.json과 prompts/verifier.md는 사람이 편집�
                 ▼
              complete
 
-task create는 Task Spec을 snapshot으로 저장하고 그 시점의 Git HEAD를 baseline으로 남긴다. verify는 check를 실행하고 baseline부터 현재 working tree까지의 scope 관련 변경을 Run directory에 저장한다. bundle은 저장된 Run을 다시 실행하지 않고 검토에 필요한 제한된 payload만 export한다.
+task create는 Task Spec을 snapshot으로 저장하고 그 시점의 Git HEAD를 baseline으로 남긴다. verify는 기본적으로 이 baseline부터 현재 working tree까지의 scope 관련 변경을 Run directory에 저장한다. v0.1.0에서는 optional `--base-ref`가 해당 Run의 baseline을 override할 수 있으며, 이는 공개된 알려진 한계다. bundle은 저장된 Run을 다시 실행하지 않고 검토에 필요한 제한된 payload만 export한다.
 
 complete, bundle, verifier record/show는 먼저 특정 Task/run을 `validate_run()`으로 읽는다. 이 validator는 check나 Git diff를 다시 계산하지 않으며 latest-run 선택도 하지 않는다.
 
@@ -105,7 +105,9 @@ warning과 note finding은 completion record에 count로 남지만, 그 자체�
 
 현재는 verification 당시의 source와 나중의 source가 같은지 binding하지 않는다. manifest는 당시 저장된 mechanical Evidence의 local consistency만 확인하며, diff와 changed-files의 의미적 binding, pre/post check snapshot 비교, snapshot fingerprint는 아직 없다. 따라서 `validate_run()`이나 `complete`가 "현재 source"를 재검증한다고 해석하면 안 된다.
 
-check output에는 민감한 값이 있을 수 있다. Harness는 절대 경로를 portable하게 정리하려고 하지만 complete secret redaction을 제공하지 않는다.
+`verify --base-ref`는 저장된 Task baseline 대신 별도 Git ref를 그 Run의 baseline으로 기록할 수 있다. 이 옵션은 v0.1.0에서 유지되는 명시적 override이며, source binding이나 Task baseline 불변성을 제공하지 않는다.
+
+check output에는 민감한 값이 있을 수 있다. Harness는 절대 경로를 portable하게 정리하려고 하지만 완전한 secret redaction을 제공하지 않는다.
 
 향후 snapshot binding은 Run integrity를 확장하는 별도 기능으로 다뤄야 한다. 그것은 현재 Verdict 구조 validation과 다른 책임이며, 이 문서의 현재 흐름에 암묵적으로 포함되지 않는다.
 

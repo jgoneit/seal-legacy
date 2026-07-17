@@ -1,0 +1,46 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v0.1.0"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install release dependencies
+        run: python -m pip install '.[test,release]'
+      - name: Check packaged contracts
+        run: python scripts/sync_contracts.py --check
+      - name: Run full test suite
+        run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Build wheel and source distribution
+        run: python -m build
+      - name: Validate distribution metadata
+        run: python -m twine check dist/*
+      - name: Smoke-test the installed wheel
+        run: |
+          python -m venv "$RUNNER_TEMP/outcome-harness-clean"
+          "$RUNNER_TEMP/outcome-harness-clean/bin/python" -m pip install dist/outcome_harness-0.1.0-*.whl
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/outcome-harness-clean/bin/harness" --version
+          "$RUNNER_TEMP/outcome-harness-clean/bin/harness" --help
+          "$RUNNER_TEMP/outcome-harness-clean/bin/python" -c "from importlib.resources import files; resources = files('harness').joinpath('resources'); assert resources.joinpath('verdict.schema.json').is_file(); assert resources.joinpath('verifier.md').is_file()"
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Outcome Harness v0.1.0 (Experimental)
+          body_path: docs/releases/v0.1.0.md
+          generate_release_notes: true
+          files: |
+            dist/outcome_harness-0.1.0-py3-none-any.whl
+            dist/outcome_harness-0.1.0.tar.gz
+          fail_on_unmatched_files: true
