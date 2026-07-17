@@ -349,7 +349,7 @@ def _canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
 
 def _pretty_json_bytes(value: object) -> bytes:
     return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(
-        "utf-8"
+        "utf-8", "backslashreplace"
     )
 
 
