@@ -6,6 +6,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 
@@ -13,6 +14,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from harness import checks
+
+
+WINDOWS_OS = SimpleNamespace(name="nt")
 
 
 class CheckProcessLifecycleTests(unittest.TestCase):
@@ -45,7 +49,7 @@ class CheckProcessLifecycleTests(unittest.TestCase):
         job.assign_process.side_effect = assign_process
 
         with (
-            mock.patch.object(checks.os, "name", "nt"),
+            mock.patch.object(checks, "os", WINDOWS_OS),
             mock.patch.object(
                 checks.subprocess,
                 "CREATE_NEW_PROCESS_GROUP",
@@ -79,7 +83,7 @@ class CheckProcessLifecycleTests(unittest.TestCase):
         job.assign_process.side_effect = OSError("job assignment failed")
 
         with (
-            mock.patch.object(checks.os, "name", "nt"),
+            mock.patch.object(checks, "os", WINDOWS_OS),
             mock.patch.object(
                 checks.subprocess,
                 "CREATE_NEW_PROCESS_GROUP",
@@ -106,7 +110,7 @@ class CheckProcessLifecycleTests(unittest.TestCase):
         job = mock.Mock()
 
         with (
-            mock.patch.object(checks.os, "name", "nt"),
+            mock.patch.object(checks, "os", WINDOWS_OS),
             mock.patch.object(
                 checks.subprocess,
                 "CREATE_NEW_PROCESS_GROUP",
@@ -142,7 +146,7 @@ class CheckProcessLifecycleTests(unittest.TestCase):
         job = mock.Mock()
 
         with (
-            mock.patch.object(checks.os, "name", "nt"),
+            mock.patch.object(checks, "os", WINDOWS_OS),
             mock.patch.object(checks, "_terminate_windows_tree") as terminate_tree,
         ):
             checks._reap_finished_process_group(mock.sentinel.process, job)
@@ -155,7 +159,7 @@ class CheckProcessLifecycleTests(unittest.TestCase):
         process.wait.return_value = 1
         job = mock.Mock()
 
-        with mock.patch.object(checks.os, "name", "nt"):
+        with mock.patch.object(checks, "os", WINDOWS_OS):
             exit_code = checks._terminate_process_tree(process, job)
 
         self.assertEqual(exit_code, 1)
