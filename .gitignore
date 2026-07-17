@@ -36,3 +36,8 @@ coverage.xml
 
 # Local Harness records are generated per repository and are not plugin source.
 .harness/
+
+# Local Codex plugin state. Keep .codex-plugin/plugin.json as tracked source.
+.codex-plugin/.cache/
+.codex-plugin/*.local.json
+.codex-plugin/*.local.toml
