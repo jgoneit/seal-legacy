@@ -27,9 +27,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="version",
         version=f"%(prog)s {__version__}",
     )
-    commands = parser.add_subparsers(dest="command")
+    commands = parser.add_subparsers(dest="command", required=True)
     task_parser = commands.add_parser("task", help="create or inspect Task Specs")
-    task_commands = task_parser.add_subparsers(dest="task_command")
+    task_commands = task_parser.add_subparsers(dest="task_command", required=True)
 
     create_parser = task_commands.add_parser(
         "create", help="validate and store a Task Spec snapshot"
@@ -55,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     verifier_parser = commands.add_parser(
         "verifier", help="record, inspect, or prepare independent verifier evidence"
     )
-    verifier_commands = verifier_parser.add_subparsers(dest="verifier_command")
+    verifier_commands = verifier_parser.add_subparsers(dest="verifier_command", required=True)
     record_parser = verifier_commands.add_parser(
         "record", help="validate and store a manual verifier verdict"
     )

@@ -96,6 +96,7 @@ def _run_one_check(
             process = _start_process(argv, cwd, stdout, stderr)
             try:
                 exit_code = process.wait(timeout=timeout)
+                _reap_finished_process_group(process)
             except subprocess.TimeoutExpired:
                 timed_out = True
                 exit_code = _terminate_process_tree(process)
@@ -172,6 +173,18 @@ def _terminate_process_tree(process: subprocess.Popen[bytes]) -> int | None:
     except subprocess.TimeoutExpired:
         process.kill()
         return process.wait()
+
+
+def _reap_finished_process_group(process: subprocess.Popen[bytes]) -> None:
+    """Stop background descendants after a successful parent check exits."""
+    if os.name == "posix":
+        # The parent has already been reaped, but start_new_session keeps any
+        # background descendants in its process group.  Ensure they cannot
+        # keep writing to finalized Evidence Run logs.
+        _signal_process_group(process.pid, signal.SIGTERM)
+        _signal_process_group(process.pid, signal.SIGKILL)
+    elif os.name == "nt":
+        _terminate_windows_tree(process)
 
 
 def _signal_process_group(process_group_id: int, signal_number: signal.Signals) -> None:

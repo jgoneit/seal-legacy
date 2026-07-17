@@ -6,6 +6,7 @@ import contextlib
 import io
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from harness import cli
 from harness.evidence import (
+    EvidenceRepositoryError,
     atomic_write_json,
     create_evidence_directory,
     verify_task,
@@ -290,6 +292,24 @@ class VerificationEvidenceTests(unittest.TestCase):
             )
             self._assert_process_is_gone(child_pid)
 
+    @unittest.skipUnless(os.name == "posix", "requires POSIX process groups")
+    def test_successful_check_reaps_background_process_group(self) -> None:
+        program = (
+            "import subprocess, sys; "
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']); "
+            "print(child.pid, flush=True)"
+        )
+        self._create_task([self._python_check("background", program, required=True)])
+
+        run = verify_task("TASK-VERIFY", cwd=self.repository)
+
+        record = self._check_records(run.evidence_path)[0]
+        self.assertTrue(record["passed"])
+        child_pid = int(
+            (run.evidence_path / str(record["stdout_path"])).read_text(encoding="utf-8").strip()
+        )
+        self._assert_process_is_gone(child_pid)
+
     def _assert_process_is_gone(self, process_id: int) -> None:
         deadline = time.monotonic() + 2.0
         while time.monotonic() < deadline:
@@ -359,6 +379,113 @@ class VerificationEvidenceTests(unittest.TestCase):
             (run.evidence_path / str(record["stdout_path"])).stat().st_size,
             byte_count,
         )
+
+    def test_invalid_base_ref_prevents_checks_and_evidence_directory(self) -> None:
+        marker = self.root / "check-ran"
+        program = (
+            "from pathlib import Path; "
+            f"Path({str(marker)!r}).write_text('ran', encoding='utf-8')"
+        )
+        self._create_task([self._python_check("must-not-run", program, required=True)])
+
+        with self.assertRaisesRegex(EvidenceRepositoryError, "does not resolve to a commit"):
+            verify_task("TASK-VERIFY", cwd=self.repository, base_ref="missing-base-ref")
+
+        self.assertFalse(marker.exists())
+        self.assertFalse((self.repository / ".harness" / "evidence" / "TASK-VERIFY").exists())
+
+    def test_diff_patch_preserves_staged_change_reversed_in_worktree(self) -> None:
+        self._create_task([self._python_check("ok", "print('ok')", required=True)])
+        self._write("src/example.txt", "staged\n")
+        self._git("add", "src/example.txt")
+        self._write("src/example.txt", "before\n")
+
+        run = verify_task("TASK-VERIFY", cwd=self.repository)
+
+        changed = json.loads((run.evidence_path / "changed-files.json").read_text(encoding="utf-8"))
+        sources = {
+            change["source"]
+            for change in changed["changes"]
+            if change["path"] == "src/example.txt"
+        }
+        patch = (run.evidence_path / "diff.patch").read_text(encoding="utf-8")
+        self.assertEqual(sources, {"staged", "unstaged"})
+        self.assertIn("+staged", patch)
+
+    def test_large_diff_patch_is_written_to_evidence_file(self) -> None:
+        byte_count = 1_000_000
+        self._create_task([self._python_check("ok", "print('ok')", required=True)])
+        self._write("src/example.txt", "x" * byte_count)
+
+        run = verify_task("TASK-VERIFY", cwd=self.repository)
+
+        self.assertGreater((run.evidence_path / "diff.patch").stat().st_size, byte_count)
+
+    def test_atomic_json_escapes_lone_surrogates(self) -> None:
+        target = self.root / "surrogate.json"
+        path = "src/" + os.fsdecode(b"non-utf8-\xff.txt")
+
+        atomic_write_json(target, {"path": path})
+
+        contents = target.read_bytes()
+        self.assertIn(b"\\udcff", contents)
+        self.assertEqual(json.loads(contents)["path"], path)
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX surrogateescaped Git paths")
+    def test_non_utf8_git_path_writes_valid_json_evidence(self) -> None:
+        self._create_task([self._python_check("ok", "print('ok')", required=True)])
+        filename = os.fsdecode(b"non-utf8-\xff.txt")
+        try:
+            self._write(f"src/{filename}", b"changed\n")
+        except OSError as error:
+            self.skipTest(f"filesystem rejects non-UTF-8 paths: {error}")
+
+        run = verify_task("TASK-VERIFY", cwd=self.repository)
+
+        changed_bytes = (run.evidence_path / "changed-files.json").read_bytes()
+        verification_bytes = (run.evidence_path / "verification.json").read_bytes()
+        changed = json.loads(changed_bytes)
+        verification = json.loads(verification_bytes)
+        expected_path = f"src/{filename}"
+        self.assertIn(b"\\udcff", changed_bytes)
+        self.assertIn(b"\\udcff", verification_bytes)
+        self.assertIn(expected_path, {change["path"] for change in changed["changes"]})
+        self.assertIn(expected_path, {change["path"] for change in verification["changed_files"]})
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX textconv command handling")
+    def test_diff_collection_disables_textconv(self) -> None:
+        marker = self.root / "textconv-ran"
+        converter = self.root / "textconv.py"
+        converter.write_text(
+            "from pathlib import Path\n"
+            "import sys\n"
+            f"Path({str(marker)!r}).write_text('ran', encoding='utf-8')\n"
+            "print(Path(sys.argv[-1]).read_text(encoding='utf-8'))\n",
+            encoding="utf-8",
+        )
+        self._write(".gitattributes", "src/example.txt diff=forbidden\n")
+        self._git("add", ".gitattributes")
+        self._git(
+            "-c",
+            "user.name=Harness Test",
+            "-c",
+            "user.email=harness-test@example.invalid",
+            "commit",
+            "--quiet",
+            "-m",
+            "configure textconv",
+        )
+        self._git(
+            "config",
+            "diff.forbidden.textconv",
+            f"{shlex.quote(sys.executable)} {shlex.quote(str(converter))}",
+        )
+        self._create_task([self._python_check("ok", "print('ok')", required=True)])
+        self._write("src/example.txt", "after\n")
+
+        verify_task("TASK-VERIFY", cwd=self.repository)
+
+        self.assertFalse(marker.exists())
 
     def test_cli_verify_prints_run_id_and_honors_base_ref(self) -> None:
         self._create_task([self._python_check("ok", "print('ok')", required=True)])

@@ -111,8 +111,7 @@ def collect_changes(
     """
     repository = find_repository_root(cwd)
     scope = _task_scope(task)
-    selected_ref = base_ref if base_ref is not None else _task_baseline(task)
-    resolved_base_ref = _resolve_commit(repository, selected_ref)
+    resolved_base_ref = _resolve_task_base_ref(repository, task, base_ref)
 
     changes: list[FileChange] = []
     for source in ("committed", "staged", "unstaged"):
@@ -148,6 +147,21 @@ def collect_changes(
         in_scope_changes=in_scope_changes,
         out_of_scope_changes=out_of_scope_changes,
     )
+
+
+def resolve_base_ref(
+    task: Mapping[str, object],
+    *,
+    cwd: str | Path | None = None,
+    base_ref: str | None = None,
+) -> str:
+    """Resolve the selected Task baseline without collecting any changes.
+
+    Verification uses this before launching Task checks so an invalid baseline
+    cannot cause checks to run before a Run can be recorded.
+    """
+    repository = find_repository_root(cwd)
+    return _resolve_task_base_ref(repository, task, base_ref)
 
 
 def find_repository_root(cwd: str | Path | None = None) -> Path:
@@ -191,7 +205,14 @@ def _diff_arguments(
     *,
     raw: bool,
 ) -> tuple[str, ...]:
-    arguments = ["diff", format_option, "-z", "--find-renames"]
+    arguments = [
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+        format_option,
+        "-z",
+        "--find-renames",
+    ]
     if raw:
         arguments.append("--no-abbrev")
 
@@ -335,6 +356,8 @@ def _is_untracked_binary(repository: Path, path: str) -> bool:
         repository,
         "diff",
         "--no-index",
+        "--no-ext-diff",
+        "--no-textconv",
         "--numstat",
         "-z",
         "--",
@@ -386,6 +409,15 @@ def _task_baseline(task: Mapping[str, object]) -> str:
     if not isinstance(baseline, str) or not baseline:
         raise GitDiffTaskError("Task baseline must be a non-empty Git revision string.")
     return baseline
+
+
+def _resolve_task_base_ref(
+    repository: Path,
+    task: Mapping[str, object],
+    base_ref: str | None,
+) -> str:
+    selected_ref = base_ref if base_ref is not None else _task_baseline(task)
+    return _resolve_commit(repository, selected_ref)
 
 
 def _task_scope(task: Mapping[str, object]) -> tuple[str, ...]:

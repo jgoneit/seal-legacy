@@ -31,6 +31,7 @@ from .gitdiff import (
     collect_changes,
     find_repository_root,
     is_harness_metadata_path,
+    resolve_base_ref,
 )
 from .run_manifest import RunManifestError, create_run_manifest
 from .run_validator import RunIdentityError, RunValidationError, validate_run
@@ -130,10 +131,13 @@ def verify_task(
     validate_task_id(task_id)
     repository = find_repository_root(cwd)
     task = show_task(task_id, cwd=repository)
-    run_id, evidence_path = create_evidence_directory(repository, task_id)
     started = time.monotonic()
 
     try:
+        # Preserve the existing post-check change collection semantics, while
+        # rejecting an unusable baseline before any Task check can run.
+        resolved_base_ref = resolve_base_ref(task, cwd=repository, base_ref=base_ref)
+        run_id, evidence_path = create_evidence_directory(repository, task_id)
         atomic_write_json(evidence_path / "task.json", task)
         checks = task.get("checks")
         if not isinstance(checks, list):
@@ -144,7 +148,7 @@ def verify_task(
             evidence_directory=evidence_path,
         )
 
-        changes = collect_changes(task, cwd=repository, base_ref=base_ref)
+        changes = collect_changes(task, cwd=repository, base_ref=resolved_base_ref)
         changed_files = [_file_change_document(change) for change in changes.product_changes]
         scope_violations = [
             _file_change_document(change) for change in changes.out_of_scope_changes
@@ -153,10 +157,7 @@ def verify_task(
             evidence_path / "changed-files.json",
             _changed_files_document(changes),
         )
-        atomic_write_bytes(
-            evidence_path / "diff.patch",
-            collect_diff_patch(repository, changes),
-        )
+        write_diff_patch(evidence_path / "diff.patch", repository, changes)
         atomic_write_json(
             evidence_path / "checks.json",
             {"schema_version": VERIFICATION_SCHEMA_VERSION, "checks": check_results},
@@ -355,6 +356,7 @@ def _atomic_write(
         with tempfile.NamedTemporaryFile(
             mode=mode,
             encoding="utf-8" if mode == "w" else None,
+            errors="backslashreplace" if mode == "w" else None,
             dir=path.parent,
             prefix=f".{path.name}.",
             suffix=".tmp",
@@ -374,68 +376,107 @@ def _atomic_write(
                 pass
 
 
-def collect_diff_patch(repository: str | Path, changes: ChangeCollection) -> bytes:
-    """Collect a binary-safe patch for product changes, including untracked files."""
+def write_diff_patch(
+    path: str | Path,
+    repository: str | Path,
+    changes: ChangeCollection,
+) -> None:
+    """Atomically stream a binary-safe patch for every product change layer."""
     repository_path = Path(repository).resolve()
-    arguments = [
+
+    def write(output: BinaryIO) -> None:
+        _write_diff_patch(output, repository_path, changes)
+
+    _atomic_write(Path(path), mode="wb", writer=write)
+
+
+def _write_diff_patch(
+    output: BinaryIO,
+    repository: Path,
+    changes: ChangeCollection,
+) -> None:
+    """Write committed, staged, unstaged, and untracked patches in order."""
+    prefix = [
         "git",
         "-C",
-        str(repository_path),
+        str(repository),
         "diff",
         "--binary",
         "--no-ext-diff",
-        changes.base_ref,
-        "--",
-        ".",
-        *_metadata_exclude_pathspecs(),
+        "--no-textconv",
     ]
-    patch = _run_git(arguments, accepted_returncodes={0})
-
-    # Git's regular diff intentionally omits untracked paths.  Record each
-    # product untracked file with no-index so diff.patch is complete evidence.
-    for change in changes.changes:
-        if change.source != "untracked" or is_harness_metadata_path(change.path):
-            continue
-        untracked_patch = _run_git(
+    pathspecs = ["--", ".", *_metadata_exclude_pathspecs()]
+    commands: list[tuple[list[str], set[int]]] = [
+        ([*prefix, changes.base_ref, "HEAD", *pathspecs], {0}),
+        ([*prefix, "--cached", *pathspecs], {0}),
+        ([*prefix, *pathspecs], {0}),
+    ]
+    commands.extend(
+        (
             [
-                "git",
-                "-C",
-                str(repository_path),
-                "diff",
+                *prefix,
                 "--no-index",
-                "--binary",
-                "--no-ext-diff",
                 "--",
                 "/dev/null",
                 change.path,
             ],
-            accepted_returncodes={0, 1},
+            {0, 1},
         )
-        if patch and not patch.endswith(b"\n"):
-            patch += b"\n"
-        patch += untracked_patch
-    return patch
+        for change in changes.changes
+        if change.source == "untracked" and not is_harness_metadata_path(change.path)
+    )
 
-
-def _run_git(arguments: list[str], *, accepted_returncodes: set[int]) -> bytes:
-    try:
-        result = subprocess.run(
+    wrote_patch = False
+    for arguments, accepted_returncodes in commands:
+        separator_position = _output_offset(output)
+        if wrote_patch:
+            output.write(b"\n")
+        wrote_segment = _stream_git(
             arguments,
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=False,
+            output,
+            accepted_returncodes=accepted_returncodes,
         )
+        if wrote_segment:
+            wrote_patch = True
+        elif wrote_patch:
+            output.truncate(separator_position)
+            output.seek(separator_position)
+
+
+def _stream_git(
+    arguments: list[str],
+    output: BinaryIO,
+    *,
+    accepted_returncodes: set[int],
+) -> bool:
+    """Stream Git stdout into *output* without retaining a patch in memory."""
+    start_position = _output_offset(output)
+    try:
+        with tempfile.TemporaryFile(mode="w+b") as stderr:
+            result = subprocess.run(
+                arguments,
+                check=False,
+                stdout=output,
+                stderr=stderr,
+                shell=False,
+            )
+            end_position = _output_offset(output)
+            if result.returncode not in accepted_returncodes:
+                stderr.seek(0)
+                detail = stderr.read(8192).decode("utf-8", "replace").strip()
+                raise EvidenceRepositoryError(
+                    detail or f"Git diff exited with status {result.returncode}."
+                )
     except OSError as error:
         raise EvidenceRepositoryError(
             "Git is required to write verification evidence."
         ) from error
-    if result.returncode not in accepted_returncodes:
-        detail = result.stderr.decode("utf-8", "replace").strip()
-        raise EvidenceRepositoryError(
-            detail or f"Git diff exited with status {result.returncode}."
-        )
-    return result.stdout
+    return end_position > start_position
+
+
+def _output_offset(output: BinaryIO) -> int:
+    output.flush()
+    return os.lseek(output.fileno(), 0, os.SEEK_CUR)
 
 
 def _metadata_exclude_pathspecs() -> tuple[str, ...]:
