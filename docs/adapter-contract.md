@@ -43,8 +43,10 @@ local path로 취급하고 다른 host 또는 repository에 재사용해서는 �
 ## stderr and exit codes
 
 정상 결과는 exit code `0`과 stdout JSON을 함께 반환한다. handled error는 stderr에
-`error: <message>` 형식으로 기록하며 성공 JSON을 stdout에 섞지 않는다. argparse가
-거부한 command 형태는 usage text를 stderr에 쓰고 exit `2`를 반환할 수 있다.
+`error: <message>` 형식으로 기록하며 성공 JSON을 stdout에 섞지 않는다. `harness`,
+`harness task`, `harness verifier`처럼 required command 또는 subcommand가 생략된 형태를
+포함해 argparse가 거부하는 입력은 반드시 usage text를 stderr에 쓰고 exit `2`를 반환한다.
+이 경우 stdout에는 JSON을 포함하지 않는다.
 
 실패한 command가 partial success JSON을 반환한다고 가정해서는 안 된다. 특히 `verify`가
 중간에 실패하면 evidence directory가 남을 수 있어도 Adapter는 nonzero exit를 실패로
