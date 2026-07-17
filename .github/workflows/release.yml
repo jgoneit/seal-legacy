@@ -3,7 +3,7 @@ name: release
 on:
   push:
     tags:
-      - "v0.1.0"
+      - "v0.1.1"
 
 permissions:
   contents: write
@@ -29,7 +29,7 @@ jobs:
       - name: Smoke-test the installed wheel
         run: |
           python -m venv "$RUNNER_TEMP/outcome-harness-clean"
-          "$RUNNER_TEMP/outcome-harness-clean/bin/python" -m pip install dist/outcome_harness-0.1.0-*.whl
+          "$RUNNER_TEMP/outcome-harness-clean/bin/python" -m pip install dist/outcome_harness-0.1.1-*.whl
           cd "$RUNNER_TEMP"
           "$RUNNER_TEMP/outcome-harness-clean/bin/harness" --version
           "$RUNNER_TEMP/outcome-harness-clean/bin/harness" --help
@@ -37,10 +37,10 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Outcome Harness v0.1.0 (Experimental)
-          body_path: docs/releases/v0.1.0.md
+          name: Harness v0.1.1 (Experimental)
+          body_path: docs/releases/v0.1.1.md
           generate_release_notes: true
           files: |
-            dist/outcome_harness-0.1.0-py3-none-any.whl
-            dist/outcome_harness-0.1.0.tar.gz
+            dist/outcome_harness-0.1.1-py3-none-any.whl
+            dist/outcome_harness-0.1.1.tar.gz
           fail_on_unmatched_files: true

@@ -13,7 +13,7 @@ import re
 import signal
 import subprocess
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -21,10 +21,27 @@ from typing import Any
 
 DEFAULT_CHECK_TIMEOUT_SECONDS = 300
 PROCESS_TERMINATE_GRACE_SECONDS = 0.2
+_JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+_JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
 
 
 class CheckExecutionError(ValueError):
     """Raised when a check definition cannot be executed safely."""
+
+
+class _WindowsJob:
+    """Own a Windows Job that terminates remaining members when closed."""
+
+    def __init__(self, handle: Any, close_handle: Callable[[Any], int]) -> None:
+        self._handle = handle
+        self._close_handle = close_handle
+
+    def close(self) -> None:
+        """Close the Job handle once, causing Windows to end its members."""
+        if self._handle is None:
+            return
+        handle, self._handle = self._handle, None
+        self._close_handle(handle)
 
 
 def run_checks(
@@ -89,25 +106,29 @@ def _run_one_check(
     started = time.monotonic()
     timed_out = False
     exit_code: int | None = None
+    windows_job: _WindowsJob | None = None
 
     with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
         process: subprocess.Popen[bytes] | None = None
         try:
-            process = _start_process(argv, cwd, stdout, stderr)
+            process, windows_job = _start_process(argv, cwd, stdout, stderr)
             try:
                 exit_code = process.wait(timeout=timeout)
-                _reap_finished_process_group(process)
+                _reap_finished_process_group(process, windows_job)
             except subprocess.TimeoutExpired:
                 timed_out = True
-                exit_code = _terminate_process_tree(process)
+                exit_code = _terminate_process_tree(process, windows_job)
         except OSError as error:
             # A missing executable is a failed check with inspectable evidence,
             # rather than a verifier crash that loses later check results.
             stderr.write(f"Could not start check: {error}\n".encode("utf-8", "replace"))
         except BaseException:
             if process is not None:
-                _terminate_process_tree(process)
+                _terminate_process_tree(process, windows_job)
             raise
+        finally:
+            if windows_job is not None:
+                windows_job.close()
 
     finished_at = _utc_timestamp()
     duration_seconds = max(0.0, time.monotonic() - started)
@@ -134,7 +155,7 @@ def _start_process(
     cwd: Path,
     stdout: Any,
     stderr: Any,
-) -> subprocess.Popen[bytes]:
+) -> tuple[subprocess.Popen[bytes], _WindowsJob | None]:
     """Start one check in its own process group without a shell."""
     options: dict[str, Any] = {
         "cwd": str(cwd),
@@ -146,10 +167,29 @@ def _start_process(
         options["start_new_session"] = True
     elif os.name == "nt":
         options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    return subprocess.Popen(argv, **options)
+    process = subprocess.Popen(argv, **options)
+
+    if os.name != "nt":
+        return process, None
+
+    try:
+        return process, _create_windows_job(process)
+    except BaseException:
+        # A successful Windows check is only safe to run after it is attached
+        # to a Job.  Clean up while the root process is still addressable.
+        _terminate_windows_tree(process)
+        try:
+            process.wait(timeout=PROCESS_TERMINATE_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+        raise
 
 
-def _terminate_process_tree(process: subprocess.Popen[bytes]) -> int | None:
+def _terminate_process_tree(
+    process: subprocess.Popen[bytes],
+    windows_job: _WindowsJob | None = None,
+) -> int | None:
     """Terminate a timed-out process and its descendants, then reap it."""
     if os.name == "posix":
         # ``start_new_session`` makes this process its own process-group leader.
@@ -163,6 +203,8 @@ def _terminate_process_tree(process: subprocess.Popen[bytes]) -> int | None:
         # Send SIGKILL even when the parent already exited: a child may have
         # ignored SIGTERM and must not outlive the timed-out check.
         _signal_process_group(process.pid, signal.SIGKILL)
+    elif os.name == "nt" and windows_job is not None:
+        windows_job.close()
     elif os.name == "nt":
         _terminate_windows_tree(process)
     else:
@@ -175,7 +217,10 @@ def _terminate_process_tree(process: subprocess.Popen[bytes]) -> int | None:
         return process.wait()
 
 
-def _reap_finished_process_group(process: subprocess.Popen[bytes]) -> None:
+def _reap_finished_process_group(
+    process: subprocess.Popen[bytes],
+    windows_job: _WindowsJob | None = None,
+) -> None:
     """Stop background descendants after a successful parent check exits."""
     if os.name == "posix":
         # The parent has already been reaped, but start_new_session keeps any
@@ -183,8 +228,10 @@ def _reap_finished_process_group(process: subprocess.Popen[bytes]) -> None:
         # keep writing to finalized Evidence Run logs.
         _signal_process_group(process.pid, signal.SIGTERM)
         _signal_process_group(process.pid, signal.SIGKILL)
-    elif os.name == "nt":
-        _terminate_windows_tree(process)
+    elif os.name == "nt" and windows_job is not None:
+        # Closing the Job still reaches children after the check root itself
+        # has exited, unlike taskkill /T against an already-gone PID.
+        windows_job.close()
 
 
 def _signal_process_group(process_group_id: int, signal_number: signal.Signals) -> None:
@@ -196,7 +243,7 @@ def _signal_process_group(process_group_id: int, signal_number: signal.Signals) 
 
 
 def _terminate_windows_tree(process: subprocess.Popen[bytes]) -> None:
-    """Use taskkill's tree mode where Windows provides it, without a shell."""
+    """Best-effort emergency cleanup before a process has a Windows Job."""
     try:
         subprocess.run(
             ["taskkill", "/PID", str(process.pid), "/T", "/F"],
@@ -208,6 +255,94 @@ def _terminate_windows_tree(process: subprocess.Popen[bytes]) -> None:
     except OSError:
         # Keep a best-effort fallback when taskkill is absent from the runtime.
         process.kill()
+
+
+def _create_windows_job(process: subprocess.Popen[bytes]) -> _WindowsJob:
+    """Assign *process* to a kill-on-close Windows Job without a shell.
+
+    Job membership is inherited by children created after assignment.  Keeping
+    the Job handle until check cleanup lets us terminate remaining descendants
+    even after the check root has exited.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    class _JobObjectBasicLimitInformation(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_longlong),
+            ("PerJobUserTimeLimit", ctypes.c_longlong),
+            ("LimitFlags", wintypes.DWORD),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", wintypes.DWORD),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", wintypes.DWORD),
+            ("SchedulingClass", wintypes.DWORD),
+        ]
+
+    class _IoCounters(ctypes.Structure):
+        _fields_ = [
+            ("ReadOperationCount", ctypes.c_ulonglong),
+            ("WriteOperationCount", ctypes.c_ulonglong),
+            ("OtherOperationCount", ctypes.c_ulonglong),
+            ("ReadTransferCount", ctypes.c_ulonglong),
+            ("WriteTransferCount", ctypes.c_ulonglong),
+            ("OtherTransferCount", ctypes.c_ulonglong),
+        ]
+
+    class _JobObjectExtendedLimitInformation(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", _JobObjectBasicLimitInformation),
+            ("IoInfo", _IoCounters),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateJobObjectW.argtypes = (wintypes.LPVOID, wintypes.LPCWSTR)
+    kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    kernel32.SetInformationJobObject.argtypes = (
+        wintypes.HANDLE,
+        wintypes.INT,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+    )
+    kernel32.SetInformationJobObject.restype = wintypes.BOOL
+    kernel32.AssignProcessToJobObject.argtypes = (wintypes.HANDLE, wintypes.HANDLE)
+    kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    job_handle = kernel32.CreateJobObjectW(None, None)
+    if not job_handle:
+        raise ctypes.WinError(ctypes.get_last_error())
+
+    try:
+        limits = _JobObjectExtendedLimitInformation()
+        limits.BasicLimitInformation.LimitFlags = _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if not kernel32.SetInformationJobObject(
+            job_handle,
+            _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+            ctypes.byref(limits),
+            ctypes.sizeof(limits),
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        process_handle = getattr(process, "_handle", None)
+        if process_handle is None:
+            raise OSError("Could not obtain the Windows check process handle.")
+        if not kernel32.AssignProcessToJobObject(
+            job_handle,
+            wintypes.HANDLE(process_handle),
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())
+    except BaseException:
+        kernel32.CloseHandle(job_handle)
+        raise
+
+    return _WindowsJob(job_handle, kernel32.CloseHandle)
 
 
 def _effective_timeout(check: Mapping[str, object], index: int, default: int) -> int:

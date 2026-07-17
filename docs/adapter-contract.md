@@ -1,6 +1,6 @@
 # Outcome Harness Adapter CLI Contract
 
-이 문서는 Codex Plugin을 포함한 thin adapter가 Outcome Harness Core v0.1.0을
+이 문서는 Codex Plugin을 포함한 thin adapter가 Harness Core v0.1.1을
 subprocess로 호출할 때의 공개 계약이다. Adapter는 Core Python package를 import하지
 않고, 아래 CLI와 stdout JSON만 사용해야 한다.
 
@@ -17,7 +17,7 @@ subprocess로 호출할 때의 공개 계약이다. Adapter는 Core Python packa
 | `harness verifier show` | `<TASK_ID> --run-id <RUN_ID>` |
 | `harness complete` | `<TASK_ID> --run-id <RUN_ID>` |
 
-`harness verify`는 v0.1.0에서 optional `--base-ref <GIT_REF>`도 지원한다. 이 옵션은
+`harness verify`는 v0.1.1에서 optional `--base-ref <GIT_REF>`도 지원한다. 이 옵션은
 Task snapshot baseline을 해당 Run에 한해 override하는 알려진 한계이며, Adapter는
 명시적으로 필요한 경우에만 전달해야 한다.
 
@@ -69,7 +69,7 @@ local path로 취급하고 다른 host 또는 repository에 재사용해서는 �
 ## Public read-only artifacts
 
 Adapter의 기본 경계는 CLI/JSON이다. Evidence를 보여주거나 archive해야 하는 경우에만,
-아래의 v0.1.0 read-only artifact surface를 사용할 수 있다. Adapter는 이 파일을 만들거나
+아래의 v0.1.1 read-only artifact surface를 사용할 수 있다. Adapter는 이 파일을 만들거나
 수정해서는 안 된다.
 
 | Location | Documented purpose and fields |
@@ -96,5 +96,5 @@ Adapter는 다음에 의존하면 안 된다.
 - test fixture, repository-local prompt override, 개발 환경의 editable install
 
 이 분리는 Core의 deterministic local Evidence 책임과 Adapter의 UI, model, network,
-credential, retry 정책을 분리한다. v0.1.0 Core는 모델 API나 외부 verifier CLI를 호출하지
+credential, retry 정책을 분리한다. v0.1.1 Core는 모델 API나 외부 verifier CLI를 호출하지
 않는다.

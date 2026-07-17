@@ -1,0 +1,37 @@
+{
+  "name": "harness",
+  "version": "0.1.1",
+  "description": "Thin Codex adapter for evidence-based completion with Harness.",
+  "author": {
+    "name": "Jaegon Seo",
+    "url": "https://github.com/jgoneit"
+  },
+  "homepage": "https://github.com/jgoneit/harness",
+  "repository": "https://github.com/jgoneit/harness",
+  "license": "MIT",
+  "keywords": [
+    "coding-agent",
+    "verification",
+    "evidence",
+    "completion",
+    "harness"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Harness",
+    "shortDescription": "Evidence-based completion checks for coding agents",
+    "longDescription": "Create Harness Tasks, capture verification Evidence, prepare bounded verifier bundles, record Manual Verdicts, and evaluate completion through the vendor-neutral Core CLI.",
+    "developerName": "Jaegon Seo",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/jgoneit/harness",
+    "defaultPrompt": [
+      "이 작업을 Harness Task로 정의해줘",
+      "현재 변경을 Harness로 검증해줘",
+      "이 Run의 verifier bundle을 준비해줘"
+    ]
+  }
+}
