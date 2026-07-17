@@ -21,7 +21,9 @@ from typing import Any
 
 DEFAULT_CHECK_TIMEOUT_SECONDS = 300
 PROCESS_TERMINATE_GRACE_SECONDS = 0.2
+_CREATE_SUSPENDED = 0x00000004
 _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+_JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x00000800
 _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
 
 
@@ -32,9 +34,24 @@ class CheckExecutionError(ValueError):
 class _WindowsJob:
     """Own a Windows Job that terminates remaining members when closed."""
 
-    def __init__(self, handle: Any, close_handle: Callable[[Any], int]) -> None:
+    def __init__(
+        self,
+        handle: Any,
+        close_handle: Callable[[Any], int],
+        assign_process_handle: Callable[[Any], None],
+    ) -> None:
         self._handle = handle
         self._close_handle = close_handle
+        self._assign_process_handle = assign_process_handle
+
+    def assign_process(self, process: subprocess.Popen[bytes]) -> None:
+        """Add a suspended check root to this Job before it can run user code."""
+        if self._handle is None:
+            raise OSError("Cannot assign a process to a closed Windows Job.")
+        process_handle = getattr(process, "_handle", None)
+        if process_handle is None:
+            raise OSError("Could not obtain the Windows check process handle.")
+        self._assign_process_handle(process_handle)
 
     def close(self) -> None:
         """Close the Job handle once, causing Windows to end its members."""
@@ -166,24 +183,123 @@ def _start_process(
     if os.name == "posix":
         options["start_new_session"] = True
     elif os.name == "nt":
-        options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | _CREATE_SUSPENDED
+        return _start_windows_process(argv, options)
     process = subprocess.Popen(argv, **options)
 
-    if os.name != "nt":
-        return process, None
+    return process, None
+
+
+def _start_windows_process(
+    argv: list[str],
+    options: dict[str, Any],
+) -> tuple[subprocess.Popen[bytes], _WindowsJob]:
+    """Launch a check suspended, assign it to a Job, then resume it.
+
+    ``AssignProcessToJobObject`` after a normal ``Popen`` leaves a window in
+    which user code can spawn a child outside the Job.  Suspending the primary
+    thread closes that window: no check code runs until the root is a Job
+    member, and children subsequently inherit that membership.
+    """
+    windows_job = _create_windows_job()
+    process: subprocess.Popen[bytes] | None = None
+    assigned = False
+    try:
+        process = subprocess.Popen(argv, **options)
+        windows_job.assign_process(process)
+        assigned = True
+        _resume_windows_process(process)
+        return process, windows_job
+    except BaseException:
+        windows_job.close()
+        if process is not None:
+            if not assigned:
+                # The root is still suspended, so it cannot have descendants.
+                process.kill()
+            _wait_for_failed_windows_start(process)
+        raise
+
+
+def _wait_for_failed_windows_start(process: subprocess.Popen[bytes]) -> None:
+    """Reap a check root after a failed pre-execution Windows setup."""
+    try:
+        process.wait(timeout=PROCESS_TERMINATE_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
+def _resume_windows_process(process: subprocess.Popen[bytes]) -> None:
+    """Resume the sole primary thread of a ``CREATE_SUSPENDED`` check.
+
+    ``subprocess.Popen`` closes its copy of the initial thread handle before
+    returning, so reopen that thread through the documented Tool Help API.
+    Before resuming there can be no user-created child threads, which makes
+    the only thread owned by this process the primary one.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    class _ThreadEntry32(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ThreadID", wintypes.DWORD),
+            ("th32OwnerProcessID", wintypes.DWORD),
+            ("tpBasePri", wintypes.LONG),
+            ("tpDeltaPri", wintypes.LONG),
+            ("dwFlags", wintypes.DWORD),
+        ]
+
+    thread_snapshot_flag = 0x00000004
+    thread_suspend_resume = 0x0002
+    invalid_handle_value = ctypes.c_void_p(-1).value
+    invalid_dword = 0xFFFFFFFF
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateToolhelp32Snapshot.argtypes = (wintypes.DWORD, wintypes.DWORD)
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel32.Thread32First.argtypes = (wintypes.HANDLE, ctypes.POINTER(_ThreadEntry32))
+    kernel32.Thread32First.restype = wintypes.BOOL
+    kernel32.Thread32Next.argtypes = (wintypes.HANDLE, ctypes.POINTER(_ThreadEntry32))
+    kernel32.Thread32Next.restype = wintypes.BOOL
+    kernel32.OpenThread.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    kernel32.OpenThread.restype = wintypes.HANDLE
+    kernel32.ResumeThread.argtypes = (wintypes.HANDLE,)
+    kernel32.ResumeThread.restype = wintypes.DWORD
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    snapshot = kernel32.CreateToolhelp32Snapshot(thread_snapshot_flag, 0)
+    if snapshot == invalid_handle_value:
+        raise ctypes.WinError(ctypes.get_last_error())
 
     try:
-        return process, _create_windows_job(process)
-    except BaseException:
-        # A successful Windows check is only safe to run after it is attached
-        # to a Job.  Clean up while the root process is still addressable.
-        _terminate_windows_tree(process)
-        try:
-            process.wait(timeout=PROCESS_TERMINATE_GRACE_SECONDS)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
-        raise
+        entry = _ThreadEntry32()
+        entry.dwSize = ctypes.sizeof(entry)
+        if not kernel32.Thread32First(snapshot, ctypes.byref(entry)):
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        while True:
+            if entry.th32OwnerProcessID == process.pid:
+                thread_handle = kernel32.OpenThread(
+                    thread_suspend_resume,
+                    False,
+                    entry.th32ThreadID,
+                )
+                if not thread_handle:
+                    raise ctypes.WinError(ctypes.get_last_error())
+                try:
+                    if kernel32.ResumeThread(thread_handle) == invalid_dword:
+                        raise ctypes.WinError(ctypes.get_last_error())
+                finally:
+                    kernel32.CloseHandle(thread_handle)
+                return
+            if not kernel32.Thread32Next(snapshot, ctypes.byref(entry)):
+                break
+    finally:
+        kernel32.CloseHandle(snapshot)
+
+    raise OSError(f"Could not find the suspended primary thread for PID {process.pid}.")
 
 
 def _terminate_process_tree(
@@ -257,12 +373,13 @@ def _terminate_windows_tree(process: subprocess.Popen[bytes]) -> None:
         process.kill()
 
 
-def _create_windows_job(process: subprocess.Popen[bytes]) -> _WindowsJob:
-    """Assign *process* to a kill-on-close Windows Job without a shell.
+def _create_windows_job() -> _WindowsJob:
+    """Create a kill-on-close Job before a Windows check is allowed to run.
 
-    Job membership is inherited by children created after assignment.  Keeping
-    the Job handle until check cleanup lets us terminate remaining descendants
-    even after the check root has exited.
+    A child that explicitly requests breakaway remains outside this Job.  That
+    preserves compatibility with tools that manage a nested Job themselves;
+    it also means intentionally breakaway descendants are outside Harness
+    cleanup by design.
     """
     import ctypes
     from ctypes import wintypes
@@ -321,7 +438,7 @@ def _create_windows_job(process: subprocess.Popen[bytes]) -> _WindowsJob:
 
     try:
         limits = _JobObjectExtendedLimitInformation()
-        limits.BasicLimitInformation.LimitFlags = _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        limits.BasicLimitInformation.LimitFlags = _windows_job_limit_flags()
         if not kernel32.SetInformationJobObject(
             job_handle,
             _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
@@ -330,19 +447,22 @@ def _create_windows_job(process: subprocess.Popen[bytes]) -> _WindowsJob:
         ):
             raise ctypes.WinError(ctypes.get_last_error())
 
-        process_handle = getattr(process, "_handle", None)
-        if process_handle is None:
-            raise OSError("Could not obtain the Windows check process handle.")
-        if not kernel32.AssignProcessToJobObject(
-            job_handle,
-            wintypes.HANDLE(process_handle),
-        ):
-            raise ctypes.WinError(ctypes.get_last_error())
+        def assign_process_handle(process_handle: Any) -> None:
+            if not kernel32.AssignProcessToJobObject(
+                job_handle,
+                wintypes.HANDLE(process_handle),
+            ):
+                raise ctypes.WinError(ctypes.get_last_error())
     except BaseException:
         kernel32.CloseHandle(job_handle)
         raise
 
-    return _WindowsJob(job_handle, kernel32.CloseHandle)
+    return _WindowsJob(job_handle, kernel32.CloseHandle, assign_process_handle)
+
+
+def _windows_job_limit_flags() -> int:
+    """Return the Windows Job limits required for check process containment."""
+    return _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | _JOB_OBJECT_LIMIT_BREAKAWAY_OK
 
 
 def _effective_timeout(check: Mapping[str, object], index: int, default: int) -> int:
