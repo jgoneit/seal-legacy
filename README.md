@@ -10,8 +10,8 @@ Agent가 “완료했습니다”라고 말하는 것과, 실제로 **검토 가
 >
 > 현재는 개인 프로젝트, 로컬 실험, outcome-based completion gate 연구에 적합합니다.
 >
-> **v0.1.0은 첫 Experimental release 대상입니다.** GitHub Release는 일반 `main`
-> push가 아니라 `v0.1.0` tag가 push될 때만 생성됩니다.
+> **v0.1.1은 현재 Experimental patch release 대상입니다.** GitHub Release는 일반 `main`
+> push가 아니라 `v0.1.1` tag가 push될 때만 생성됩니다.
 
 ---
 
@@ -93,11 +93,11 @@ harness complete
 
 ```bash
 python3 -m pip install \
-  "git+https://github.com/jgoneit/harness.git@v0.1.0"
+  "git+https://github.com/jgoneit/harness.git@v0.1.1"
 ```
 
 GitHub Release에서 wheel이 실제로 발행된 뒤에는 해당 Release에 첨부된
-`outcome_harness-0.1.0-py3-none-any.whl` 파일을 설치할 수 있습니다. 이 문서는
+`outcome_harness-0.1.1-py3-none-any.whl` 파일을 설치할 수 있습니다. 이 문서는
 아직 발행되지 않은 asset URL을 고정하지 않습니다.
 
 ### 개발 환경에서 설치
@@ -411,6 +411,7 @@ CI에서는 다음을 검사합니다.
 - [v0.1.0 Release Scope](docs/release-scope-v0.1.0.md)
 - [Adapter CLI Contract](docs/adapter-contract.md)
 - [v0.1.0 Release Notes](docs/releases/v0.1.0.md)
+- [v0.1.1 Release Notes](docs/releases/v0.1.1.md)
 - [Task Schema](schemas/task.schema.json)
 - [Verdict Schema](schemas/verdict.schema.json)
 - [Verifier prompt](prompts/verifier.md)
