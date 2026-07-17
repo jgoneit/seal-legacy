@@ -1,0 +1,4 @@
+interface:
+  display_name: "Harness"
+  short_description: "Evidence-based completion checks"
+  default_prompt: "$harness 이 작업을 Harness Task로 정의해줘"
