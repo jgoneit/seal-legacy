@@ -43,11 +43,19 @@ Run Core commands as subprocesses only. Depend only on documented commands, stdo
 
 ## Repository preflight
 
-Run requested Core commands from the target project's Git repository. Before an operation, confirm:
+Run requested Core commands from the target project's Git repository. Before every operation, confirm:
 
 - Git repository and current HEAD exist;
-- .harness/checks.json exists; and
 - a requested Task ID exists, using harness task show TASK_ID when applicable.
+
+Before `harness task create` or `harness verify`, also confirm that
+`.harness/checks.json` exists. These commands read the current catalog to save
+or execute checks.
+
+Do not require `.harness/checks.json` for `harness verifier bundle`, `harness
+verifier record`, `harness verifier show`, or `harness complete`. Those commands
+validate the saved Task and Run artifacts, which already contain the check
+snapshot needed for the operation.
 
 Do not generate project configuration, Tasks, Evidence, or Verdict files merely to satisfy preflight. Show Git or Core CLI errors as returned.
 
