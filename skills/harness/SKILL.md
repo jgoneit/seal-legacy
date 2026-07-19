@@ -48,14 +48,15 @@ Run requested Core commands from the target project's Git repository. Before eve
 - Git repository and current HEAD exist;
 - a requested Task ID exists, using harness task show TASK_ID when applicable.
 
-Before `harness task create` or `harness verify`, also confirm that
-`.harness/checks.json` exists. These commands read the current catalog to save
-or execute checks.
+Before `harness task create`, also confirm that `.harness/checks.json` exists.
+Task creation reads the current catalog to materialize checks in the saved Task
+snapshot.
 
-Do not require `.harness/checks.json` for `harness verifier bundle`, `harness
-verifier record`, `harness verifier show`, or `harness complete`. Those commands
-validate the saved Task and Run artifacts, which already contain the check
-snapshot needed for the operation.
+Do not require `.harness/checks.json` for `harness verify`, `harness verifier
+bundle`, `harness verifier record`, `harness verifier show`, or `harness
+complete`. `harness verify` executes checks from the saved Task snapshot; the
+other commands validate saved Task and Run artifacts. These operations do not
+need the current catalog.
 
 Do not generate project configuration, Tasks, Evidence, or Verdict files merely to satisfy preflight. Show Git or Core CLI errors as returned.
 
