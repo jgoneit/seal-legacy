@@ -1,17 +1,17 @@
-# Outcome Harness
+# Harness
 
 > **Agent의 작업 방식을 통제하지 않고, 완료 주장에 근거가 있는지를 검증합니다.**
 
-Outcome Harness는 코딩 Agent가 만든 변경 사항, 테스트 결과, diff, 검토 Verdict를 하나의 Evidence Run으로 묶는 실험적 로컬 CLI입니다.
+Harness는 코딩 Agent가 만든 변경 사항, 테스트 결과, diff, 검토 Verdict를 하나의 Evidence Run으로 묶는 실험적 로컬 CLI입니다.
 
-Agent가 “완료했습니다”라고 말하는 것과, 실제로 **검토 가능한 근거를 남긴 것**은 다릅니다. Outcome Harness는 그 간극을 줄이는 데 집중합니다.
+Agent가 “완료했습니다”라고 말하는 것과, 실제로 **검토 가능한 근거를 남긴 것**은 다릅니다. Harness는 그 간극을 줄이는 데 집중합니다.
 
 > 🚧 **Status: Experimental**
 >
 > 현재는 개인 프로젝트, 로컬 실험, outcome-based completion gate 연구에 적합합니다.
 >
-> **v0.1.1은 현재 Experimental patch release 대상입니다.** GitHub Release는 일반 `main`
-> push가 아니라 `v0.1.1` tag가 push될 때만 생성됩니다.
+> **v0.1.1은 최신 Experimental patch release입니다.** 배포 파일은
+> [GitHub Release](https://github.com/jgoneit/harness/releases/tag/v0.1.1)에서 받을 수 있습니다.
 
 ---
 
@@ -25,7 +25,7 @@ Agent가 “완료했습니다”라고 말하는 것과, 실제로 **검토 가
 - 검증 당시 코드와 완료를 선언하는 코드가 달라짐
 - 테스트 결과와 저장된 Evidence가 서로 모순됨
 
-Outcome Harness는 Agent의 reasoning이나 tool 사용을 막지 않습니다.
+Harness는 Agent의 reasoning이나 tool 사용을 막지 않습니다.
 
 대신 작업이 끝난 뒤 다음 질문에 답할 수 있는 자료를 남깁니다.
 
@@ -97,8 +97,19 @@ python3 -m pip install \
 ```
 
 GitHub Release에서 wheel이 실제로 발행된 뒤에는 해당 Release에 첨부된
-`outcome_harness-0.1.1-py3-none-any.whl` 파일을 설치할 수 있습니다. 이 문서는
-아직 발행되지 않은 asset URL을 고정하지 않습니다.
+`outcome_harness-0.1.1-py3-none-any.whl` 파일을 설치할 수 있습니다. 현재 배포 파일은
+[v0.1.1 GitHub Release](https://github.com/jgoneit/harness/releases/tag/v0.1.1)에 있습니다.
+
+### 이름
+
+사용자에게 보이는 제품, CLI, Codex Plugin 이름은 모두 **Harness**입니다.
+
+- CLI: `harness`
+- Codex Plugin 선택: `@harness`
+- Codex Skill 명시 호출: `$harness`
+
+기존 설치 호환성을 위해 Python distribution과 wheel 파일명에는
+`outcome-harness` / `outcome_harness`가 남아 있습니다.
 
 ### 개발 환경에서 설치
 
@@ -123,6 +134,17 @@ Windows PowerShell:
 - Python 3.11 이상
 - 최소 1개 이상의 commit이 존재하는 Git repository
 - 프로젝트 check를 실행할 수 있는 로컬 runtime
+
+### 지원 플랫폼
+
+- **macOS**: 지원합니다. check는 별도 POSIX process group에서 실행·정리됩니다.
+- **Linux**: macOS와 같은 POSIX process-group 경로를 사용합니다.
+- **Windows**: Job object 기반으로 check process tree를 정리합니다. 의도적으로
+  breakaway를 요청한 child는 이 cleanup 경계 밖에 남습니다.
+
+macOS에서 건너뛰는 것은 일반 기능이 아니라, APFS가 만들 수 없는 비-UTF-8 바이트
+파일명을 다루는 경계 E2E 두 건뿐입니다. 해당 JSON escaping 로직은 플랫폼과 무관한
+unit test로 계속 검증하므로, 이 skip은 macOS 지원 중단이나 기능 포기를 뜻하지 않습니다.
 
 ---
 
@@ -354,7 +376,7 @@ manifest는 verify 이후 파일 수정·누락·교체를 소비 시점에 탐�
 
 ## 🔐 신뢰와 보안 경계
 
-Outcome Harness는 현재 다음을 제공합니다.
+Harness는 현재 다음을 제공합니다.
 
 - shell 없는 check 실행
 - 명시적인 Task/Run identity
