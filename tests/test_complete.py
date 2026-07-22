@@ -274,6 +274,20 @@ class CompleteCommandTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 5, result.stderr)
 
+    def test_verify_returns_success_after_recording_required_check_failure(self) -> None:
+        self._create_task(
+            checks=[self._python_check("fail", "import sys; sys.exit(23)")]
+        )
+
+        result = self._run_cli("verify", "TASK-COMPLETE")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        response = json.loads(result.stdout)
+        verification_path = Path(response["evidence_path"]) / "verification.json"
+        verification = json.loads(verification_path.read_text(encoding="utf-8"))
+        self.assertFalse(verification["required_checks_pass"])
+        self.assertEqual(verification["mechanical_result"], "fail")
+
     def test_required_check_timeout_rejects_completion(self) -> None:
         self._create_task(
             checks=[
@@ -378,6 +392,50 @@ class CompleteCommandTests(unittest.TestCase):
 
         self.assertEqual(invalid.returncode, 2, invalid.stderr)
         self.assertEqual(omitted.returncode, 2, omitted.stderr)
+
+    @unittest.expectedFailure
+    def test_complete_rejects_product_source_changes_after_verification(self) -> None:
+        """Remove expectedFailure when current-source binding is implemented."""
+        self._create_task()
+        run = verify_task("TASK-COMPLETE", cwd=self.repository)
+        self._write("src/example.txt", "changed after verification\n")
+
+        result = self._complete("TASK-COMPLETE", run.run_id)
+
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertFalse((run.evidence_path / "completion.json").exists())
+
+    @unittest.expectedFailure
+    def test_verify_cannot_override_task_baseline_to_hide_product_changes(self) -> None:
+        """Remove expectedFailure when the Task baseline can no longer be bypassed."""
+        self._create_task()
+        task_baseline = self._git("rev-parse", "HEAD")
+        self._write("docs/hidden.txt", "committed after the Task baseline\n")
+        self._git("add", "docs/hidden.txt")
+        self._git(
+            "-c",
+            "user.name=Harness Test",
+            "-c",
+            "user.email=harness-test@example.invalid",
+            "commit",
+            "--quiet",
+            "-m",
+            "post-baseline product change",
+        )
+
+        result = self._run_cli(
+            "verify", "TASK-COMPLETE", "--base-ref", "HEAD"
+        )
+        if result.returncode != 0:
+            return
+
+        response = json.loads(result.stdout)
+        verification_path = Path(response["evidence_path"]) / "verification.json"
+        verification = json.loads(verification_path.read_text(encoding="utf-8"))
+        changed_paths = {change["path"] for change in verification["changed_files"]}
+        self.assertEqual(verification["baseline"], task_baseline)
+        self.assertIn("docs/hidden.txt", changed_paths)
+        self.assertFalse(verification["scope_pass"])
 
     def test_non_repository_returns_git_repository_exit_code(self) -> None:
         non_repository = self.root / "not-a-repository"

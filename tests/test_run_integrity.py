@@ -23,7 +23,7 @@ from harness.evidence import (
     complete_task,
     verify_task,
 )
-from harness.run_validator import RunValidationError, validate_run
+from harness.run_validator import RunValidationError, ValidatedRun, validate_run
 from harness.task import create_task
 from harness.verdict import VerdictEvidenceError, record_verdict
 
@@ -163,6 +163,7 @@ class CanonicalRunIntegrityTests(unittest.TestCase):
 
         before_verdict = validate_run("TASK-RUN", run.run_id, cwd=self.repository)
 
+        self.assertIsInstance(before_verdict, ValidatedRun)
         self.assertTrue(before_verdict.scope_pass)
         self.assertTrue(before_verdict.required_checks_pass)
         self.assertEqual(before_verdict.mechanical_result, "pass")
@@ -188,6 +189,7 @@ class CanonicalRunIntegrityTests(unittest.TestCase):
 
         validated = validate_run("TASK-RUN", run.run_id, cwd=self.repository)
 
+        self.assertIsInstance(validated, ValidatedRun)
         self.assertFalse(validated.required_checks_pass)
         self.assertEqual(validated.mechanical_result, "fail")
         bundle = create_verification_bundle(
@@ -218,6 +220,7 @@ class CanonicalRunIntegrityTests(unittest.TestCase):
 
         validated = validate_run("TASK-RUN", run.run_id, cwd=self.repository)
 
+        self.assertIsInstance(validated, ValidatedRun)
         self.assertTrue(validated.check_records[0]["timed_out"])
         self.assertFalse(validated.required_checks_pass)
         self.assertEqual(validated.mechanical_result, "fail")
@@ -229,6 +232,7 @@ class CanonicalRunIntegrityTests(unittest.TestCase):
 
         validated = validate_run("TASK-RUN", run.run_id, cwd=self.repository)
 
+        self.assertIsInstance(validated, ValidatedRun)
         self.assertFalse(validated.scope_pass)
         self.assertEqual(validated.mechanical_result, "fail")
         self.assertEqual(
@@ -398,6 +402,10 @@ class CanonicalRunIntegrityTests(unittest.TestCase):
                 lambda value: value["evidence_files"].__setitem__(0, "/tmp/outside.log"),
             ),
             (
+                "windows-drive-absolute",
+                lambda value: value["evidence_files"].__setitem__(0, "C:/outside.log"),
+            ),
+            (
                 "duplicate",
                 lambda value: value["evidence_files"].append(value["evidence_files"][0]),
             ),
@@ -427,6 +435,16 @@ class CanonicalRunIntegrityTests(unittest.TestCase):
         changed_checks = copy.deepcopy(original_checks)
         changed_checks["checks"][0]["stdout_path"] = "checks/unlisted.stdout"
         self._write_document(checks_path, changed_checks)
+        with self.assertRaises(RunValidationError):
+            validate_run("TASK-RUN", run.run_id, cwd=self.repository)
+
+    @unittest.skipUnless(os.name == "posix", "directory symlink coverage requires POSIX")
+    def test_rejects_evidence_directory_symlink_escape(self) -> None:
+        run = self._valid_run()
+        outside_run = self.root / "outside-run"
+        run.evidence_path.rename(outside_run)
+        run.evidence_path.symlink_to(outside_run, target_is_directory=True)
+
         with self.assertRaises(RunValidationError):
             validate_run("TASK-RUN", run.run_id, cwd=self.repository)
 
