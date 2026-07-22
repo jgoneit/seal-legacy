@@ -4,9 +4,9 @@ Language: English | [한국어](credential-boundary.ko.md)
 
 ## Purpose
 
-Harness does not control how a coding Agent works. Credential confidentiality is
-therefore enforced outside Harness Core through the repository's Codex permission
-profile in `.codex/config.toml`.
+Harness does not control how a coding Agent works. When Codex's permission-profile
+path is active, credential confidentiality is therefore enforced outside Harness
+Core through the repository's profile in `.codex/config.toml`.
 
 The profile extends Codex's built-in `:workspace` permissions. It preserves normal
 workspace inspection, editing, and command execution while denying reads and writes
@@ -17,7 +17,8 @@ command parsing, approval state, or a Harness runtime state machine.
 
 The workspace rules deny:
 
-- `.env` and `.env.*` at any configured workspace depth;
+- `.env`, `.env.*`, and `.envrc` beneath configured workspace roots, subject to
+  the portable scan-depth limit below;
 - private-key files ending in `.key`;
 - common credential JSON filenames such as `key.json`, `credentials.json`, and
   service-account variants; and
@@ -27,6 +28,12 @@ The profile also denies exact user-level credential locations for Codex, SSH, AW
 Azure, Google Cloud, GitHub CLI, Docker, Kubernetes, npm, PyPI, Git, and netrc.
 Directories and files outside those entries retain the built-in `:workspace`
 behavior.
+
+On Linux, WSL, and native Windows, Codex may pre-expand unbounded `**` deny globs
+before starting the sandbox. This profile keeps `glob_scan_max_depth = 8` to bound
+that startup work. The portable guarantee for workspace-relative globs therefore
+stops at the configured scan depth on those platforms; files nested more deeply are
+outside this repository policy's guarantee.
 
 The exact `.env.example` name is excluded from the deny patterns so an Agent can
 inspect the documented variable contract without seeing runtime values. Codex
@@ -48,6 +55,14 @@ external source.
 
 ## Activation and override boundary
 
+Permission profiles do not compose with legacy sandbox settings. If any loaded
+configuration contains `sandbox_mode`, the CLI receives `--sandbox`, or the selected
+configuration profile sets `sandbox_mode`, Codex uses the legacy sandbox and ignores
+`default_permissions`. Remove `sandbox_mode` and `[sandbox_workspace_write]` before
+relying on this boundary. Managed deployments should use
+`allowed_permission_profiles` with a managed `default_permissions` value and remove
+the legacy settings rather than adding a repository runtime guard.
+
 Project-scoped `.codex/config.toml` is loaded only for a trusted project and takes
 effect when a new Codex session resolves its configuration. It does not retroactively
 change the permissions of an already-running session.
@@ -65,5 +80,8 @@ Older clients must be upgraded rather than relying on a partial hook-based fallb
 
 The repository test suite validates the checked-in profile contract. When a
 compatible `codex` executable is available, it also runs a local sandbox smoke test
-with synthetic values to confirm that `.env`, representative `.env.*` variants, and
-`key.json` cannot be read while the exact `.env.example` name remains readable.
+with synthetic values to confirm that `.env`, representative `.env.*` variants,
+`.envrc`, and `key.json` cannot be read while the exact `.env.example` name remains
+readable at the root and within the configured scan depth. The smoke test selects the
+profile explicitly, so it validates the profile definition rather than proving that
+every user's default session selected it.
