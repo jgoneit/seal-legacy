@@ -1,0 +1,58 @@
+# Keep normal Codex workspace autonomy while carving credential material out of
+# the filesystem and subprocess environment. This is a project security
+# boundary, not part of the Harness Core completion contract.
+default_permissions = "harness-credential-safe"
+
+[permissions.harness-credential-safe]
+description = "Workspace access with common credential material denied."
+extends = ":workspace"
+
+[permissions.harness-credential-safe.filesystem]
+glob_scan_max_depth = 8
+"~/.aws/cli/cache" = "deny"
+"~/.aws/credentials" = "deny"
+"~/.aws/sso/cache" = "deny"
+"~/.azure" = "deny"
+"~/.codex/auth.json" = "deny"
+"~/.config/gcloud/application_default_credentials.json" = "deny"
+"~/.config/gcloud/credentials.db" = "deny"
+"~/.config/gh/hosts.yml" = "deny"
+"~/.docker/config.json" = "deny"
+"~/.git-credentials" = "deny"
+"~/.kube/config" = "deny"
+"~/.netrc" = "deny"
+"~/.npmrc" = "deny"
+"~/.pypirc" = "deny"
+"~/.ssh" = "deny"
+
+[permissions.harness-credential-safe.filesystem.":workspace_roots"]
+"**/.env" = "deny"
+# Deny every non-empty `.env.<suffix>` except the exact `.env.example` name.
+# Filesystem globs support deny rules only, so the exception is expressed by
+# splitting on the first character that differs from `example`.
+"**/.env.e" = "deny"
+"**/.env.ex" = "deny"
+"**/.env.exa" = "deny"
+"**/.env.exam" = "deny"
+"**/.env.examp" = "deny"
+"**/.env.exampl" = "deny"
+"**/.env.[!e]*" = "deny"
+"**/.env.e[!x]*" = "deny"
+"**/.env.ex[!a]*" = "deny"
+"**/.env.exa[!m]*" = "deny"
+"**/.env.exam[!p]*" = "deny"
+"**/.env.examp[!l]*" = "deny"
+"**/.env.exampl[!e]*" = "deny"
+"**/.env.example?*" = "deny"
+"**/*.key" = "deny"
+"**/credentials.json" = "deny"
+"**/id_ed25519" = "deny"
+"**/id_rsa" = "deny"
+"**/key.json" = "deny"
+"**/service-account.json" = "deny"
+"**/service_account.json" = "deny"
+
+[shell_environment_policy]
+inherit = "all"
+ignore_default_excludes = false
+exclude = ["*CREDENTIAL*", "*PASSWORD*", "*PASSWD*"]
