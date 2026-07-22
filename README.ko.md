@@ -431,6 +431,7 @@ CI에서는 다음을 검사합니다.
 ## 📚 문서
 
 - [Architecture](docs/architecture.ko.md)
+- [Codex credential 경계](docs/credential-boundary.ko.md)
 - [Exit codes](docs/exit-codes.ko.md)
 - [v0.1.0 Release Scope](docs/release-scope-v0.1.0.ko.md)
 - [Adapter CLI Contract](docs/adapter-contract.ko.md)

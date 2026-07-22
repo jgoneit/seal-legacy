@@ -432,6 +432,7 @@ CI checks the following:
 ## 📚 Documentation
 
 - [Architecture](docs/architecture.md)
+- [Codex credential boundary](docs/credential-boundary.md)
 - [Exit codes](docs/exit-codes.md)
 - [v0.1.0 Release Scope](docs/release-scope-v0.1.0.md)
 - [Adapter CLI Contract](docs/adapter-contract.md)
