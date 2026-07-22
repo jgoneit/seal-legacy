@@ -1,4 +1,6 @@
-# ADR 0002: Run integrity와 completion policy 분리
+# ADR 0002: Separate Run Integrity from Completion Policy
+
+Language: English | [한국어](0002-run-integrity-vs-completion-policy.ko.md)
 
 ## Status
 
@@ -6,51 +8,29 @@ Accepted
 
 ## Context
 
-Phase 1의 completion과 verifier bundle은 저장된 Task/Run Evidence를 각각 다시
-읽고 일부 consistency를 독자적으로 검사했다. 이 구조에서는 동일한 Run이 명령마다
-다르게 받아들여질 수 있고, check 결과·scope 결과·Evidence path 검증의 수정 지점도
-분산된다.
+In Phase 1, completion and verifier-bundle operations each reread saved Task and Run Evidence and independently checked some consistency properties. Under that structure, different commands could interpret the same Run differently, and the places to update validation of check results, scope results, and Evidence paths were scattered.
 
-또한 실패한 작업 결과와 손상된 Evidence는 다른 상태다. required check가 실패하거나
-timeout이 발생하고 Scope violation이 기록되어도, 해당 Run은 당시 결과를 정확하게
-보존한 정상 Evidence일 수 있다. 반대로 `passed=true`와 non-zero exit code처럼
-내부 자료가 모순되면 completion policy를 판단하기 전에 Run을 신뢰할 수 없다.
+A failed work result and damaged Evidence are also distinct states. Even when a required check fails, a timeout occurs, or a Scope violation is recorded, the Run may still be valid Evidence that accurately preserves the result at that time. Conversely, if internal data contradicts itself—for example, `passed=true` with a non-zero exit code—the Run cannot be trusted before completion policy is even considered.
 
 ## Decision
 
-- `harness.run_validator.validate_run(task_id, run_id, cwd=...)`를 저장 Run integrity의
-  canonical 진입점으로 둔다.
-- validator는 saved Task snapshot, Run `task.json`, `changed-files.json`, `diff.patch`,
-  `checks.json`, `verification.json`, check log의 존재·readability·identity·상호
-  consistency를 확인하고 immutable `ValidatedRun`을 반환한다.
-- validator는 Evidence path traversal, absolute path, duplicate path, Run directory 밖
-  symlink escape를 거부한다.
-- validator는 failed check, timeout, Scope violation, `mechanical_result="fail"`을
-  corruption으로 취급하지 않는다. 구조가 일관적이면 failed Run도 `ValidatedRun`이다.
-- `evidence.complete_task`, `bundle.create_verification_bundle`, `verdict.record_verdict`,
-  `verdict.show_verdict`는 각각의 정책을 적용하기 전에 동일한 `ValidatedRun`을 사용한다.
-- completion은 Scope, required check, timeout, Manual Verdict와 blocker 조건만 추가로
-  평가한다. bundle은 portability와 output safety만, Verdict 경로는 Manual Verdict
-  contract와 raw/snapshot preservation만 담당한다.
-- validator는 Git diff 재수집, check 재실행, current source 비교, 모델 API·외부 CLI
-  호출, Agent runtime hook·approval·state machine을 수행하지 않는다.
+- Make `harness.run_validator.validate_run(task_id, run_id, cwd=...)` the canonical entry point for stored Run integrity.
+- The validator checks the existence, readability, identity, and mutual consistency of the saved Task snapshot, the Run's `task.json`, `changed-files.json`, `diff.patch`, `checks.json`, `verification.json`, and check logs, then returns an immutable `ValidatedRun`.
+- The validator rejects Evidence path traversal, absolute paths, duplicate paths, and symlink escapes outside the Run directory.
+- The validator does not treat a failed check, timeout, Scope violation, or `mechanical_result="fail"` as corruption. A failed Run is still a `ValidatedRun` when its structure is consistent.
+- `evidence.complete_task`, `bundle.create_verification_bundle`, `verdict.record_verdict`, and `verdict.show_verdict` use the same `ValidatedRun` before applying their respective policies.
+- Completion additionally evaluates only Scope, required checks, timeouts, Manual Verdicts, and blocker conditions. Bundles handle only portability and output safety, while Verdict paths handle only the Manual Verdict contract and raw/snapshot preservation.
+- The validator does not recollect Git diffs, rerun checks, compare current source, call model APIs or external CLIs, or operate Agent runtime hooks, approvals, or state machines.
 
 ## Consequences
 
-저장 Evidence가 손상되면 consumer마다 같은 canonical error boundary에서 거부된다.
-반대로 mechanical fail Run도 external review bundle과 독립 Manual Verdict의 입력으로
-보존된다. 공개 CLI 명령과 기존 exit-code 숫자는 바꾸지 않으며, `complete`만 valid
-Run에 대한 completion policy를 exit 4~7로 표현한다.
+When stored Evidence is damaged, every consumer rejects it at the same canonical error boundary. Conversely, a mechanically failed Run is preserved as input to an external review bundle and an independent Manual Verdict. Public CLI commands and existing exit-code numbers do not change; only `complete` expresses completion policy for a valid Run through exits 4–7.
 
-이 결정은 local filesystem을 immutable storage로 만들지 않는다. 이후 ADR 0003이
-mechanical Evidence manifest와 digest를 추가해 파일 수정·누락을 탐지하지만, 동일한
-로컬 사용자가 Evidence와 manifest를 함께 다시 계산하는 공격, diff와 changed-files의
-의미적 binding, verification 시점 source와 현재 source의 binding은 여전히 해결하지
-않는다.
+This decision does not make the local filesystem immutable storage. ADR 0003 subsequently adds a mechanical Evidence manifest and digest to detect modified or missing files, but it still does not address attacks in which the same local user recomputes both Evidence and its manifest, semantic binding between the diff and changed files, or binding between the source at verification time and the current source.
 
 ## Rejected alternatives
 
-- completion, bundle, Verdict 경로가 각자 Evidence consistency를 다시 검사하는 방식
-- mechanical failure를 즉시 corrupt Evidence로 취급하는 방식
-- validator에서 Git diff를 재생성하거나 check를 재실행하는 방식
-- validator에 source snapshot, external verifier adapter, automatic repair를 함께 추가하는 방식
+- Have completion, bundle, and Verdict paths each recheck Evidence consistency independently
+- Treat mechanical failure immediately as corrupt Evidence
+- Regenerate Git diffs or rerun checks in the validator
+- Add source snapshots, an external verifier adapter, and automatic repair to the validator at the same time

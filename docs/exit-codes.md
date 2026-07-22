@@ -1,63 +1,41 @@
-# Outcome Harness exit codes
+# Harness exit codes
 
-아래 exit code는 공개 CLI 계약이다. 이후 새 명령을 추가할 수는 있지만, 이미
-정의된 숫자의 의미를 바꾸지 않는다.
+Language: English | [한국어](exit-codes.ko.md)
+
+The exit codes below are part of the public CLI contract. New commands may be added later, but the meanings of already defined numbers will not change.
 
 | Code | Meaning | Typical condition |
 | ---: | --- | --- |
-| 0 | success | 요청한 명령이 성공적으로 끝났고, `complete`의 모든 완료 조건을 만족함 |
-| 2 | invalid input or schema | 잘못된 CLI 인자, Task/run 불일치, 유효하지 않은 Task Spec 또는 saved Task 구조 |
-| 3 | git/repository error | Git 실행 실패, Git 저장소 밖에서의 실행, 해석할 수 없는 Git baseline |
-| 4 | scope violation | 저장된 evidence가 product Scope 밖의 변경을 기록함 |
-| 5 | required check failure | timeout이 아닌 required check 실패가 저장되어 있음 |
-| 6 | timeout | required check timeout이 저장되어 있음 |
-| 7 | verifier gate not satisfied | required verifier evidence가 없거나, 기록된 verdict가 fail/unable이거나 blocker를 포함함 |
-| 8 | evidence missing or corrupt | 필요한 evidence 파일이 없거나, JSON을 읽을 수 없거나, 저장된 record가 서로 모순됨 |
+| 0 | success | The requested command completed successfully and, for `complete`, all completion conditions were satisfied |
+| 2 | invalid input or schema | Invalid CLI arguments, Task/run mismatch, or an invalid Task Spec or saved Task structure |
+| 3 | git/repository error | Git execution failure, execution outside a Git repository, or an unresolvable Git baseline |
+| 4 | scope violation | The stored Evidence records a change outside the product Scope |
+| 5 | required check failure | A non-timeout required check failure is stored |
+| 6 | timeout | A required check timeout is stored |
+| 7 | verifier gate not satisfied | Required verifier Evidence is missing, or the recorded Verdict is fail/unable or contains a blocker |
+| 8 | evidence missing or corrupt | Required Evidence files are missing, JSON is unreadable, or stored records contradict one another |
 
-## `harness complete` 판정
+## `harness complete` decision process
 
-`harness complete <TASK_ID> --run-id <RUN_ID>`는 check나 Git diff를 재실행하지
-않고 해당 run 디렉터리의 evidence만 읽는다. 먼저 canonical `validate_run()`이
-저장 Task/Run identity, artifact path, check 결과, scope, mechanical result와
-`run-manifest.json`의 raw-byte digest integrity를 확인한다. `--run-id`는 필수이며
-암묵적인 latest-run 선택은 지원하지 않는다.
+`harness complete <TASK_ID> --run-id <RUN_ID>` reads only the Evidence in the specified Run directory and does not rerun checks or regenerate the Git diff. First, the canonical `validate_run()` checks the stored Task/Run identity, artifact paths, check results, scope, mechanical result, and raw-byte digest integrity in `run-manifest.json`. `--run-id` is required; implicit latest-Run selection is not supported.
 
-성공(exit 0)하려면 다음이 모두 성립해야 한다.
+All of the following must be true for success (exit 0):
 
-- 요청한 Task와 run id가 saved Task 및 `verification.json`의 identity와 일치한다.
-- 필수 evidence 파일과 `verification.json`이 나열한 evidence 파일이 존재하고,
-  JSON evidence는 parse 및 내부 일관성 검사를 통과한다.
-- `run-manifest.json`이 expected mechanical file 목록과 정확히 일치하고, 각 파일의
-  raw-byte size·SHA-256 및 canonical `evidence_sha256`이 일치한다.
-- `scope_pass`가 `true`다.
-- 모든 required check가 `passed=true`이며 timeout이 없다.
-- `required_checks_pass=true`이고 `mechanical_result="pass"`다.
-- Task의 `verifier.required`가 `true`면 유효한 manual verdict가 있고,
-  그 verdict가 `pass`이며 blocker가 0개다.
-- Task의 `verifier.required`가 `false`면 verdict 없이 mechanical-only로
-  완료할 수 있다. 단, 기록된 verdict가 `fail` 또는 `unable`이거나 blocker를
-  포함하면 exit 7로 거부한다.
+- The requested Task and Run ID match the identity in the saved Task and `verification.json`.
+- The required Evidence files and the Evidence files listed in `verification.json` exist, and JSON Evidence passes parsing and internal consistency checks.
+- `run-manifest.json` matches the expected mechanical file list exactly, and each file's raw-byte size and SHA-256 and the canonical `evidence_sha256` match.
+- `scope_pass` is `true`.
+- Every required check has `passed=true` and none timed out.
+- `required_checks_pass=true` and `mechanical_result="pass"`.
+- If the Task has `verifier.required` set to `true`, a valid Manual Verdict exists, the Verdict is `pass`, and it has zero blockers.
+- If the Task has `verifier.required` set to `false`, the Task can complete mechanically without a Verdict. However, exit 7 is returned if a recorded Verdict is `fail` or `unable` or contains a blocker.
 
-필수 check 실패, timeout, Scope violation, `mechanical_result="fail"`은
-`validate_run()` 자체의 오류가 아니다. 이들은 정상적으로 기록된 failed Run이며
-bundle export나 Manual Verdict 기록은 가능하다. `complete`만 completion policy에
-따라 exit 4, 5, 6 또는 7로 거부한다.
+A required check failure, timeout, Scope violation, or `mechanical_result="fail"` is not itself an error from `validate_run()`. These are validly recorded failed Runs that can still be exported as bundles or have Manual Verdicts recorded. Only `complete` rejects them with exit 4, 5, 6, or 7 according to completion policy.
 
-raw verdict와 normalized snapshot은 함께 존재하고 parse 및 일치 검사를 통과해야 한다.
-둘 중 하나가 없거나 손상되면 optional Task라도 pass로 대체하지 않으며 exit 8로
-거부한다. warning과 note는 complete를 차단하지 않고 `completion.json`의 count로
-남는다. 성공 completion은 소비한 mechanical Evidence 집합의 `evidence_sha256`도
-기록한다.
+When a Verdict has been recorded, the raw Verdict and normalized snapshot must both exist, parse successfully, and match. If only one is present or either is corrupt, completion returns exit 8 even when the verifier is optional. If neither exists and the verifier is optional, mechanical-only completion remains allowed. Warning and note findings do not block `complete`; their counts are recorded in `completion.json`. A successful completion also records the `evidence_sha256` of the consumed mechanical Evidence set.
 
-저장 evidence가 정상적으로 읽힌 뒤에는 verifier gate(exit 7)를 먼저 판정하고,
-이어서 scope(exit 4), required timeout(exit 6), required check failure(exit 5)를
-판정한다. evidence 누락·손상(exit 8)은 이러한 완료 판정보다 앞서 보고된다.
+After the stored Evidence has been read successfully, the verifier gate (exit 7) is evaluated first, followed by scope (exit 4), required timeout (exit 6), and required check failure (exit 5). Missing or corrupt Evidence (exit 8) is reported before these completion decisions.
 
-`validate_run()`은 저장 파일만 대상으로 한다. 현재 working tree를 수집하거나
-비교하지 않고, Git diff를 재생성하지 않으며, check를 재실행하지 않는다. manifest
-mismatch는 exit 8의 evidence corruption으로 처리하고 파일을 복구하거나 rollback하지
-않는다. 따라서 현재 source binding은 이 exit-code 계약의 일부가 아니다.
+`validate_run()` operates only on stored files. It does not collect or compare the current working tree, regenerate the Git diff, or rerun checks. A manifest mismatch is treated as Evidence corruption with exit 8 and does not repair or roll back files. Current source binding is therefore not part of this exit-code contract.
 
-`harness verify`는 check 결과를 evidence로 기록하는 명령이므로, required check가
-실패하거나 timeout이 나더라도 evidence 기록 자체가 성공하면 exit 0을 반환한다.
-그 결과의 완료 거부는 이후 `harness complete`가 위의 exit code로 표현한다.
+Because `harness verify` records check results as Evidence, it returns exit 0 if Evidence recording itself succeeds, even when a required check fails or times out. A later `harness complete` expresses the refusal to complete through the exit codes above.
