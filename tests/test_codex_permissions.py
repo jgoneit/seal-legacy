@@ -177,6 +177,7 @@ class CodexCredentialProfileSandboxTest(unittest.TestCase):
                 PROFILE_NAME,
                 "--cd",
                 str(REPOSITORY_ROOT),
+                "--",
                 sys.executable,
                 "-c",
                 READ_TEXT_SCRIPT,
