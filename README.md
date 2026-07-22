@@ -1,44 +1,46 @@
 # Harness
 
-> **Agent의 작업 방식을 통제하지 않고, 완료 주장에 근거가 있는지를 검증합니다.**
+Language: English | [한국어](README.ko.md)
 
-Harness는 코딩 Agent가 만든 변경 사항, 테스트 결과, diff, 검토 Verdict를 하나의 Evidence Run으로 묶는 실험적 로컬 CLI입니다.
+> **Verify whether a completion claim is supported by evidence, without controlling how an Agent works.**
 
-Agent가 “완료했습니다”라고 말하는 것과, 실제로 **검토 가능한 근거를 남긴 것**은 다릅니다. Harness는 그 간극을 줄이는 데 집중합니다.
+Harness is an experimental local CLI that packages changes made by a coding Agent, test results, a diff, and a review Verdict into a single Evidence Run.
+
+There is a difference between an Agent saying “done” and leaving behind **evidence that can actually be reviewed**. Harness focuses on narrowing that gap.
 
 > 🚧 **Status: Experimental**
 >
-> 현재는 개인 프로젝트, 로컬 실험, outcome-based completion gate 연구에 적합합니다.
+> It is currently suited to personal projects, local experiments, and research into outcome-based completion gates.
 >
-> **v0.1.1은 최신 Experimental patch release입니다.** 배포 파일은
-> [GitHub Release](https://github.com/jgoneit/harness/releases/tag/v0.1.1)에서 받을 수 있습니다.
+> **v0.1.1 is the latest Experimental patch release.** Distribution artifacts are available from the
+> [GitHub Release](https://github.com/jgoneit/harness/releases/tag/v0.1.1).
 
 ---
 
-## 🎯 무엇을 해결하나요?
+## 🎯 What problem does it solve?
 
-일반적인 Agent 작업에서는 테스트가 통과하더라도 다음 문제를 놓칠 수 있습니다.
+Even when tests pass during a typical Agent task, the following problems can go unnoticed:
 
-- 요청 범위를 벗어난 파일이 수정됨
-- 테스트가 약화되거나 우회됨
-- 구현은 됐지만 실제 목표를 충족하지 못함
-- 검증 당시 코드와 완료를 선언하는 코드가 달라짐
-- 테스트 결과와 저장된 Evidence가 서로 모순됨
+- Files outside the requested scope were changed
+- Tests were weakened or bypassed
+- The implementation exists but does not satisfy the actual objective
+- The code at verification time differs from the code for which completion is claimed
+- Test results contradict the stored Evidence
 
-Harness는 Agent의 reasoning이나 tool 사용을 막지 않습니다.
+Harness does not restrict the Agent's reasoning or tool use.
 
-대신 작업이 끝난 뒤 다음 질문에 답할 수 있는 자료를 남깁니다.
+Instead, after the work is done, it leaves behind material that can answer this question:
 
-> **“이 결과를 완료라고 주장할 충분한 Evidence가 있는가?”**
+> **“Is there enough Evidence to claim that this result is complete?”**
 
 ---
 
-## 🔄 동작 방식
+## 🔄 How it works
 
 ```text
 Task Spec
    ↓
-코드 변경
+Code changes
    ↓
 harness verify
    ↓
@@ -51,67 +53,67 @@ Manual Verdict
 harness complete
 ```
 
-| 단계 | 역할 |
+| Stage | Role |
 | --- | --- |
-| **Task Spec** | 작업 목적, 수정 범위, 검사 항목 정의 |
-| **Verify** | diff와 check 결과를 Evidence로 저장 |
-| **Verifier Bundle** | 특정 Run만 독립적으로 검토할 수 있게 패키징 |
-| **Manual Verdict** | 사람이 Evidence를 검토한 결과 기록 |
-| **Complete** | 저장된 Evidence가 완료 조건을 충족하는지 판정 |
+| **Task Spec** | Define the objective, allowed scope, and checks |
+| **Verify** | Store the diff and check results as Evidence |
+| **Verifier Bundle** | Package a specific Run for independent review |
+| **Manual Verdict** | Record the result of a human review of the Evidence |
+| **Complete** | Determine whether the stored Evidence satisfies the completion conditions |
 
 ---
 
-## ✨ 현재 제공하는 기능
+## ✨ Current features
 
-- Git `HEAD`를 기준으로 한 Task snapshot
-- scope 기반 변경 파일 수집
-- shell을 사용하지 않는 argv 기반 check 실행
-- stdout, stderr, exit code, timeout 기록
-- diff와 mechanical verification Evidence 저장
-- raw-byte manifest와 digest로 저장 mechanical Evidence 변경을 탐지하는 canonical integrity validator
-- 특정 Task/Run만 포함하는 portable verifier bundle
-- Schema 기반 Manual Verdict 검증
-- raw Verdict와 검증된 snapshot 비교
-- 조건 미충족 시 거부하는 fail-closed completion
-- 안정적인 CLI exit code
-- unittest와 GitHub Actions CI
+- Task snapshots based on Git `HEAD`
+- Scope-based changed-file collection
+- Shell-free, argv-based check execution
+- Recording of stdout, stderr, exit code, and timeout
+- Storage of diff and mechanical verification Evidence
+- A canonical integrity validator that uses a raw-byte manifest and digests to detect changes to stored mechanical Evidence
+- Portable verifier bundles containing only a specific Task/Run
+- Schema-based Manual Verdict validation
+- Comparison of the raw Verdict with its validated snapshot
+- Fail-closed completion that rejects unmet conditions
+- Stable CLI exit codes
+- unittest and GitHub Actions CI
 
-### 아직 제공하지 않는 기능
+### Features not yet provided
 
-| 구분 | 내용 |
+| Category | Details |
 | --- | --- |
-| **의도적 비목표** | Agent reasoning 통제, runtime hook, process state machine, worktree orchestration |
-| **알려진 한계** | Pre/Post-check Source Snapshot 및 current-source binding 부재, `verify --base-ref`의 Run 단위 baseline override, 서명, remote attestation, immutable ledger |
-| **외부 연동** | Grok, xAI, OpenAI API 및 외부 verifier CLI 자동 호출 |
-| **Evidence 확장** | 멀티모달 파일, 완전한 secret redaction, automatic trust scoring |
+| **Intentional non-goals** | Controlling Agent reasoning, runtime hooks, process state machines, and worktree orchestration |
+| **Known limitations** | No Pre/Post-check Source Snapshots or current-source binding; Run-level baseline override through `verify --base-ref`; no signatures, remote attestation, or immutable ledger |
+| **External integrations** | Automatic invocation of Grok, xAI, the OpenAI API, or an external verifier CLI |
+| **Evidence extensions** | Multimodal files, complete secret redaction, and automatic trust scoring |
 
 ---
 
-## 📦 설치
+## 📦 Installation
 
-### Release tag에서 설치
+### Install from a release tag
 
 ```bash
 python3 -m pip install \
   "git+https://github.com/jgoneit/harness.git@v0.1.1"
 ```
 
-GitHub Release에서 wheel이 실제로 발행된 뒤에는 해당 Release에 첨부된
-`outcome_harness-0.1.1-py3-none-any.whl` 파일을 설치할 수 있습니다. 현재 배포 파일은
-[v0.1.1 GitHub Release](https://github.com/jgoneit/harness/releases/tag/v0.1.1)에 있습니다.
+Once a wheel has been published to a GitHub Release, you can install the attached
+`outcome_harness-0.1.1-py3-none-any.whl` file. The current distribution artifact is available from the
+[v0.1.1 GitHub Release](https://github.com/jgoneit/harness/releases/tag/v0.1.1).
 
-### 이름
+### Naming
 
-사용자에게 보이는 제품, CLI, Codex Plugin 이름은 모두 **Harness**입니다.
+The user-facing product, CLI, and Codex Plugin are all named **Harness**.
 
 - CLI: `harness`
-- Codex Plugin 선택: `@harness`
-- Codex Skill 명시 호출: `$harness`
+- Codex Plugin selection: `@harness`
+- Explicit Codex Skill invocation: `$harness`
 
-기존 설치 호환성을 위해 Python distribution과 wheel 파일명에는
-`outcome-harness` / `outcome_harness`가 남아 있습니다.
+For compatibility with existing installations, the Python distribution and wheel filename retain
+`outcome-harness` / `outcome_harness`.
 
-### 개발 환경에서 설치
+### Install for development
 
 ```bash
 git clone https://github.com/jgoneit/harness.git
@@ -129,32 +131,33 @@ Windows PowerShell:
 .\.venv\Scripts\Activate.ps1
 ```
 
-### 요구사항
+### Requirements
 
-- Python 3.11 이상
-- 최소 1개 이상의 commit이 존재하는 Git repository
-- 프로젝트 check를 실행할 수 있는 로컬 runtime
+- Python 3.11 or later
+- A Git repository with at least one commit
+- A local runtime capable of running the project's checks
 
-### 지원 플랫폼
+### Supported platforms
 
-- **macOS**: 지원합니다. check는 별도 POSIX process group에서 실행·정리됩니다.
-- **Linux**: macOS와 같은 POSIX process-group 경로를 사용합니다.
-- **Windows**: Job object 기반으로 check process tree를 정리합니다. 의도적으로
-  breakaway를 요청한 child는 이 cleanup 경계 밖에 남습니다.
+- **macOS**: Supported. Checks run and are cleaned up in a separate POSIX process group.
+- **Linux**: Uses the same POSIX process-group path as macOS.
+- **Windows**: Cleans up the check process tree with a Job object. Children that intentionally
+  request breakaway remain outside this cleanup boundary.
 
-macOS에서 건너뛰는 것은 일반 기능이 아니라, APFS가 만들 수 없는 비-UTF-8 바이트
-파일명을 다루는 경계 E2E 두 건뿐입니다. 해당 JSON escaping 로직은 플랫폼과 무관한
-unit test로 계속 검증하므로, 이 skip은 macOS 지원 중단이나 기능 포기를 뜻하지 않습니다.
+The only tests skipped on macOS are two boundary E2E tests for non-UTF-8 byte filenames that APFS
+cannot create; they are not general functionality tests. Platform-independent unit tests continue to
+verify the corresponding JSON escaping logic, so these skips do not mean that macOS support has been
+withdrawn or the functionality abandoned.
 
 ---
 
 ## 🚀 Quick Start
 
-아래 예시는 `tests/` 디렉터리가 있는 Python 프로젝트를 기준으로 합니다.
+The following example assumes a Python project with a `tests/` directory.
 
-### 1. Check catalog 작성
+### 1. Create a check catalog
 
-프로젝트 root에 `.harness/checks.json`을 만듭니다.
+Create `.harness/checks.json` at the project root.
 
 ```json
 {
@@ -177,16 +180,16 @@ unit test로 계속 검증하므로, 이 skip은 macOS 지원 중단이나 기�
 }
 ```
 
-### 2. Task 정의
+### 2. Define a Task
 
-`task.json`을 작성합니다.
+Create `task.json`.
 
 ```json
 {
   "schema_version": 1,
   "id": "TASK-001",
   "type": "feature",
-  "objective": "사용자 프로필 조회 API를 추가한다.",
+  "objective": "Add an API for retrieving user profiles.",
   "scope": [
     "src",
     "tests"
@@ -201,21 +204,21 @@ unit test로 계속 검증하므로, 이 skip은 macOS 지원 중단이나 기�
 }
 ```
 
-Task snapshot을 생성합니다.
+Create the Task snapshot.
 
 ```bash
 harness task create --file task.json
 ```
 
-이때 현재 Git `HEAD`가 Task의 baseline으로 기록됩니다.
+The current Git `HEAD` is recorded as the Task's baseline.
 
-### 3. 코드 변경 후 검증
+### 3. Verify after changing the code
 
 ```bash
 harness verify TASK-001
 ```
 
-출력 예시:
+Example output:
 
 ```json
 {
@@ -224,11 +227,11 @@ harness verify TASK-001
 }
 ```
 
-이후 명령에서는 출력된 `run_id`를 사용합니다.
+Use the returned `run_id` in the commands that follow.
 
-> `verify`는 검증 결과를 **기록하는 명령**입니다. Required check가 실패해도 Evidence 저장에 성공했다면 CLI exit code는 `0`일 수 있습니다. 실제 완료 가능 여부는 `complete`가 판단합니다.
+> `verify` is a command that **records verification results**. Even when a required check fails, the CLI exit code can be `0` if the Evidence was stored successfully. `complete` determines whether completion is actually allowed.
 
-### 4. Verifier Bundle 생성
+### 4. Create a Verifier Bundle
 
 ```bash
 harness verifier bundle TASK-001 \
@@ -236,21 +239,21 @@ harness verifier bundle TASK-001 \
   --output ./verifier-bundle
 ```
 
-Bundle에는 선택한 Run의 다음 정보가 포함됩니다.
+The Bundle contains the following information for the selected Run:
 
 - Task snapshot
-- 변경 파일 목록
+- List of changed files
 - `diff.patch`
-- check 결과
+- Check results
 - stdout / stderr
-- mechanical verification
-- verifier instruction
+- Mechanical verification
+- Verifier instructions
 
-Bundle 생성만으로 verifier가 실행되거나 Verdict가 기록되지는 않습니다.
+Creating a Bundle does not run a verifier or record a Verdict.
 
-### 5. Manual Verdict 작성
+### 5. Write a Manual Verdict
 
-`verdict.json`을 작성합니다.
+Create `verdict.json`.
 
 ```json
 {
@@ -264,13 +267,13 @@ Bundle 생성만으로 verifier가 실행되거나 Verdict가 기록되지는 �
     "fresh_context": true
   },
   "verdict": "pass",
-  "summary": "Evidence를 검토했고 completion을 막을 blocker를 찾지 못했다.",
+  "summary": "I reviewed the Evidence and found no blockers that would prevent completion.",
   "findings": [],
   "reviewed_at": "2026-07-16T00:00:00Z"
 }
 ```
 
-Verdict를 Run에 기록합니다.
+Record the Verdict for the Run.
 
 ```bash
 harness verifier record TASK-001 \
@@ -278,37 +281,37 @@ harness verifier record TASK-001 \
   --file verdict.json
 ```
 
-기록된 Verdict를 확인합니다.
+Inspect the recorded Verdict.
 
 ```bash
 harness verifier show TASK-001 --run-id <RUN_ID>
 ```
 
-현재 지원하는 verifier kind는 `manual`뿐입니다. Harness가 모델이나 외부 서비스를 자동 호출하지는 않습니다.
+The only currently supported verifier kind is `manual`. Harness does not automatically call a model or external service.
 
-### 6. 완료 판정
+### 6. Evaluate completion
 
 ```bash
 harness complete TASK-001 --run-id <RUN_ID>
 ```
 
-Completion이 성공하려면 다음 조건을 모두 만족해야 합니다.
+Completion succeeds only when all of the following conditions are met:
 
-- Task와 Run identity가 일치함
-- 필요한 Evidence 파일이 존재함
-- 저장된 결과 사이에 모순이 없음
-- scope 위반이 없음
-- 모든 required check가 성공함
-- timeout이 없음
-- mechanical result가 `pass`
-- required verifier의 Verdict가 `pass`
-- blocker finding이 없음
+- The Task and Run identities match
+- The required Evidence files exist
+- The stored results do not contradict one another
+- There are no scope violations
+- All required checks passed
+- No timeout occurred
+- The mechanical result is `pass`
+- The required verifier's Verdict is `pass`
+- There are no blocker findings
 
-Verifier가 optional인 Task는 Verdict 없이 completion할 수 있습니다. 단, 이미 기록된 Verdict가 `fail`, `unable`이거나 blocker를 포함한다면 이를 무시하고 완료할 수 없습니다.
+A Task whose verifier is optional can complete without a Verdict. However, an already recorded Verdict cannot be ignored if it is `fail`, `unable`, or contains a blocker.
 
 ---
 
-## 📁 생성되는 파일
+## 📁 Generated files
 
 ```text
 .harness/
@@ -332,101 +335,101 @@ Verifier가 optional인 Task는 Verdict 없이 completion할 수 있습니다. �
             └── completion.json
 ```
 
-| 파일 | 생성 시점 |
+| File | Created by |
 | --- | --- |
-| `task.json` ~ `verification.json`, check log | `harness verify` |
-| `run-manifest.json` | `harness verify`가 mechanical Evidence 저장을 마친 마지막 단계 |
+| `task.json` through `verification.json`, plus check logs | `harness verify` |
+| `run-manifest.json` | The final step of `harness verify`, after storing the mechanical Evidence |
 | `verdict.raw.json` | `harness verifier record` |
 | `verdict.json` | `harness verifier record` |
-| `completion.json` | `harness complete` 성공 시 |
+| `completion.json` | A successful `harness complete` |
 
 ---
 
-## 🧩 핵심 개념
+## 🧩 Core concepts
 
 ### Task Spec
 
-작업의 목적, 허용된 수정 범위, 검사 명령, 위험도, verifier 필요 여부를 정의합니다.
+Defines the objective, allowed scope of changes, check commands, risk level, and whether a verifier is required.
 
 ### Evidence Run
 
-한 번의 `verify` 실행으로 생성된 검증 기록입니다. 모든 Verdict와 Completion은 명시적인 Task/Run 쌍에 연결됩니다.
+A verification record created by one execution of `verify`. Every Verdict and every Completion is tied to an explicit Task/Run pair.
 
 ### Mechanical Evidence
 
-Harness가 직접 수집한 diff, 변경 파일, check 결과, scope 판정입니다. 사람의 의미적 판단인 Manual Verdict와는 별개입니다.
+The diff, changed files, check results, and scope decision collected directly by Harness. It is separate from a Manual Verdict, which is a human semantic judgment.
 
 ### Run Evidence Manifest
 
-`run-manifest.json`은 Task/run identity와 mechanical Evidence 파일·check log의 상대 경로, raw-byte 크기, SHA-256을 정렬해 기록합니다. `evidence_sha256`은 timestamp를 제외한 canonical JSON file record의 local consistency identifier입니다. Verdict와 Completion은 verify 이후에 생기므로 manifest 대상이 아닙니다.
+`run-manifest.json` records, in sorted order, the Task/run identity and the relative path, raw-byte size, and SHA-256 digest of each mechanical Evidence file and check log. `evidence_sha256` is a local consistency identifier for the canonical JSON file records, excluding the timestamp. Verdict and Completion files are created after verification and therefore are not covered by the manifest.
 
 ### Manual Verdict
 
-사람이 Bundle을 검토하고 작성한 Schema-valid JSON입니다. 입력 원본은 `verdict.raw.json`으로 보존하고, schema 검증을 통과한 snapshot은 `verdict.json`으로 저장합니다.
+Schema-valid JSON written by a human after reviewing the Bundle. The input is preserved as `verdict.raw.json`, and the snapshot that passes schema validation is stored as `verdict.json`.
 
 ### Completion
 
-저장된 Evidence와 Verdict가 완료 조건을 만족하는지 판단하는 마지막 gate입니다. `complete`는 check를 다시 실행하거나 Git diff를 다시 수집하지 않습니다.
+The final gate that determines whether the stored Evidence and Verdict satisfy the completion conditions. `complete` does not rerun checks or recollect the Git diff.
 
-### Manifest의 신뢰 경계
+### Trust boundary of the manifest
 
-manifest는 verify 이후 파일 수정·누락·교체를 소비 시점에 탐지하지만 signature, remote attestation, immutable storage가 아닙니다. 동일한 로컬 사용자가 Evidence와 manifest 전체를 다시 계산해 바꾸는 공격은 막지 못합니다. `evidence_sha256`과 bundle의 `bundle_sha256`은 각각 원본 mechanical Evidence와 portable bundle payload를 식별할 뿐, completion authority나 외부 trust anchor가 아닙니다.
-
----
-
-## 🔐 신뢰와 보안 경계
-
-Harness는 현재 다음을 제공합니다.
-
-- shell 없는 check 실행
-- 명시적인 Task/Run identity
-- 제한된 범위의 verifier bundle
-- raw Verdict와 검증된 snapshot 재검증
-- 저장 Evidence 간 기본 consistency 검사
-- 조건 미충족 시 completion 거부
-
-하지만 다음을 보장하지는 않습니다.
-
-- Verify 이후 코드가 변경되지 않았다는 보장
-- 동일한 로컬 사용자의 의도적인 전체 Evidence 조작 방어
-- cryptographic signature
-- remote attestation
-- immutable storage
-- 완전한 secret detection과 redaction
-- verifier의 실제 독립성 또는 fresh context
-
-> ⚠️ Check의 stdout과 stderr에는 민감한 정보가 포함될 수 있습니다. Bundle은 외부 공유 전에 반드시 내용을 확인하세요.
-
-자세한 구조는 [Architecture](docs/architecture.md)를 참고하세요.
+The manifest detects modified, missing, or replaced files at consumption time after verification, but it is not a signature, remote attestation, or immutable storage. It cannot prevent the same local user from recomputing and modifying both the Evidence and the entire manifest. `evidence_sha256` and the Bundle's `bundle_sha256` identify the original mechanical Evidence and portable bundle payload, respectively; neither is completion authority or an external trust anchor.
 
 ---
 
-## 🧪 개발과 테스트
+## 🔐 Trust and security boundaries
 
-Contract mirror 확인:
+Harness currently provides:
+
+- Shell-free check execution
+- Explicit Task/Run identity
+- A verifier Bundle with limited scope
+- Revalidation of the raw Verdict and comparison with its validated snapshot
+- Basic consistency checks among stored Evidence
+- Rejection of completion when conditions are unmet
+
+However, it does not guarantee:
+
+- That the code remains unchanged after verification
+- Protection against intentional manipulation of all Evidence by the same local user
+- Cryptographic signatures
+- Remote attestation
+- Immutable storage
+- Complete secret detection and redaction
+- Actual verifier independence or fresh context
+
+> ⚠️ Check stdout and stderr can contain sensitive information. Always inspect a Bundle before sharing it externally.
+
+See [Architecture](docs/architecture.md) for more details.
+
+---
+
+## 🧪 Development and testing
+
+Check the contract mirrors:
 
 ```bash
 python3 scripts/sync_contracts.py --check
 ```
 
-전체 테스트 실행:
+Run the full test suite:
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```
 
-CI에서는 다음을 검사합니다.
+CI checks the following:
 
-- 개발 의존성을 포함한 editable 설치
-- Canonical contract와 package resource 일치
+- Editable installation with development dependencies
+- Consistency between the canonical contract and package resources
 - unittest
-- Git diff 검사
-- wheel 기반 clean install의 CLI 실행
-- packaged Schema와 verifier prompt 접근
+- Git diff checks
+- CLI execution from a clean wheel installation
+- Access to the packaged Schema and verifier prompt
 
 ---
 
-## 📚 문서
+## 📚 Documentation
 
 - [Architecture](docs/architecture.md)
 - [Exit codes](docs/exit-codes.md)
@@ -445,15 +448,15 @@ CI에서는 다음을 검사합니다.
 
 ## 🛣️ Roadmap
 
-현재 우선순위:
+Current priorities:
 
 1. Pre/Post-check Snapshot binding
-2. `--base-ref` 우회 제거
+2. Removal of the `--base-ref` bypass
 
-Roadmap은 구현 순서에 따라 변경될 수 있습니다.
+The Roadmap may change with the implementation sequence.
 
 ---
 
 ## License
 
-MIT License. 자세한 내용은 [LICENSE](LICENSE)를 참고하세요.
+MIT License. See [LICENSE](LICENSE) for details.

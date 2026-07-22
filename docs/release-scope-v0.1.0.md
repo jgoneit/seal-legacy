@@ -1,70 +1,60 @@
 # Outcome Harness v0.1.0 Release Scope
 
+Language: English | [한국어](release-scope-v0.1.0.ko.md)
+
 ## Status
 
-v0.1.0은 Outcome Harness의 첫 Experimental release다. 이 버전은 로컬에서
-Evidence Run의 일관성과 completion 조건을 검증하는 CLI를 제공한다. production
-enforcement, cryptographic trust, 또는 Agent 작업 과정의 통제를 주장하지 않는다.
+v0.1.0 is the first Experimental release of Outcome Harness. This version provides a CLI that verifies Evidence Run consistency and completion conditions locally. It does not claim production enforcement, cryptographic trust, or control over the Agent's work process.
 
-GitHub Release는 `v0.1.0` tag가 push된 경우에만 생성된다. 일반 `main` push와 이
-문서의 추가만으로 release가 발행되지는 않는다.
+A GitHub Release is created only when the `v0.1.0` tag is pushed. A regular push to `main` or adding this document alone does not publish a release.
 
 ## Included
 
-- Task Spec validation, normalized snapshot, Git baseline 기록
-- Task scope 기반 Git 변경 수집과 argv 기반 check 실행
-- check stdout/stderr, exit code, timeout을 포함한 mechanical Evidence 저장
-- Canonical Verdict Schema와 runtime validation
-- Canonical Run Integrity Validator와 Run Evidence Manifest
-- raw-byte digest 및 `evidence_sha256` 기반 mechanical Evidence local consistency 확인
-- portable verifier bundle 생성
-- manual Verdict record/show와 fail-closed completion
-- stable CLI exit code와 GitHub Actions CI
-- wheel 설치 후 CLI와 packaged resource를 확인하는 clean-install 검증 경로
+- Task Spec validation, normalized snapshots, and Git baseline recording
+- collection of Git changes based on Task scope and execution of argv-based checks
+- storage of mechanical Evidence, including check stdout/stderr, exit codes, and timeouts
+- canonical Verdict Schema and runtime validation
+- canonical Run Integrity Validator and Run Evidence Manifest
+- local consistency checks for mechanical Evidence based on raw-byte digests and `evidence_sha256`
+- portable verifier bundle creation
+- Manual Verdict record/show and fail-closed completion
+- stable CLI exit codes and GitHub Actions CI
+- a clean-install validation path that verifies the CLI and packaged resources after wheel installation
 
 ## Explicitly Not Included
 
-- Pre/Post-check Source Snapshot 또는 verify 이후 current-source binding
-- `--base-ref` 제거
-- cryptographic signature, remote attestation, immutable ledger 또는 immutable storage
+- Pre/Post-check Source Snapshots or current-source binding after verification
+- removal of `--base-ref`
+- cryptographic signatures, remote attestation, an immutable ledger, or immutable storage
 - complete secret redaction
 - Multimodal Evidence
-- 외부 verifier adapter, 모델 API, 외부 verifier CLI 호출
-- runtime hook, approval token, Agent state machine, automatic verify/complete/repair
-- worktree orchestration 또는 subagent topology 제어
+- external verifier adapters, model APIs, or calls to external verifier CLIs
+- runtime hooks, approval tokens, an Agent state machine, or automatic verify/complete/repair
+- worktree orchestration or control of subagent topology
 
 ## Trust Boundary
 
-v0.1.0은 저장된 mechanical Evidence의 파일 존재, identity, raw-byte digest와
-상호 일관성을 local filesystem 안에서 확인한다. `run-manifest.json`과
-`evidence_sha256`은 이 local consistency를 식별하지만 cryptographic provenance,
-completion authority, remote trust anchor, tamper-proof storage를 제공하지 않는다.
+Within the local filesystem, v0.1.0 verifies the existence, identity, raw-byte digests, and mutual consistency of stored mechanical Evidence. `run-manifest.json` and `evidence_sha256` identify this local consistency, but they do not provide cryptographic provenance, completion authority, a remote trust anchor, or tamper-proof storage.
 
-`harness complete`는 저장된 Run Evidence만 읽는다. check를 다시 실행하거나 Git diff를
-다시 수집하지 않으며, verify 이후 현재 source가 바뀌었는지 비교하지 않는다.
+`harness complete` reads only stored Run Evidence. It does not rerun checks, recollect the Git diff, or compare whether the current source has changed since verification.
 
 ## Known Limitations
 
-- verify 이후 source 변경을 `complete`가 탐지하지 못한다.
-- `verify --base-ref`는 Task snapshot의 baseline을 해당 Run에 한해 override할 수 있다.
-- 동일한 로컬 사용자가 Evidence와 manifest를 함께 다시 계산해 변경하는 공격은 막지 못한다.
-- signature, remote attestation, immutable storage가 없다.
-- secret redaction은 완전하지 않으며, check log와 bundle을 공유하기 전에 사람이 검토해야 한다.
+- `complete` cannot detect source changes made after verification.
+- `verify --base-ref` can override the Task snapshot baseline for that Run only.
+- It cannot prevent an attack in which the same local user recalculates and changes both Evidence and the manifest.
+- There is no signature, remote attestation, or immutable storage.
+- Secret redaction is incomplete, and a person must review check logs and bundles before sharing them.
 
-이 한계들은 v0.1.0 Experimental release의 공개된 제약이며 release blocker가 아니다.
+These limitations are published constraints of the v0.1.0 Experimental release and are not release blockers.
 
 ## Compatibility
 
-- Python 3.11 이상을 지원한다.
-- public CLI와 stable exit code는 [Adapter CLI Contract](adapter-contract.md)에 따른다.
-- Adapter가 의존할 수 있는 JSON field와 read-only `.harness` artifact surface도 같은
-  계약에 한정한다.
-- `src/harness`의 Python module, dataclass, private function, Git 구현 세부사항은
-  compatibility surface가 아니다.
+- Python 3.11 and later are supported.
+- The public CLI and stable exit codes follow the [Adapter CLI Contract](adapter-contract.md).
+- JSON fields and the read-only `.harness` artifact surface that an adapter may depend on are limited to the same contract.
+- Python modules, dataclasses, private functions, and Git implementation details in `src/harness` are not part of the compatibility surface.
 
 ## Upgrade Direction
 
-후속 버전은 source binding을 별도 Run integrity 기능으로 추가하고, 그 다음
-`--base-ref` 정책을 재검토한다. Multimodal Evidence와 optional external adapter는
-그 이후의 별도 범위다. v0.1.0의 trust boundary를 후속 기능이 이미 제공하는 것처럼
-해석해서는 안 된다.
+A later version will add source binding as a separate Run integrity feature and then revisit the `--base-ref` policy. Multimodal Evidence and an optional external adapter are separate scopes that follow afterward. The trust boundary of v0.1.0 must not be interpreted as if it already provides these later features.
