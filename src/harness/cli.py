@@ -46,11 +46,6 @@ def build_parser() -> argparse.ArgumentParser:
         "verify", help="run Task checks and write mechanical verification evidence"
     )
     verify_parser.add_argument("task_id", metavar="TASK_ID")
-    verify_parser.add_argument(
-        "--base-ref",
-        metavar="GIT_REF",
-        help="override the Task snapshot baseline for this verification run",
-    )
 
     verifier_parser = commands.add_parser(
         "verifier", help="record, inspect, or prepare independent verifier evidence"
@@ -125,7 +120,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             snapshot = show_task(arguments.task_id)
             print(json.dumps(snapshot, ensure_ascii=False, indent=2, sort_keys=True))
         elif arguments.command == "verify":
-            run = verify_task(arguments.task_id, base_ref=arguments.base_ref)
+            run = verify_task(arguments.task_id)
             print(
                 json.dumps(
                     {

@@ -9,6 +9,11 @@ from pathlib import Path
 from typing import Any
 
 from ._run_artifact_io import atomic_write_json
+from ._source_binding import (
+    SourceBindingCollectionError,
+    SourceBindingNotSatisfiedError,
+    evaluate_completion_source_binding,
+)
 from .exit_codes import ExitCode
 from .run_validator import RunIdentityError, RunValidationError, validate_run
 from .task import TaskError
@@ -74,6 +79,18 @@ class CompletionEvidenceError(CompletionError):
     exit_code = ExitCode.EVIDENCE_MISSING_OR_CORRUPT
 
 
+class CompletionSourceCollectionError(CompletionError):
+    """Raised when current product source cannot be observed safely."""
+
+    exit_code = ExitCode.GIT_OR_REPOSITORY_ERROR
+
+
+class CompletionSourceBindingError(CompletionError):
+    """Raised when Evidence cannot support the current-source claim."""
+
+    exit_code = ExitCode.SOURCE_BINDING_NOT_SATISFIED
+
+
 @dataclass(frozen=True)
 class CompletionRun:
     """The immutable completion record written for one successful evidence run."""
@@ -92,8 +109,9 @@ def complete_task(
 ) -> CompletionRun:
     """Validate saved mechanical and verifier evidence and write completion.
 
-    Completion never reruns checks, recalculates the Git diff, or chooses a
-    latest run.  The caller supplies the exact Task/run pair to evaluate.
+    Completion never reruns checks, recalculates the recorded Git diff, or
+    chooses a latest run.  It collects only the current canonical source
+    Snapshot needed to bind the supplied Task/run pair.
     """
     try:
         validated_run = validate_run(task_id, run_id, cwd=cwd)
@@ -125,6 +143,19 @@ def complete_task(
         raise CompletionEvidenceError(
             "Could not load Manual Verdict severity definitions."
         ) from error
+    if verdict_record is not None:
+        verifier = verdict_record.verdict["verifier"]
+        verifier_runner = verifier["runner"]
+        verifier_verdict = verdict_record.verdict["verdict"]
+        finding_counts = verdict_record.counts
+
+    try:
+        evaluate_completion_source_binding(validated_run)
+    except SourceBindingCollectionError as error:
+        raise CompletionSourceCollectionError(str(error)) from error
+    except SourceBindingNotSatisfiedError as error:
+        raise CompletionSourceBindingError(str(error)) from error
+
     if verdict_record is None:
         if verifier_required:
             raise CompletionVerifierEvidenceMissingError(
@@ -132,10 +163,6 @@ def complete_task(
                 "but no verdict was recorded."
             )
     else:
-        verifier = verdict_record.verdict["verifier"]
-        verifier_runner = verifier["runner"]
-        verifier_verdict = verdict_record.verdict["verdict"]
-        finding_counts = verdict_record.counts
         if verifier_verdict != "pass":
             raise CompletionVerifierRejectedError(
                 "Completion rejected because the recorded verifier "

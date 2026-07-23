@@ -18,19 +18,33 @@ from ._run_artifact_io import (
     read_run_artifact_bytes,
     safe_run_relative_path,
 )
+from ._source_binding_documents import (
+    SOURCE_BINDING_EVIDENCE_FILES,
+    SOURCE_BINDING_VERIFICATION_FIELDS,
+    SOURCE_BOUND_EVIDENCE_VERSION,
+    SourceBindingDocumentError,
+    load_and_validate_stored_source_binding,
+)
 from .checks import DEFAULT_CHECK_TIMEOUT_SECONDS
+from .source_snapshot import SourceSnapshot
 from .task import TASK_SCHEMA_VERSION
 
 
-RUN_EVIDENCE_SCHEMA_VERSION = 1
-_REQUIRED_EVIDENCE_FILES = (
+RUN_DOCUMENT_SCHEMA_VERSION = 1
+LEGACY_RUN_EVIDENCE_VERSION = 1
+RUN_EVIDENCE_SCHEMA_VERSION = SOURCE_BOUND_EVIDENCE_VERSION
+_REQUIRED_EVIDENCE_FILES_V1 = (
     "task.json",
     "changed-files.json",
     "diff.patch",
     "checks.json",
     "verification.json",
 )
-_VERIFICATION_FIELDS = frozenset(
+_REQUIRED_EVIDENCE_FILES_V2 = (
+    *_REQUIRED_EVIDENCE_FILES_V1,
+    *SOURCE_BINDING_EVIDENCE_FILES,
+)
+_VERIFICATION_FIELDS_V1 = frozenset(
     {
         "schema_version",
         "task_id",
@@ -45,6 +59,9 @@ _VERIFICATION_FIELDS = frozenset(
         "timestamp",
         "duration",
     }
+)
+_VERIFICATION_FIELDS_V2 = (
+    _VERIFICATION_FIELDS_V1 | SOURCE_BINDING_VERIFICATION_FIELDS
 )
 _CHANGED_FILES_FIELDS = frozenset({"schema_version", "baseline", "scope", "changes"})
 _CHECKS_FIELDS = frozenset({"schema_version", "checks"})
@@ -105,6 +122,10 @@ class ValidatedRunDocuments:
     required_check_records: tuple[dict[str, Any], ...]
     log_paths: tuple[PurePosixPath, ...]
     expected_evidence_files: tuple[PurePosixPath, ...]
+    evidence_version: int
+    source_before_checks: SourceSnapshot | None
+    source_after_checks: SourceSnapshot | None
+    source_stable_during_checks: bool | None
     scope_pass: bool
     required_checks_pass: bool
     mechanical_result: str
@@ -133,7 +154,7 @@ def validate_run_documents(
             f"task.json does not match saved Task snapshot '{task_id}'."
         )
 
-    _validate_verification_document(verification)
+    evidence_version = _validate_verification_document(verification)
     if verification["task_id"] != task_id:
         raise RunDocumentIdentityError(
             "verification.json task_id does not match the requested Task id."
@@ -143,24 +164,54 @@ def validate_run_documents(
             "verification.json run_id does not match the requested run id."
         )
 
-    evidence_files = _validate_listed_evidence_files(evidence_path, verification)
+    required_evidence_files = _required_evidence_files(evidence_version)
+    evidence_files = _validate_listed_evidence_files(
+        evidence_path,
+        verification,
+        required_evidence_files,
+    )
     check_records, required_records, log_paths = _validate_check_records(
         task,
         checks,
         evidence_files,
         evidence_path,
+        required_evidence_files,
     )
     computed_scope_pass = _validate_changed_files(
         task,
         changed_files,
         verification,
     )
+    source_before_checks: SourceSnapshot | None = None
+    source_after_checks: SourceSnapshot | None = None
+    source_stable_during_checks: bool | None = None
+    if evidence_version == SOURCE_BOUND_EVIDENCE_VERSION:
+        try:
+            stored_binding = load_and_validate_stored_source_binding(
+                evidence_path,
+                task=task,
+                changed_files=changed_files,
+                verification=verification,
+            )
+        except SourceBindingDocumentError as error:
+            raise RunDocumentEvidenceError(str(error)) from error
+        source_before_checks = stored_binding.source_before_checks
+        source_after_checks = stored_binding.source_after_checks
+        source_stable_during_checks = (
+            stored_binding.source_stable_during_checks
+        )
+
     computed_required_checks_pass = all(
         record["passed"] for record in required_records
     )
     computed_mechanical_result = (
         "pass"
-        if computed_scope_pass and computed_required_checks_pass
+        if computed_scope_pass
+        and computed_required_checks_pass
+        and (
+            evidence_version == LEGACY_RUN_EVIDENCE_VERSION
+            or source_stable_during_checks is True
+        )
         else "fail"
     )
     if verification["required_checks_pass"] != computed_required_checks_pass:
@@ -172,7 +223,10 @@ def validate_run_documents(
             "verification.json mechanical_result does not match saved scope and checks."
         )
 
-    expected_evidence_files = _expected_mechanical_evidence_files(log_paths)
+    expected_evidence_files = _expected_mechanical_evidence_files(
+        log_paths,
+        required_evidence_files,
+    )
     _validate_exact_evidence_file_list(evidence_files, expected_evidence_files)
     return ValidatedRunDocuments(
         changed_files=changed_files,
@@ -183,6 +237,10 @@ def validate_run_documents(
         required_check_records=tuple(required_records),
         log_paths=log_paths,
         expected_evidence_files=expected_evidence_files,
+        evidence_version=evidence_version,
+        source_before_checks=source_before_checks,
+        source_after_checks=source_after_checks,
+        source_stable_during_checks=source_stable_during_checks,
         scope_pass=computed_scope_pass,
         required_checks_pass=computed_required_checks_pass,
         mechanical_result=computed_mechanical_result,
@@ -330,9 +388,21 @@ def _task_checks(
 
 def _validate_verification_document(
     verification: Mapping[str, Any],
-) -> None:
-    _require_exact_keys(verification, _VERIFICATION_FIELDS, "verification.json")
-    _require_schema_version(verification, "verification.json")
+) -> int:
+    evidence_version = verification.get("schema_version")
+    if type(evidence_version) is not int or evidence_version not in {
+        LEGACY_RUN_EVIDENCE_VERSION,
+        SOURCE_BOUND_EVIDENCE_VERSION,
+    }:
+        raise RunDocumentEvidenceError(
+            "verification.json has an unsupported schema_version."
+        )
+    expected_fields = (
+        _VERIFICATION_FIELDS_V1
+        if evidence_version == LEGACY_RUN_EVIDENCE_VERSION
+        else _VERIFICATION_FIELDS_V2
+    )
+    _require_exact_keys(verification, expected_fields, "verification.json")
     _require_nonempty_string(
         verification.get("task_id"), "verification.json task_id"
     )
@@ -356,7 +426,11 @@ def _validate_verification_document(
         verification.get("required_checks_pass"),
         "verification.json required_checks_pass",
     )
-    if verification.get("mechanical_result") not in {"pass", "fail"}:
+    mechanical_result = verification.get("mechanical_result")
+    if (
+        not isinstance(mechanical_result, str)
+        or mechanical_result not in {"pass", "fail"}
+    ):
         raise RunDocumentEvidenceError(
             "verification.json mechanical_result must be 'pass' or 'fail'."
         )
@@ -372,11 +446,19 @@ def _validate_verification_document(
         raise RunDocumentEvidenceError(
             "verification.json duration must be a non-negative number."
         )
+    return evidence_version
+
+
+def _required_evidence_files(evidence_version: int) -> tuple[str, ...]:
+    if evidence_version == LEGACY_RUN_EVIDENCE_VERSION:
+        return _REQUIRED_EVIDENCE_FILES_V1
+    return _REQUIRED_EVIDENCE_FILES_V2
 
 
 def _validate_listed_evidence_files(
     evidence_path: Path,
     verification: Mapping[str, Any],
+    required_evidence_files: tuple[str, ...],
 ) -> dict[str, PurePosixPath]:
     raw_files = verification["evidence_files"]
     assert isinstance(raw_files, list)
@@ -400,7 +482,7 @@ def _validate_listed_evidence_files(
         listed_files[normalized] = relative_path
         _read_evidence_bytes(evidence_path, relative_path)
 
-    missing = set(_REQUIRED_EVIDENCE_FILES) - set(listed_files)
+    missing = set(required_evidence_files) - set(listed_files)
     if missing:
         names = ", ".join(sorted(missing))
         raise RunDocumentEvidenceError(
@@ -412,12 +494,13 @@ def _validate_listed_evidence_files(
 
 def _expected_mechanical_evidence_files(
     log_paths: tuple[PurePosixPath, ...],
+    required_evidence_files: tuple[str, ...],
 ) -> tuple[PurePosixPath, ...]:
     return tuple(
         PurePosixPath(path)
         for path in sorted(
             (
-                *_REQUIRED_EVIDENCE_FILES,
+                *required_evidence_files,
                 *(path.as_posix() for path in log_paths),
             )
         )
@@ -454,13 +537,18 @@ def _validate_check_records(
     checks_document: Mapping[str, Any],
     evidence_files: Mapping[str, PurePosixPath],
     evidence_path: Path,
+    required_evidence_files: tuple[str, ...],
 ) -> tuple[
     list[dict[str, Any]],
     list[dict[str, Any]],
     tuple[PurePosixPath, ...],
 ]:
     _require_exact_keys(checks_document, _CHECKS_FIELDS, "checks.json")
-    _require_schema_version(checks_document, "checks.json")
+    _require_schema_version(
+        checks_document,
+        "checks.json",
+        RUN_DOCUMENT_SCHEMA_VERSION,
+    )
     recorded_checks = checks_document.get("checks")
     if not isinstance(recorded_checks, list):
         raise RunDocumentEvidenceError("checks.json checks must be an array.")
@@ -474,7 +562,7 @@ def _validate_check_records(
     records: list[dict[str, Any]] = []
     required_records: list[dict[str, Any]] = []
     log_paths: list[PurePosixPath] = []
-    seen_log_paths = set(_REQUIRED_EVIDENCE_FILES)
+    seen_log_paths = set(required_evidence_files)
     for index, (task_check, recorded_check) in enumerate(
         zip(task_checks, recorded_checks)
     ):
@@ -568,7 +656,11 @@ def _validate_changed_files(
         _CHANGED_FILES_FIELDS,
         "changed-files.json",
     )
-    _require_schema_version(changed_files, "changed-files.json")
+    _require_schema_version(
+        changed_files,
+        "changed-files.json",
+        RUN_DOCUMENT_SCHEMA_VERSION,
+    )
     baseline = _require_nonempty_string(
         changed_files.get("baseline"),
         "changed-files.json baseline",
@@ -650,7 +742,7 @@ def _validate_file_change(
         raise RunDocumentEvidenceError(f"{context} must be an object.")
     _require_exact_keys(value, _FILE_CHANGE_FIELDS, context)
     source = value.get("source")
-    if source not in _CHANGE_SOURCES:
+    if not isinstance(source, str) or source not in _CHANGE_SOURCES:
         raise RunDocumentEvidenceError(f"{context}.source is invalid.")
     _require_nonempty_string(value.get("status"), f"{context}.status")
     path = _safe_repository_relative_path(
@@ -759,10 +851,11 @@ def _require_exact_keys(
 def _require_schema_version(
     document: Mapping[str, Any],
     filename: str,
+    expected_version: int,
 ) -> None:
     if (
         type(document.get("schema_version")) is not int
-        or document["schema_version"] != RUN_EVIDENCE_SCHEMA_VERSION
+        or document["schema_version"] != expected_version
     ):
         raise RunDocumentEvidenceError(
             f"{filename} has an unsupported schema_version."

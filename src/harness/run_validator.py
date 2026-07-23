@@ -23,6 +23,7 @@ from ._run_documents import (
     validate_task_snapshot as _validate_task_snapshot,
 )
 from .run_manifest import RunManifestError, load_and_validate_run_manifest
+from .source_snapshot import SourceSnapshot
 from .task import TaskError, TaskRepositoryError, validate_task_id
 
 
@@ -104,6 +105,10 @@ class ValidatedRun:
     log_paths: tuple[PurePosixPath, ...]
     evidence_sha256: str
 
+    evidence_version: int
+    source_before_checks: SourceSnapshot | None
+    source_after_checks: SourceSnapshot | None
+    source_stable_during_checks: bool | None
     scope_pass: bool
     required_checks_pass: bool
     mechanical_result: str
@@ -173,6 +178,10 @@ def validate_run(
         ),
         log_paths=tuple(documents.log_paths),
         evidence_sha256=manifest.evidence_sha256,
+        evidence_version=documents.evidence_version,
+        source_before_checks=documents.source_before_checks,
+        source_after_checks=documents.source_after_checks,
+        source_stable_during_checks=documents.source_stable_during_checks,
         scope_pass=documents.scope_pass,
         required_checks_pass=documents.required_checks_pass,
         mechanical_result=documents.mechanical_result,

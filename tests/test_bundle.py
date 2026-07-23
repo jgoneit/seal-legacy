@@ -153,6 +153,8 @@ class VerifierBundleTests(unittest.TestCase):
             "checks.json",
             "verification.json",
             "diff.patch",
+            "source-before-checks.json",
+            "source-after-checks.json",
             "verifier.md",
         }
         check_records = json.loads(

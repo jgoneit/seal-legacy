@@ -27,6 +27,7 @@ from harness.run_manifest import (
 from harness.run_validator import RunValidationError, validate_run
 from harness.task import create_task
 from harness.verdict import VerdictEvidenceError, record_verdict, show_verdict
+from tests._evidence_fixtures import rewrite_failed_check_as_timeout
 
 
 class RunManifestTests(unittest.TestCase):
@@ -277,6 +278,8 @@ class RunManifestTests(unittest.TestCase):
             "changed-files.json",
             "diff.patch",
             "checks.json",
+            "source-before-checks.json",
+            "source-after-checks.json",
             "verification.json",
             *log_paths,
         ]
@@ -387,11 +390,16 @@ class RunManifestTests(unittest.TestCase):
             task_id="TASK-TIMEOUT",
             checks=[
                 self._check(
-                    "timeout", "import time; time.sleep(30)", timeout_seconds=1
+                    "timeout", "import sys; sys.exit(24)", timeout_seconds=1
                 )
             ],
         )
         timeout_run = self._run("TASK-TIMEOUT")
+        rewrite_failed_check_as_timeout(
+            timeout_run.evidence_path,
+            task_id="TASK-TIMEOUT",
+            run_id=timeout_run.run_id,
+        )
         self.assertTrue(
             validate_run("TASK-TIMEOUT", timeout_run.run_id, cwd=self.repository)
             .check_records[0]["timed_out"]

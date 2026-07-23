@@ -1,0 +1,25 @@
+{
+  "baseline": "1111111111111111111111111111111111111111",
+  "checks": [
+    {
+      "argv": [
+        "python",
+        "-c",
+        "pass"
+      ],
+      "name": "legacy-check",
+      "required": true
+    }
+  ],
+  "id": "TASK-LEGACY-BASE-REF",
+  "objective": "Preserve a legacy v1 Run recorded with a baseline override.",
+  "risk": "high",
+  "schema_version": 1,
+  "scope": [
+    "src"
+  ],
+  "type": "test",
+  "verifier": {
+    "required": false
+  }
+}

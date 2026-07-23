@@ -151,6 +151,21 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             snapshot.baseline = "different"  # type: ignore[misc]
 
+    def test_baseline_commit_identity_ignores_git_replace_refs(self) -> None:
+        self._write("src/base.txt", "replacement\n")
+        self._git("add", "src/base.txt")
+        self._commit("replacement target")
+        replacement_commit = self._git("rev-parse", "HEAD")
+        self._write("src/base.txt", "base\n")
+        self._git("replace", self.baseline, replacement_commit)
+
+        with_replace = self._snapshot()
+        self._git("replace", "-d", self.baseline)
+        without_replace = self._snapshot()
+
+        self.assertEqual(with_replace, without_replace)
+        self.assertEqual(with_replace.entries, ())
+
     def test_canonical_serialization_is_sorted_and_sensitive_to_every_field(self) -> None:
         entry = {
             "path": "src/value.txt",

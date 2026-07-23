@@ -16,6 +16,7 @@ import stat
 import subprocess
 import tempfile
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -24,8 +25,10 @@ from ._path_policy import is_harness_metadata_path
 from .gitdiff import (
     GitDiffError,
     _FinalTreeCandidate,
+    _FinalTreeContext,
     _collect_final_tree_candidates,
     _is_git_ignored,
+    _resolve_final_tree_context,
 )
 
 
@@ -108,9 +111,21 @@ def collect_source_snapshot(
     compared with the first and is not retried: disagreement means the source
     was not stable enough to identify safely.
     """
+    baseline_blob_hashes: dict[str, tuple[int, str]] = {}
     try:
-        first = _collect_snapshot_observation(task, cwd=cwd)
-        second = _collect_snapshot_observation(task, cwd=cwd)
+        context = _resolve_final_tree_context(task, cwd=cwd)
+        first = _collect_snapshot_observation(
+            task,
+            cwd=cwd,
+            baseline_blob_hashes=baseline_blob_hashes,
+            context=context,
+        )
+        second = _collect_snapshot_observation(
+            task,
+            cwd=cwd,
+            baseline_blob_hashes=baseline_blob_hashes,
+            context=context,
+        )
     except SourceSnapshotError:
         raise
     except GitDiffError as error:
@@ -135,8 +150,14 @@ def _collect_snapshot_observation(
     task: Mapping[str, object],
     *,
     cwd: str | Path | None,
+    baseline_blob_hashes: dict[str, tuple[int, str]],
+    context: _FinalTreeContext,
 ) -> _SnapshotObservation:
-    candidate_set = _collect_final_tree_candidates(task, cwd=cwd)
+    candidate_set = _collect_final_tree_candidates(
+        task,
+        cwd=cwd,
+        context=context,
+    )
     product_gitlinks = [
         path
         for path in candidate_set.gitlink_paths
@@ -148,7 +169,10 @@ def _collect_snapshot_observation(
         )
 
     candidates = {candidate.path: candidate for candidate in candidate_set.candidates}
-    for path in _discover_nonregular_source_paths(candidate_set.repository):
+    for path in _discover_nonregular_source_paths(
+        candidate_set.repository,
+        candidate_set.tracked_paths,
+    ):
         if path in candidate_set.tracked_paths and path not in candidates:
             continue
         previous = candidates.get(path)
@@ -169,6 +193,26 @@ def _collect_snapshot_observation(
                 current_mode=None,
             )
 
+    baseline_object_ids: set[str] = set()
+    for candidate in candidates.values():
+        if is_harness_metadata_path(candidate.path):
+            continue
+        _validate_candidate_modes(candidate)
+        if candidate.current_present and candidate.baseline_mode is not None:
+            if candidate.baseline_oid is None:
+                raise SourceSnapshotError(
+                    f"Git baseline metadata is missing for '{candidate.path}'."
+                )
+            baseline_object_ids.add(candidate.baseline_oid)
+    missing_object_ids = baseline_object_ids - baseline_blob_hashes.keys()
+    if missing_object_ids:
+        baseline_blob_hashes.update(
+            _hash_git_blobs(
+                candidate_set.repository,
+                missing_object_ids,
+            )
+        )
+
     entries: list[SourceSnapshotEntry] = []
     source_fingerprints: list[
         tuple[str, tuple[int, int, int, int, int, int, int]]
@@ -177,7 +221,6 @@ def _collect_snapshot_observation(
         candidate = candidates[path]
         if is_harness_metadata_path(candidate.path):
             continue
-        _validate_candidate_modes(candidate)
         observed = (
             _observe_current_source(candidate_set.repository, candidate)
             if candidate.current_present
@@ -198,14 +241,10 @@ def _collect_snapshot_observation(
 
         source_fingerprints.append((candidate.path, observed.fingerprint))
         if candidate.baseline_mode is not None:
-            if candidate.baseline_oid is None:
-                raise SourceSnapshotError(
-                    f"Git baseline metadata is missing for '{candidate.path}'."
-                )
-            baseline_size, baseline_sha256 = _hash_git_blob(
-                candidate_set.repository,
-                candidate.baseline_oid,
-            )
+            assert candidate.baseline_oid is not None
+            baseline_size, baseline_sha256 = baseline_blob_hashes[
+                candidate.baseline_oid
+            ]
             if (
                 observed.mode == candidate.baseline_mode
                 and observed.size_bytes == baseline_size
@@ -231,9 +270,19 @@ def _collect_snapshot_observation(
     )
 
 
-def _discover_nonregular_source_paths(repository: Path) -> tuple[str, ...]:
+def _discover_nonregular_source_paths(
+    repository: Path,
+    tracked_paths: tuple[str, ...],
+) -> tuple[str, ...]:
     """Find unsupported nodes that Git's untracked list can omit."""
     discovered: list[str] = []
+    tracked_directories: set[str] = set()
+    for path in tracked_paths:
+        parts = path.split("/")
+        tracked_directories.update(
+            "/".join(parts[:index])
+            for index in range(1, len(parts))
+        )
     pending: list[tuple[Path, tuple[str, ...]]] = [(repository, ())]
     while pending:
         directory, prefix = pending.pop()
@@ -271,7 +320,10 @@ def _discover_nonregular_source_paths(repository: Path) -> tuple[str, ...]:
                 and not is_reparse_point
             )
             if is_directory:
-                if not _is_git_ignored(repository, relative_path):
+                if (
+                    relative_path in tracked_directories
+                    or not _is_git_ignored(repository, relative_path)
+                ):
                     pending.append((Path(entry.path), parts))
                 continue
             if is_regular or is_symlink:
@@ -573,35 +625,93 @@ def _read_hash_chunk(descriptor: int) -> bytes:
     return os.read(descriptor, SOURCE_HASH_CHUNK_SIZE)
 
 
-def _hash_git_blob(repository: Path, object_id: str) -> tuple[int, str]:
-    digest = hashlib.sha256()
-    size_bytes = 0
+def _hash_git_blobs(
+    repository: Path,
+    object_ids: set[str],
+) -> dict[str, tuple[int, str]]:
+    hashes: dict[str, tuple[int, str]] = {}
     try:
         with tempfile.TemporaryFile(mode="w+b") as stderr:
             process = subprocess.Popen(
-                ["git", "-C", str(repository), "cat-file", "blob", object_id],
+                [
+                    "git",
+                    "--no-replace-objects",
+                    "-C",
+                    str(repository),
+                    "cat-file",
+                    "--batch",
+                ],
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=stderr,
             )
-            if process.stdout is None:
-                process.kill()
-                process.wait()
-                raise SourceSnapshotError("Git did not provide baseline blob output.")
-            try:
-                while True:
-                    chunk = process.stdout.read(SOURCE_HASH_CHUNK_SIZE)
-                    if not chunk:
-                        break
-                    digest.update(chunk)
-                    size_bytes += len(chunk)
-            except OSError as error:
+            if process.stdin is None or process.stdout is None:
                 process.kill()
                 process.wait()
                 raise SourceSnapshotError(
-                    f"Could not read Git baseline blob '{object_id}': {error}."
-                ) from error
+                    "Git did not provide baseline blob input and output."
+                )
+            failed = True
+            try:
+                for object_id in sorted(object_ids):
+                    process.stdin.write(object_id.encode("ascii") + b"\n")
+                    process.stdin.flush()
+                    header = process.stdout.readline()
+                    parts = header.rstrip(b"\n").split()
+                    if (
+                        len(parts) != 3
+                        or parts[0] != object_id.encode("ascii")
+                        or parts[1] != b"blob"
+                    ):
+                        raise SourceSnapshotError(
+                            f"Git could not read baseline blob '{object_id}'."
+                        )
+                    try:
+                        size_bytes = int(parts[2])
+                    except ValueError as error:
+                        raise SourceSnapshotError(
+                            f"Git returned an invalid size for baseline blob "
+                            f"'{object_id}'."
+                        ) from error
+                    if size_bytes < 0:
+                        raise SourceSnapshotError(
+                            f"Git returned an invalid size for baseline blob "
+                            f"'{object_id}'."
+                        )
+
+                    digest = hashlib.sha256()
+                    remaining = size_bytes
+                    while remaining:
+                        chunk = process.stdout.read(
+                            min(SOURCE_HASH_CHUNK_SIZE, remaining)
+                        )
+                        if not chunk:
+                            raise SourceSnapshotError(
+                                f"Git truncated baseline blob '{object_id}'."
+                            )
+                        digest.update(chunk)
+                        remaining -= len(chunk)
+                    if process.stdout.read(1) != b"\n":
+                        raise SourceSnapshotError(
+                            f"Git returned malformed baseline blob "
+                            f"'{object_id}'."
+                        )
+                    hashes[object_id] = (
+                        size_bytes,
+                        digest.hexdigest(),
+                    )
+                failed = False
             finally:
-                process.stdout.close()
+                with suppress(OSError):
+                    process.stdin.close()
+                with suppress(OSError):
+                    process.stdout.close()
+                if failed:
+                    if process.poll() is None:
+                        with suppress(OSError):
+                            process.kill()
+                    with suppress(OSError):
+                        process.wait()
 
             returncode = process.wait()
             if returncode != 0:
@@ -609,13 +719,13 @@ def _hash_git_blob(repository: Path, object_id: str) -> tuple[int, str]:
                 detail = stderr.read(8192).decode("utf-8", "replace").strip()
                 raise SourceSnapshotError(
                     detail
-                    or f"Git could not read baseline blob '{object_id}'."
+                    or "Git could not read baseline blobs."
                 )
     except OSError as error:
         raise SourceSnapshotError(
             "Git is required to collect a source snapshot."
         ) from error
-    return size_bytes, digest.hexdigest()
+    return hashes
 
 
 def _regular_mode(
@@ -699,6 +809,132 @@ def _unsupported_file_type(path: str, file_mode: int) -> SourceSnapshotError:
         kind = "special file"
     return SourceSnapshotError(
         f"Unsupported source file type at '{path}': {kind}."
+    )
+
+
+def _source_snapshot_from_document(
+    document: Mapping[str, object],
+) -> SourceSnapshot:
+    """Strictly parse one persisted canonical Source Snapshot document."""
+    expected_fields = {
+        "schema_version",
+        "baseline",
+        "entries",
+        "snapshot_sha256",
+    }
+    if set(document) != expected_fields:
+        raise SourceSnapshotError(
+            "Source Snapshot document has missing or unexpected fields."
+        )
+    if (
+        type(document.get("schema_version")) is not int
+        or document["schema_version"] != SOURCE_SNAPSHOT_SCHEMA_VERSION
+    ):
+        raise SourceSnapshotError(
+            "Source Snapshot document has an unsupported schema_version."
+        )
+    baseline = document.get("baseline")
+    if not isinstance(baseline, str) or not baseline:
+        raise SourceSnapshotError(
+            "Source Snapshot baseline must be a non-empty string."
+        )
+    raw_entries = document.get("entries")
+    if not isinstance(raw_entries, list):
+        raise SourceSnapshotError("Source Snapshot entries must be an array.")
+
+    entries: list[SourceSnapshotEntry] = []
+    previous_sort_key: bytes | None = None
+    for index, value in enumerate(raw_entries):
+        if not isinstance(value, Mapping):
+            raise SourceSnapshotError(
+                f"Source Snapshot entry {index} must be an object."
+            )
+        if set(value) != {"path", "state", "mode", "size_bytes", "sha256"}:
+            raise SourceSnapshotError(
+                f"Source Snapshot entry {index} has missing or unexpected fields."
+            )
+        path = value.get("path")
+        if not isinstance(path, str):
+            raise SourceSnapshotError(
+                f"Source Snapshot entry {index} path must be a string."
+            )
+        _portable_path_parts(path)
+        if is_harness_metadata_path(path):
+            raise SourceSnapshotError(
+                f"Source Snapshot entry {index} contains Harness metadata."
+            )
+        try:
+            sort_key = _path_sort_key(path)
+        except UnicodeEncodeError as error:
+            raise SourceSnapshotError(
+                f"Source Snapshot entry {index} path is not a supported Git path."
+            ) from error
+        if previous_sort_key is not None and sort_key <= previous_sort_key:
+            raise SourceSnapshotError(
+                "Source Snapshot entries must be uniquely sorted by path."
+            )
+        previous_sort_key = sort_key
+
+        state = value.get("state")
+        mode = value.get("mode")
+        size_bytes = value.get("size_bytes")
+        sha256 = value.get("sha256")
+        if state == "present":
+            if not isinstance(mode, str) or mode not in _SUPPORTED_MODES:
+                raise SourceSnapshotError(
+                    f"Source Snapshot entry {index} has an unsupported mode."
+                )
+            if type(size_bytes) is not int or size_bytes < 0:
+                raise SourceSnapshotError(
+                    f"Source Snapshot entry {index} size_bytes must be non-negative."
+                )
+            if not _is_sha256(sha256):
+                raise SourceSnapshotError(
+                    f"Source Snapshot entry {index} sha256 is invalid."
+                )
+        elif state == "deleted":
+            if mode is not None or size_bytes is not None or sha256 is not None:
+                raise SourceSnapshotError(
+                    f"Deleted Source Snapshot entry {index} must use null metadata."
+                )
+        else:
+            raise SourceSnapshotError(
+                f"Source Snapshot entry {index} state is invalid."
+            )
+        entries.append(
+            SourceSnapshotEntry(
+                path=path,
+                state=state,
+                mode=mode,
+                size_bytes=size_bytes,
+                sha256=sha256,
+            )
+        )
+
+    snapshot_sha256 = document.get("snapshot_sha256")
+    if not _is_sha256(snapshot_sha256):
+        raise SourceSnapshotError("Source Snapshot snapshot_sha256 is invalid.")
+    normalized_entries = tuple(entries)
+    expected_digest = hashlib.sha256(
+        _canonical_json_bytes(_snapshot_payload(baseline, normalized_entries))
+    ).hexdigest()
+    if snapshot_sha256 != expected_digest:
+        raise SourceSnapshotError(
+            "Source Snapshot snapshot_sha256 does not match its contents."
+        )
+    return SourceSnapshot(
+        schema_version=SOURCE_SNAPSHOT_SCHEMA_VERSION,
+        baseline=baseline,
+        entries=normalized_entries,
+        snapshot_sha256=snapshot_sha256,
+    )
+
+
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
     )
 
 

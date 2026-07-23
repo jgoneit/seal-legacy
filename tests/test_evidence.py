@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
+from inspect import signature
 from pathlib import Path
 
 
@@ -174,6 +175,8 @@ class VerificationEvidenceTests(unittest.TestCase):
             "changed-files.json",
             "diff.patch",
             "checks.json",
+            "source-before-checks.json",
+            "source-after-checks.json",
             "verification.json",
         }
         evidence_files = set(run.verification["evidence_files"])
@@ -204,6 +207,8 @@ class VerificationEvidenceTests(unittest.TestCase):
             "task.json",
             "changed-files.json",
             "checks.json",
+            "source-before-checks.json",
+            "source-after-checks.json",
             "verification.json",
         ]
         for relative_path in json_evidence:
@@ -380,16 +385,20 @@ class VerificationEvidenceTests(unittest.TestCase):
             byte_count,
         )
 
-    def test_invalid_base_ref_prevents_checks_and_evidence_directory(self) -> None:
+    def test_invalid_task_baseline_prevents_checks_and_evidence_directory(self) -> None:
         marker = self.root / "check-ran"
         program = (
             "from pathlib import Path; "
             f"Path({str(marker)!r}).write_text('ran', encoding='utf-8')"
         )
         self._create_task([self._python_check("must-not-run", program, required=True)])
+        task_path = self.repository / ".harness" / "tasks" / "TASK-VERIFY.json"
+        task = json.loads(task_path.read_text(encoding="utf-8"))
+        task["baseline"] = "missing-task-baseline"
+        task_path.write_text(json.dumps(task), encoding="utf-8")
 
         with self.assertRaisesRegex(EvidenceRepositoryError, "does not resolve to a commit"):
-            verify_task("TASK-VERIFY", cwd=self.repository, base_ref="missing-base-ref")
+            verify_task("TASK-VERIFY", cwd=self.repository)
 
         self.assertFalse(marker.exists())
         self.assertFalse((self.repository / ".harness" / "evidence" / "TASK-VERIFY").exists())
@@ -487,8 +496,9 @@ class VerificationEvidenceTests(unittest.TestCase):
 
         self.assertFalse(marker.exists())
 
-    def test_cli_verify_prints_run_id_and_honors_base_ref(self) -> None:
+    def test_cli_verify_prints_run_id_and_uses_task_baseline(self) -> None:
         self._create_task([self._python_check("ok", "print('ok')", required=True)])
+        task_baseline = self._git("rev-parse", "HEAD")
         self._write("src/committed.txt", "committed change\n")
         self._git("add", "src/committed.txt")
         self._git(
@@ -504,14 +514,36 @@ class VerificationEvidenceTests(unittest.TestCase):
         output = io.StringIO()
 
         with change_directory(self.repository), contextlib.redirect_stdout(output):
-            self.assertEqual(cli.main(["verify", "TASK-VERIFY", "--base-ref", "HEAD"]), 0)
+            self.assertEqual(cli.main(["verify", "TASK-VERIFY"]), 0)
 
         response = json.loads(output.getvalue())
         evidence_path = Path(response["evidence_path"])
         verification = json.loads((evidence_path / "verification.json").read_text(encoding="utf-8"))
         self.assertEqual(response["run_id"], verification["run_id"])
-        self.assertEqual(verification["baseline"], self._git("rev-parse", "HEAD"))
-        self.assertEqual(verification["changed_files"], [])
+        self.assertEqual(verification["baseline"], task_baseline)
+        self.assertIn(
+            "src/committed.txt",
+            {change["path"] for change in verification["changed_files"]},
+        )
+
+    def test_cli_verify_rejects_removed_base_ref_option(self) -> None:
+        self._create_task([self._python_check("ok", "print('ok')", required=True)])
+
+        self.assertNotIn("base_ref", signature(verify_task).parameters)
+        help_stdout = io.StringIO()
+        with contextlib.redirect_stdout(help_stdout):
+            with self.assertRaises(SystemExit) as help_exit:
+                cli.main(["verify", "--help"])
+        self.assertEqual(help_exit.exception.code, 0)
+        self.assertNotIn("--base-ref", help_stdout.getvalue())
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as raised:
+                cli.main(["verify", "TASK-VERIFY", "--base-ref", "HEAD"])
+
+        self.assertEqual(raised.exception.code, 2)
+        self.assertFalse(
+            (self.repository / ".harness" / "evidence" / "TASK-VERIFY").exists()
+        )
 
     def test_verification_schema_top_level_fields_match_emitted_document(self) -> None:
         self._create_task([self._python_check("ok", "print('ok')", required=True)])
@@ -520,12 +552,19 @@ class VerificationEvidenceTests(unittest.TestCase):
         schema = json.loads(
             (PROJECT_ROOT / "schemas" / "verification.schema.json").read_text(encoding="utf-8")
         )
+        v1_schema, v2_schema = schema["oneOf"]
 
-        self.assertEqual(set(run.verification), set(schema["required"]))
-        self.assertEqual(set(schema["properties"]), set(schema["required"]))
-        self.assertEqual(schema["properties"]["schema_version"]["const"], 1)
+        self.assertEqual(set(run.verification), set(v2_schema["required"]))
+        for branch in (v1_schema, v2_schema):
+            self.assertEqual(
+                set(branch["properties"]),
+                set(branch["required"]),
+            )
+            self.assertFalse(branch["additionalProperties"])
+        self.assertEqual(v1_schema["properties"]["schema_version"]["const"], 1)
+        self.assertEqual(v2_schema["properties"]["schema_version"]["const"], 2)
         self.assertEqual(
-            schema["properties"]["mechanical_result"]["enum"],
+            v2_schema["properties"]["mechanical_result"]["enum"],
             ["pass", "fail"],
         )
 
@@ -589,3 +628,32 @@ class VerificationSchemaParityTests(unittest.TestCase):
             validator = Draft202012Validator(schema, format_checker=FormatChecker())
             errors = list(validator.iter_errors(run.verification))
             self.assertEqual(errors, [])
+
+    def test_checked_in_legacy_v1_verification_matches_schema(self) -> None:
+        schema = json.loads(
+            (PROJECT_ROOT / "schemas" / "verification.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        legacy = json.loads(
+            (
+                PROJECT_ROOT
+                / "tests"
+                / "fixtures"
+                / "legacy-v1-base-ref"
+                / "verification.json"
+            ).read_text(encoding="utf-8")
+        )
+        validator = Draft202012Validator(
+            schema,
+            format_checker=FormatChecker(),
+        )
+
+        self.assertEqual(list(validator.iter_errors(legacy)), [])
+        mixed = {
+            **legacy,
+            "source_snapshot_schema_version": 1,
+        }
+        extra = {**legacy, "unexpected": True}
+        self.assertNotEqual(list(validator.iter_errors(mixed)), [])
+        self.assertNotEqual(list(validator.iter_errors(extra)), [])

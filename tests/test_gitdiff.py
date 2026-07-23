@@ -7,12 +7,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from inspect import signature
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
+from harness import gitdiff
 from harness.gitdiff import GitDiffRepositoryError, collect_changes
 
 
@@ -69,8 +71,8 @@ class GitDiffIntegrationTests(unittest.TestCase):
             "scope": ["src/foo"] if scope is None else scope,
         }
 
-    def _collect(self, scope: list[str] | None = None, *, base_ref: str | None = None):
-        return collect_changes(self._task(scope), cwd=self.repository, base_ref=base_ref)
+    def _collect(self, scope: list[str] | None = None):
+        return collect_changes(self._task(scope), cwd=self.repository)
 
     def _change(self, collection, *, path: str, source: str | None = None):
         matches = [
@@ -202,7 +204,7 @@ class GitDiffIntegrationTests(unittest.TestCase):
             {"src/foo/product.txt"},
         )
 
-    def test_base_ref_overrides_the_task_baseline(self) -> None:
+    def test_collects_committed_changes_from_the_task_baseline(self) -> None:
         self._write("src/foo/committed.txt", "committed\n")
         self._git("add", "src/foo/committed.txt")
         self._git(
@@ -215,23 +217,19 @@ class GitDiffIntegrationTests(unittest.TestCase):
             "-m",
             "later change",
         )
-        current_head = self._git("rev-parse", "HEAD")
+        collection = self._collect()
 
-        from_task_baseline = self._collect()
-        from_override = self._collect(base_ref=current_head)
-
-        self.assertEqual(from_task_baseline.base_ref, self.baseline)
-        self.assertEqual(from_override.base_ref, current_head)
+        self.assertEqual(collection.baseline, self.baseline)
         committed_change = self._change(
-            from_task_baseline,
+            collection,
             path="src/foo/committed.txt",
             source="committed",
         )
         self.assertEqual(committed_change.status, "added")
-        self.assertNotIn(
-            "src/foo/committed.txt",
-            {change.path for change in from_override.changes},
-        )
+
+    def test_base_ref_override_api_is_not_exposed(self) -> None:
+        self.assertNotIn("base_ref", signature(collect_changes).parameters)
+        self.assertFalse(hasattr(gitdiff, "resolve_base_ref"))
 
     def test_fails_clearly_outside_a_git_repository(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
