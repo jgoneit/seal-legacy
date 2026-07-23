@@ -21,6 +21,10 @@ from importlib import resources
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from ._run_artifact_io import (
+    RunArtifactReadError as _RunArtifactReadError,
+    read_run_artifact_bytes as _read_run_artifact_bytes,
+)
 from .exit_codes import ExitCode
 from .run_validator import RunIdentityError, RunValidationError, ValidatedRun, validate_run
 from .task import TaskError
@@ -255,8 +259,8 @@ def _read_verifier_instructions() -> str:
 def _read_validated_log_bytes(evidence_path: Path, relative_path: PurePosixPath) -> bytes:
     """Read a log path returned by ``validate_run`` without revalidating the Run."""
     try:
-        return evidence_path.joinpath(*relative_path.parts).read_bytes()
-    except OSError as error:
+        return _read_run_artifact_bytes(evidence_path, relative_path)
+    except _RunArtifactReadError as error:
         raise BundleEvidenceError(
             f"Could not read previously validated log file: {relative_path.as_posix()}."
         ) from error

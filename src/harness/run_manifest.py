@@ -16,8 +16,15 @@ import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePosixPath
 from typing import Any
+
+from ._run_artifact_io import (
+    RunArtifactPathError as _RunArtifactPathError,
+    RunArtifactReadError as _RunArtifactReadError,
+    read_run_artifact_bytes as _read_run_artifact_bytes,
+    safe_run_relative_path as _safe_run_relative_path,
+)
 
 
 RUN_MANIFEST_FILENAME = "run-manifest.json"
@@ -262,42 +269,32 @@ def _validated_file_records(
 
 
 def _read_evidence_bytes(directory: Path, relative_path: PurePosixPath) -> bytes:
-    candidate = directory.joinpath(*relative_path.parts)
     try:
-        resolved = candidate.resolve(strict=True)
-    except OSError as error:
-        raise RunManifestError(
-            f"Required Evidence file is missing: {relative_path.as_posix()}."
-        ) from error
-    if not resolved.is_relative_to(directory) or not resolved.is_file():
-        raise RunManifestError(
-            f"Evidence file is unsafe or missing: {relative_path.as_posix()}."
-        )
-    try:
-        return resolved.read_bytes()
-    except OSError as error:
-        raise RunManifestError(
-            f"Could not read Evidence file: {relative_path.as_posix()}."
-        ) from error
+        return _read_run_artifact_bytes(directory, relative_path)
+    except _RunArtifactReadError as error:
+        if error.reason == "missing":
+            message = (
+                f"Required Evidence file is missing: "
+                f"{relative_path.as_posix()}."
+            )
+        elif error.reason == "unsafe":
+            message = (
+                f"Evidence file is unsafe or missing: "
+                f"{relative_path.as_posix()}."
+            )
+        else:
+            message = (
+                f"Could not read Evidence file: "
+                f"{relative_path.as_posix()}."
+            )
+        raise RunManifestError(message) from error
 
 
 def _safe_evidence_relative_path(value: object, context: str) -> PurePosixPath:
-    if not isinstance(value, str) or not value:
-        raise RunManifestError(f"{context} must be a non-empty relative POSIX path.")
-    if "\\" in value or "\x00" in value:
-        raise RunManifestError(f"{context} must use a relative POSIX path.")
-    path = PurePosixPath(value)
-    windows_path = PureWindowsPath(value)
-    parts = value.split("/")
-    if (
-        path.is_absolute()
-        or windows_path.is_absolute()
-        or bool(windows_path.drive)
-        or not path.parts
-        or any(part in {"", ".", ".."} for part in parts)
-    ):
-        raise RunManifestError(f"{context} must stay inside the Run directory.")
-    return path
+    try:
+        return _safe_run_relative_path(value, context)
+    except _RunArtifactPathError as error:
+        raise RunManifestError(str(error)) from error
 
 
 def _evidence_sha256(
