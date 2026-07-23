@@ -10,7 +10,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from unittest.mock import patch
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -18,7 +19,11 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from harness.bundle import BundleEvidenceError, create_verification_bundle
 from harness.evidence import CompletionEvidenceError, complete_task, verify_task
-from harness.run_manifest import RUN_MANIFEST_FILENAME
+from harness.run_manifest import (
+    RUN_MANIFEST_FILENAME,
+    RunManifestError,
+    create_run_manifest,
+)
 from harness.run_validator import RunValidationError, validate_run
 from harness.task import create_task
 from harness.verdict import VerdictEvidenceError, record_verdict, show_verdict
@@ -149,6 +154,65 @@ class RunManifestTests(unittest.TestCase):
             encoding="utf-8",
         )
         return path
+
+    def test_atomic_replace_failure_preserves_manifest_and_removes_partial(self) -> None:
+        evidence_path = self.root / "manifest-write-failure"
+        evidence_path.mkdir()
+        evidence_file = evidence_path / "task.json"
+        evidence_file.write_bytes(b'{"task":"fixture"}\n')
+        manifest_path = evidence_path / RUN_MANIFEST_FILENAME
+        previous_manifest = b"existing manifest sentinel\n"
+        manifest_path.write_bytes(previous_manifest)
+
+        with patch(
+            "os.replace",
+            side_effect=OSError("replace failed"),
+        ):
+            with self.assertRaisesRegex(
+                RunManifestError,
+                r"Could not write run-manifest\.json",
+            ):
+                create_run_manifest(
+                    evidence_path,
+                    task_id="TASK-MANIFEST",
+                    run_id="run-write-failure",
+                    evidence_files=(PurePosixPath("task.json"),),
+                )
+
+        self.assertEqual(manifest_path.read_bytes(), previous_manifest)
+        self.assertEqual(
+            list(evidence_path.glob(f".{RUN_MANIFEST_FILENAME}.*.tmp")),
+            [],
+        )
+        self.assertEqual(evidence_file.read_bytes(), b'{"task":"fixture"}\n')
+
+    def test_manifest_write_does_not_recreate_a_disappeared_run_directory(self) -> None:
+        evidence_path = self.root / "disappeared-run"
+        evidence_path.mkdir()
+        evidence_file = evidence_path / "task.json"
+        evidence_file.write_bytes(b'{"task":"fixture"}\n')
+
+        def remove_evidence_directory() -> str:
+            evidence_file.unlink()
+            evidence_path.rmdir()
+            return "2026-07-23T00:00:00.000000Z"
+
+        with patch(
+            "harness.run_manifest._utc_timestamp",
+            side_effect=remove_evidence_directory,
+        ):
+            with self.assertRaisesRegex(
+                RunManifestError,
+                r"Could not write run-manifest\.json",
+            ):
+                create_run_manifest(
+                    evidence_path,
+                    task_id="TASK-MANIFEST",
+                    run_id="run-disappeared",
+                    evidence_files=(PurePosixPath("task.json"),),
+                )
+
+        self.assertFalse(evidence_path.exists())
 
     def test_manifest_contains_sorted_raw_byte_records_and_excludes_consumers(self) -> None:
         self._create_task(

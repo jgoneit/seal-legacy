@@ -11,8 +11,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -22,6 +20,7 @@ from typing import Any
 from ._run_artifact_io import (
     RunArtifactPathError as _RunArtifactPathError,
     RunArtifactReadError as _RunArtifactReadError,
+    atomic_write as _atomic_write,
     read_run_artifact_bytes as _read_run_artifact_bytes,
     safe_run_relative_path as _safe_run_relative_path,
 )
@@ -341,31 +340,17 @@ def _is_sha256(value: object) -> bool:
 
 def _atomic_write_json(path: Path, value: object) -> None:
     contents = json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True)
-    _atomic_write_bytes(path, f"{contents}\n".encode("utf-8"))
+    encoded = f"{contents}\n".encode("utf-8")
 
+    def write(output: Any) -> None:
+        output.write(encoded)
 
-def _atomic_write_bytes(path: Path, value: bytes) -> None:
-    temporary_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="wb",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as output:
-            temporary_path = Path(output.name)
-            output.write(value)
-            output.flush()
-            os.fsync(output.fileno())
-        os.replace(temporary_path, path)
-        temporary_path = None
-    finally:
-        if temporary_path is not None:
-            try:
-                temporary_path.unlink()
-            except FileNotFoundError:
-                pass
+    _atomic_write(
+        path,
+        mode="wb",
+        writer=write,
+        create_parent=False,
+    )
 
 
 def _utc_timestamp() -> str:

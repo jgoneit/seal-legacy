@@ -92,9 +92,11 @@ def atomic_write(
     *,
     mode: str,
     writer: Callable[[Any], None],
+    create_parent: bool = True,
 ) -> None:
     """Apply the shared same-directory fsync-and-replace write primitive."""
-    path.parent.mkdir(parents=True, exist_ok=True)
+    if create_parent:
+        path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
