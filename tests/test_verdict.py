@@ -20,7 +20,14 @@ sys.path.insert(0, str(SOURCE_ROOT))
 from harness import cli
 from harness.evidence import verify_task
 from harness.task import create_task
-from harness.verdict import VerdictEvidenceError, VerdictInputError, record_verdict, show_verdict
+from harness.verdict import (
+    VerdictEvidenceError,
+    VerdictInputError,
+    load_recorded_verdict,
+    record_verdict,
+    show_verdict,
+    validate_run_id,
+)
 
 try:
     from jsonschema import Draft202012Validator, FormatChecker
@@ -64,6 +71,10 @@ class ManualVerdictTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temporary_directory.cleanup()
+
+    def test_run_id_validation_preserves_verdict_input_error(self) -> None:
+        with self.assertRaises(VerdictInputError):
+            validate_run_id("-invalid")
 
     def _git(self, *arguments: str) -> str:
         result = subprocess.run(
@@ -273,6 +284,46 @@ class ManualVerdictTests(unittest.TestCase):
 
         with self.assertRaises(VerdictEvidenceError):
             show_verdict("TASK-VERDICT", run_id, cwd=self.repository)
+
+    @unittest.skipUnless(os.name == "posix", "symlink escape coverage requires POSIX")
+    def test_show_rejects_persisted_verdict_symlink_escape(self) -> None:
+        run_id = self._run()
+        source = self._write_verdict(self._document(run_id))
+        record = record_verdict(
+            "TASK-VERDICT",
+            run_id,
+            source,
+            cwd=self.repository,
+        )
+        outside = self.root / "outside-verdict.json"
+        outside.write_bytes(record.raw_path.read_bytes())
+        record.raw_path.unlink()
+        record.raw_path.symlink_to(outside)
+
+        with self.assertRaises(VerdictEvidenceError):
+            show_verdict("TASK-VERDICT", run_id, cwd=self.repository)
+
+    def test_load_recorded_verdict_accepts_relative_evidence_path(self) -> None:
+        run_id = self._run()
+        source = self._write_verdict(self._document(run_id))
+        record = record_verdict(
+            "TASK-VERDICT",
+            run_id,
+            source,
+            cwd=self.repository,
+        )
+        relative_path = record.raw_path.parent.relative_to(self.root.resolve())
+
+        with change_directory(self.root):
+            loaded = load_recorded_verdict(
+                relative_path,
+                "TASK-VERDICT",
+                run_id,
+            )
+
+        self.assertIsNotNone(loaded)
+        assert loaded is not None
+        self.assertEqual(loaded.verdict, record.verdict)
 
 
 @unittest.skipUnless(Draft202012Validator, "install the test extra to run JSON Schema parity")

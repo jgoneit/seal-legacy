@@ -235,7 +235,7 @@ class CompleteCommandTests(unittest.TestCase):
         self.assertEqual(result.returncode, 8, result.stderr)
 
     def test_corrupt_evidence_returns_evidence_exit_code(self) -> None:
-        self._create_task()
+        self._create_task(verifier_required=True)
         run = verify_task("TASK-COMPLETE", cwd=self.repository)
         (run.evidence_path / "verification.json").write_text("{", encoding="utf-8")
 
@@ -256,7 +256,13 @@ class CompleteCommandTests(unittest.TestCase):
         self.assertEqual(result.returncode, 8, result.stderr)
 
     def test_scope_violation_rejects_completion(self) -> None:
-        self._create_task()
+        self._create_task(
+            checks=[
+                self._python_check(
+                    "timeout", "import time; time.sleep(30)", timeout_seconds=1
+                )
+            ]
+        )
         self._write("docs/outside.txt", "outside scope\n")
         run = verify_task("TASK-COMPLETE", cwd=self.repository)
 
@@ -304,6 +310,7 @@ class CompleteCommandTests(unittest.TestCase):
 
     def test_required_verifier_without_verdict_rejects_completion(self) -> None:
         self._create_task(verifier_required=True)
+        self._write("docs/outside.txt", "outside scope\n")
         run = verify_task("TASK-COMPLETE", cwd=self.repository)
 
         result = self._complete("TASK-COMPLETE", run.run_id)

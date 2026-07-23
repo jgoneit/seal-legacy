@@ -1,26 +1,42 @@
-"""Verification evidence creation for Outcome Harness.
+"""Mechanical verification Evidence creation for Outcome Harness.
 
-This module records mechanical verification and validates saved completion
-evidence. It does not invoke a verifier, publish a bundle, or append a ledger
-entry.
+This module records checks, Git changes, and versioned Run artifacts.  The
+completion policy is implemented behind a separate internal boundary while
+its established public imports remain available here.
 """
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import tempfile
 import time
 import uuid
-from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any, BinaryIO, TextIO
+from typing import Any, BinaryIO
 
+from ._completion import (
+    COMPLETION_SCHEMA_VERSION,
+    CompletionError,
+    CompletionEvidenceError,
+    CompletionInputError,
+    CompletionRequiredCheckFailureError,
+    CompletionRun,
+    CompletionScopeViolationError,
+    CompletionTimeoutError,
+    CompletionVerifierEvidenceMissingError,
+    CompletionVerifierRejectedError,
+    EvidenceError,
+    complete_task,
+)
+from ._run_artifact_io import (
+    atomic_write as _atomic_write,
+    atomic_write_bytes,
+    atomic_write_json,
+)
 from .checks import CheckExecutionError, run_checks
-from .exit_codes import ExitCode
 from .gitdiff import (
     HARNESS_METADATA_DIRECTORIES,
     HARNESS_METADATA_FILES,
@@ -34,67 +50,14 @@ from .gitdiff import (
     resolve_base_ref,
 )
 from .run_manifest import RunManifestError, create_run_manifest
-from .run_validator import RunIdentityError, RunValidationError, validate_run
-from .task import TaskError, show_task, validate_task_id
-from .verdict import VerdictEvidenceError, empty_finding_counts, load_recorded_verdict
+from .task import show_task, validate_task_id
 
 
 VERIFICATION_SCHEMA_VERSION = 1
-COMPLETION_SCHEMA_VERSION = 1
-class EvidenceError(TaskError):
-    """Raised when a verification run cannot safely create its evidence."""
 
 
 class EvidenceRepositoryError(EvidenceError):
     """Raised when Git cannot create or collect verification evidence."""
-
-
-class CompletionError(EvidenceError):
-    """Base error for fail-closed completion evaluation."""
-
-    exit_code = ExitCode.EVIDENCE_MISSING_OR_CORRUPT
-
-
-class CompletionInputError(CompletionError):
-    """Raised when a completion request does not identify its saved Task/run."""
-
-    exit_code = ExitCode.INVALID_INPUT_OR_SCHEMA
-
-
-class CompletionScopeViolationError(CompletionError):
-    """Raised when stored evidence records a product Scope violation."""
-
-    exit_code = ExitCode.SCOPE_VIOLATION
-
-
-class CompletionRequiredCheckFailureError(CompletionError):
-    """Raised when a required recorded check did not pass."""
-
-    exit_code = ExitCode.REQUIRED_CHECK_FAILURE
-
-
-class CompletionTimeoutError(CompletionError):
-    """Raised when a required recorded check timed out."""
-
-    exit_code = ExitCode.TIMEOUT
-
-
-class CompletionVerifierEvidenceMissingError(CompletionError):
-    """Raised when a Task requires a verdict that has not been recorded."""
-
-    exit_code = ExitCode.REQUIRED_VERIFIER_EVIDENCE_MISSING
-
-
-class CompletionVerifierRejectedError(CompletionError):
-    """Raised when a recorded verdict does not satisfy the completion gate."""
-
-    exit_code = ExitCode.REQUIRED_VERIFIER_EVIDENCE_MISSING
-
-
-class CompletionEvidenceError(CompletionError):
-    """Raised when a saved evidence bundle is absent or internally inconsistent."""
-
-    exit_code = ExitCode.EVIDENCE_MISSING_OR_CORRUPT
 
 
 @dataclass(frozen=True)
@@ -104,16 +67,6 @@ class VerificationRun:
     run_id: str
     evidence_path: Path
     verification: dict[str, Any]
-
-
-@dataclass(frozen=True)
-class CompletionRun:
-    """The immutable completion record written for one successful evidence run."""
-
-    task_id: str
-    run_id: str
-    completion_path: Path
-    completion: dict[str, Any]
 
 
 def verify_task(
@@ -211,99 +164,6 @@ def verify_task(
     )
 
 
-def complete_task(
-    task_id: str,
-    run_id: str,
-    *,
-    cwd: str | Path | None = None,
-) -> CompletionRun:
-    """Validate saved mechanical and verifier evidence and write completion.
-
-    Completion never reruns checks, recalculates the Git diff, or chooses a
-    latest run.  The caller supplies the exact Task/run pair to evaluate.
-    """
-    try:
-        validated_run = validate_run(task_id, run_id, cwd=cwd)
-    except RunIdentityError as error:
-        raise CompletionInputError(str(error)) from error
-    except RunValidationError as error:
-        raise CompletionEvidenceError(str(error)) from error
-
-    task = validated_run.task
-    evidence_path = validated_run.evidence_path
-
-    verifier_required = _task_requires_verifier(task)
-    try:
-        verdict_record = load_recorded_verdict(evidence_path, task_id, run_id)
-    except VerdictEvidenceError as error:
-        raise CompletionEvidenceError(
-            "Saved manual verifier evidence is missing, corrupt, or inconsistent."
-        ) from error
-
-    verifier_runner: str | None = None
-    verifier_verdict: str | None = None
-    try:
-        finding_counts = empty_finding_counts()
-    except VerdictEvidenceError as error:
-        raise CompletionEvidenceError(
-            "Could not load Manual Verdict severity definitions."
-        ) from error
-    if verdict_record is None:
-        if verifier_required:
-            raise CompletionVerifierEvidenceMissingError(
-                "Task requires a valid manual verifier verdict, but no verdict was recorded."
-            )
-    else:
-        verifier = verdict_record.verdict["verifier"]
-        verifier_runner = verifier["runner"]
-        verifier_verdict = verdict_record.verdict["verdict"]
-        finding_counts = verdict_record.counts
-        if verifier_verdict != "pass":
-            raise CompletionVerifierRejectedError(
-                "Completion rejected because the recorded verifier verdict is not pass."
-            )
-        if finding_counts["blocker"] > 0:
-            raise CompletionVerifierRejectedError(
-                "Completion rejected because the recorded verifier verdict has blocker findings."
-            )
-    if not validated_run.scope_pass:
-        raise CompletionScopeViolationError(
-            "Completion rejected because saved evidence contains a Scope violation."
-        )
-    if any(record["timed_out"] for record in validated_run.required_check_records):
-        raise CompletionTimeoutError(
-            "Completion rejected because a required check timed out."
-        )
-    if not validated_run.required_checks_pass:
-        raise CompletionRequiredCheckFailureError(
-            "Completion rejected because a required check did not pass."
-        )
-
-    completion = {
-        "schema_version": COMPLETION_SCHEMA_VERSION,
-        "task_id": task_id,
-        "run_id": run_id,
-        "evidence_sha256": validated_run.evidence_sha256,
-        "mechanical_result": "pass",
-        "verifier_required": verifier_required,
-        "verifier_runner": verifier_runner,
-        "verifier_verdict": verifier_verdict,
-        "blocker_count": finding_counts["blocker"],
-        "warning_count": finding_counts["warning"],
-        "note_count": finding_counts["note"],
-        "final_result": "pass",
-        "completed_at": _utc_timestamp(),
-    }
-    completion_path = evidence_path / "completion.json"
-    atomic_write_json(completion_path, completion)
-    return CompletionRun(
-        task_id=task_id,
-        run_id=run_id,
-        completion_path=completion_path,
-        completion=completion,
-    )
-
-
 def create_evidence_directory(repository: str | Path, task_id: str) -> tuple[str, Path]:
     """Create and return a collision-free evidence directory for one run."""
     validate_task_id(task_id)
@@ -323,57 +183,6 @@ def create_evidence_directory(repository: str | Path, task_id: str) -> tuple[str
 def generate_run_id() -> str:
     """Return a path-safe, collision-resistant run id without task metadata."""
     return uuid.uuid4().hex
-
-
-def atomic_write_json(path: str | Path, value: object) -> None:
-    """Write JSON through a same-directory temporary file and rename it atomically."""
-
-    def write(output: TextIO) -> None:
-        json.dump(value, output, ensure_ascii=False, indent=2, sort_keys=True)
-        output.write("\n")
-
-    _atomic_write(Path(path), mode="w", writer=write)
-
-
-def atomic_write_bytes(path: str | Path, value: bytes) -> None:
-    """Atomically write a binary artifact using the same no-partial-file rule."""
-
-    def write(output: BinaryIO) -> None:
-        output.write(value)
-
-    _atomic_write(Path(path), mode="wb", writer=write)
-
-
-def _atomic_write(
-    path: Path,
-    *,
-    mode: str,
-    writer: Callable[[Any], None],
-) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode=mode,
-            encoding="utf-8" if mode == "w" else None,
-            errors="backslashreplace" if mode == "w" else None,
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as output:
-            temporary_path = Path(output.name)
-            writer(output)
-            output.flush()
-            os.fsync(output.fileno())
-        os.replace(temporary_path, path)
-        temporary_path = None
-    finally:
-        if temporary_path is not None:
-            try:
-                temporary_path.unlink()
-            except FileNotFoundError:
-                pass
 
 
 def write_diff_patch(
@@ -514,13 +323,6 @@ def _evidence_file_list(check_results: list[dict[str, Any]]) -> list[str]:
         files.extend((str(result["stdout_path"]), str(result["stderr_path"])))
     files.append("verification.json")
     return files
-
-
-def _task_requires_verifier(task: Mapping[str, Any]) -> bool:
-    verifier = task.get("verifier")
-    if not isinstance(verifier, Mapping) or type(verifier.get("required")) is not bool:
-        raise CompletionInputError("Saved Task snapshot verifier must contain required boolean.")
-    return bool(verifier["required"])
 
 
 def _utc_timestamp() -> str:

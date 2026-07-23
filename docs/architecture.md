@@ -19,14 +19,37 @@ Harness does not generate Manual Verdicts or guarantee verifier independence. Th
 | --- | --- |
 | harness.cli | Connect CLI arguments to command-specific functions and return stable exit codes |
 | harness.task | Read the Task Spec and check catalog, then save the Task snapshot and baseline |
+| harness._path_policy (internal) | Share the pure component-boundary and Harness-metadata path policy without normalizing producer and validator inputs the same way |
 | harness.gitdiff | Collect product changes and scope information between the baseline and current working tree |
 | harness.checks | Run checks as argv arrays and record stdout and stderr inside the Run |
+| harness._run_artifact_io (internal) | Validate relative Run-artifact paths, read confined raw bytes, and provide the existing atomic Run-artifact writer without interpreting document meaning |
 | harness.run_manifest | Generate and compare the size and SHA-256 of raw mechanical Evidence bytes and the canonical `evidence_sha256` |
-| harness.run_validator | Canonically validate identity, paths, checks, scope, and mechanical-result consistency in stored Task/Run Evidence |
-| harness.evidence | Store mechanical Evidence and process the completion policy and completion record for a validated Run |
+| harness._run_documents (internal) | Validate persisted document shapes and cross-document check, scope, and mechanical-result consistency |
+| harness.run_validator | Remain the sole public stored-Run integrity facade, locate the Task/Run, coordinate internal validators, and assemble immutable `ValidatedRun` values |
+| harness.evidence | Create and store mechanical Evidence while preserving the established public verification and completion imports |
+| harness._completion (internal) | Consume `ValidatedRun` and persisted Verdict evidence, apply completion policy, and atomically store `completion.json` |
 | harness.bundle | Create a portable bundle from limited Evidence in a validated Run and the packaged verifier instructions |
 | harness.verdict_validator | Validate Verdict structure and format and Task/run context using the packaged Verdict Schema |
 | harness.verdict | Preserve the raw Manual Verdict, store its canonical snapshot, revalidate it, and calculate finding counts |
+
+The underscore-prefixed modules are private implementation boundaries, not new
+public APIs. Existing callers continue to use
+`harness.run_validator.validate_run()` for stored Run integrity and the
+established names under `harness.evidence` for verification and completion.
+Bundle, Verdict, and completion code do not call the private document validator
+as an alternative authority.
+
+`harness._run_documents` intentionally remains one persisted-document trust
+transaction even though it is a large module. Task, changed-files, check,
+verification, and log documents must be loaded and cross-checked together
+before their derived scope and mechanical-result values are trustworthy.
+Splitting those checks now would require intermediate transfer objects or
+independently callable partial validators, spreading ownership of the same
+integrity invariants and creating alternate internal validation paths. A
+further extraction is justified only when one responsibility has independent
+inputs, outputs, and characterization coverage while remaining composed
+exclusively by the public `validate_run()` facade; file size alone is not that
+boundary.
 
 `schemas/verdict.schema.json` and `prompts/verifier.md` at the repository root are the human-edited canonical contracts. The matching files under `src/harness/resources` are mirrors included in the package, and `scripts/sync_contracts.py` checks that they are synchronized byte for byte.
 
@@ -111,7 +134,17 @@ The current implementation does not bind the source at verification time to the 
 
 Check output may contain sensitive values. Harness attempts to make absolute paths portable, but it does not provide complete secret redaction.
 
-Future snapshot binding must be handled as a separate extension to Run integrity. It is a different responsibility from the current Verdict structure validation and is not implicitly included in the current flow documented here.
+Future snapshot binding must be handled as a separate extension to Run
+integrity. If R1a introduces a private Source Snapshot validator,
+`validate_run()` must compose it after the current persisted-document
+validation returns and before Run manifest validation begins. The validated
+snapshot artifact paths must be merged with the current expected mechanical
+Evidence paths passed to manifest validation, and the validated snapshot result
+must be frozen into `ValidatedRun`. Bundle, Verdict, and completion consumers
+must read only that `ValidatedRun` value rather than call the snapshot validator
+directly. This insertion point is a future design constraint; it does not
+itself provide a Source Snapshot, current-source comparison, or any new
+completion gate.
 
 ## Why external adapters are separated from core
 

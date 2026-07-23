@@ -23,7 +23,12 @@ from harness.evidence import (
     complete_task,
     verify_task,
 )
-from harness.run_validator import RunValidationError, ValidatedRun, validate_run
+from harness.run_validator import (
+    RunEvidenceError,
+    RunValidationError,
+    ValidatedRun,
+    validate_run,
+)
 from harness.task import create_task
 from harness.verdict import VerdictEvidenceError, record_verdict
 
@@ -261,7 +266,7 @@ class CanonicalRunIntegrityTests(unittest.TestCase):
         run = self._valid_run()
         task_path = run.evidence_path / "task.json"
         task_path.unlink()
-        with self.assertRaises(RunValidationError):
+        with self.assertRaises(RunEvidenceError):
             validate_run("TASK-RUN", run.run_id, cwd=self.repository)
 
         run = self._valid_run(task_id="TASK-MALFORMED")

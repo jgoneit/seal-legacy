@@ -8,23 +8,29 @@ checks, or decide mechanical verification.
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
-from .run_validator import RunIdentityError, RunValidationError, validate_run
+from ._run_artifact_io import (
+    RunArtifactReadError as _RunArtifactReadError,
+    atomic_write_bytes as _atomic_write_run_bytes,
+    read_run_artifact_bytes as _read_run_artifact_bytes,
+)
+from .run_validator import (
+    RUN_ID_CHARACTERS,
+    RunIdentityError,
+    RunValidationError,
+    validate_run,
+    validate_run_id as _validate_run_id,
+)
 from .task import TaskError, validate_task_id
 from .verdict_validator import VerdictValidationError, finding_severities, validate_verdict
 
 
 RAW_VERDICT_FILENAME = "verdict.raw.json"
 VERDICT_FILENAME = "verdict.json"
-RUN_ID_CHARACTERS = frozenset(
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
-)
 
 
 class VerdictError(TaskError):
@@ -79,7 +85,7 @@ def record_verdict(
 
     raw_path = evidence_path / RAW_VERDICT_FILENAME
     snapshot_path = evidence_path / VERDICT_FILENAME
-    _atomic_write_bytes(raw_path, raw_bytes)
+    _atomic_write_run_bytes(raw_path, raw_bytes)
     _atomic_write_json(snapshot_path, snapshot)
     return VerdictRecord(
         task_id=task_id,
@@ -129,24 +135,30 @@ def load_recorded_verdict(
     directory = Path(evidence_path)
     raw_path = directory / RAW_VERDICT_FILENAME
     snapshot_path = directory / VERDICT_FILENAME
-    raw_exists = raw_path.is_file()
-    snapshot_exists = snapshot_path.is_file()
-    if not raw_exists and not snapshot_exists:
+    raw_bytes = _read_optional_evidence_bytes(
+        directory,
+        PurePosixPath(RAW_VERDICT_FILENAME),
+    )
+    snapshot_bytes = _read_optional_evidence_bytes(
+        directory,
+        PurePosixPath(VERDICT_FILENAME),
+    )
+    if raw_bytes is None and snapshot_bytes is None:
         return None
-    if not raw_exists or not snapshot_exists:
+    if raw_bytes is None or snapshot_bytes is None:
         raise VerdictEvidenceError(
             "Manual Verdict evidence must include both raw and canonical Verdict files."
         )
 
     raw = _parse_verdict_bytes(
-        _read_evidence_bytes(raw_path),
+        raw_bytes,
         RAW_VERDICT_FILENAME,
         persisted=True,
         expected_task_id=task_id,
         expected_run_id=run_id,
     )
     snapshot = _parse_verdict_bytes(
-        _read_evidence_bytes(snapshot_path),
+        snapshot_bytes,
         VERDICT_FILENAME,
         persisted=True,
         expected_task_id=task_id,
@@ -193,18 +205,10 @@ def empty_finding_counts() -> dict[str, int]:
 
 def validate_run_id(run_id: object) -> str:
     """Validate a path-safe verification run identifier."""
-    if not isinstance(run_id, str) or not run_id:
-        raise VerdictInputError("Run id must be a non-empty string.")
-    if run_id[0] not in RUN_ID_CHARACTERS - {"_", "-"}:
-        raise VerdictInputError(
-            "Run id must begin with an alphanumeric character and contain only "
-            "letters, numbers, underscores, or hyphens."
-        )
-    if any(character not in RUN_ID_CHARACTERS for character in run_id):
-        raise VerdictInputError(
-            "Run id must contain only letters, numbers, underscores, or hyphens."
-        )
-    return run_id
+    try:
+        return _validate_run_id(run_id)
+    except RunIdentityError as error:
+        raise VerdictInputError(str(error)) from error
 
 
 def _read_source_bytes(path: Path) -> bytes:
@@ -214,14 +218,27 @@ def _read_source_bytes(path: Path) -> bytes:
         raise VerdictInputError(f"Could not read Verdict file: {path}.") from error
 
 
-def _read_evidence_bytes(path: Path) -> bytes:
-    if not path.is_file():
-        raise VerdictEvidenceError(f"Required Verdict evidence file is missing: {path.name}.")
+def _read_optional_evidence_bytes(
+    directory: Path,
+    relative_path: PurePosixPath,
+) -> bytes | None:
     try:
-        return path.read_bytes()
-    except OSError as error:
+        return _read_run_artifact_bytes(directory, relative_path)
+    except _RunArtifactReadError as error:
+        if error.reason == "missing":
+            return None
+        if error.reason == "unsafe":
+            message = (
+                "Required Verdict evidence file is unsafe or missing: "
+                f"{relative_path.as_posix()}."
+            )
+        else:
+            message = (
+                "Could not read Verdict evidence file: "
+                f"{relative_path.as_posix()}."
+            )
         raise VerdictEvidenceError(
-            f"Could not read Verdict evidence file: {path.name}."
+            message
         ) from error
 
 
@@ -251,29 +268,4 @@ def _parse_verdict_bytes(
 
 def _atomic_write_json(path: Path, value: object) -> None:
     contents = json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True)
-    _atomic_write_bytes(path, f"{contents}\n".encode("utf-8"))
-
-
-def _atomic_write_bytes(path: Path, value: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="wb",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as output:
-            temporary_path = Path(output.name)
-            output.write(value)
-            output.flush()
-            os.fsync(output.fileno())
-        os.replace(temporary_path, path)
-        temporary_path = None
-    finally:
-        if temporary_path is not None:
-            try:
-                temporary_path.unlink()
-            except FileNotFoundError:
-                pass
+    _atomic_write_run_bytes(path, f"{contents}\n".encode("utf-8"))

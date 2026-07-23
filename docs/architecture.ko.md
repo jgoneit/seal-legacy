@@ -19,14 +19,33 @@ Harness는 Manual Verdict를 생성하거나 verifier의 독립성을 보장하�
 | --- | --- |
 | harness.cli | CLI 인자를 명령별 함수로 연결하고 stable exit code를 반환 |
 | harness.task | Task Spec과 check catalog를 읽고 Task snapshot 및 baseline을 저장 |
+| harness._path_policy (내부) | producer와 validator 입력 정규화 방식을 합치지 않으면서 순수 component boundary와 Harness metadata path policy를 공유 |
 | harness.gitdiff | baseline과 현재 working tree 사이의 product 변경 및 scope 정보를 수집 |
 | harness.checks | argv 배열로 check를 실행하고 stdout과 stderr를 Run 내부에 기록 |
+| harness._run_artifact_io (내부) | relative Run artifact path를 검증하고 confined raw byte를 읽으며 document 의미를 해석하지 않는 기존 atomic Run artifact writer를 제공 |
 | harness.run_manifest | mechanical Evidence raw byte의 크기·SHA-256·canonical `evidence_sha256`을 생성하고 비교 |
-| harness.run_validator | 저장된 Task/Run Evidence의 identity, path, check, scope, mechanical result consistency를 canonical하게 검증 |
-| harness.evidence | mechanical Evidence를 저장하고 validated Run의 completion policy 및 completion record를 처리 |
+| harness._run_documents (내부) | 저장 document shape와 document 사이의 check, scope, mechanical result consistency를 검증 |
+| harness.run_validator | 유일한 public stored-Run integrity façade로 남아 Task/Run을 찾고 내부 validator를 조정해 immutable `ValidatedRun`을 조립 |
+| harness.evidence | mechanical Evidence를 생성·저장하면서 기존 verification 및 completion public import를 유지 |
+| harness._completion (내부) | `ValidatedRun`과 저장 Verdict evidence를 소비해 completion policy를 적용하고 `completion.json`을 atomic하게 저장 |
 | harness.bundle | validated Run의 제한된 Evidence와 packaged verifier instruction으로 portable bundle 생성 |
 | harness.verdict_validator | packaged Verdict Schema를 사용해 Verdict 구조와 format, Task/run context를 검증 |
 | harness.verdict | Manual Verdict의 raw 원본 보존, canonical snapshot 저장, 재검증, finding count 계산 |
+
+Underscore로 시작하는 module은 새 public API가 아니라 private 구현 경계다. 기존 caller는
+저장 Run integrity에 `harness.run_validator.validate_run()`을 계속 사용하고 verification과
+completion에는 `harness.evidence` 아래의 기존 이름을 사용한다. Bundle, Verdict,
+completion code는 private document validator를 별도 authority처럼 직접 호출하지 않는다.
+
+`harness._run_documents`는 큰 module이지만 하나의 persisted-document trust
+transaction으로 의도적으로 유지한다. Task, changed-files, check, verification,
+log document는 파생된 scope와 mechanical result를 신뢰하기 전에 함께 읽고
+교차 검증해야 한다. 지금 이 검사를 나누면 중간 전달 객체나 독립적으로 호출
+가능한 partial validator가 필요해져 같은 integrity invariant의 ownership이
+분산되고 대체 내부 validation 경로가 생긴다. 추가 extraction은 하나의 책임이
+독립된 입력·출력과 Characterization Test를 가지면서도 public `validate_run()`
+façade에서만 조합될 수 있을 때 수행한다. 파일 크기만으로는 그 경계가 되지
+않는다.
 
 root의 schemas/verdict.schema.json과 prompts/verifier.md는 사람이 편집하는 canonical contract다. src/harness/resources 아래의 같은 파일은 package에 포함되는 mirror이며 scripts/sync_contracts.py가 byte-for-byte 동기화를 확인한다.
 
@@ -111,7 +130,15 @@ warning과 note finding은 completion record에 count로 남지만, 그 자체�
 
 check output에는 민감한 값이 있을 수 있다. Harness는 절대 경로를 portable하게 정리하려고 하지만 완전한 secret redaction을 제공하지 않는다.
 
-향후 snapshot binding은 Run integrity를 확장하는 별도 기능으로 다뤄야 한다. 그것은 현재 Verdict 구조 validation과 다른 책임이며, 이 문서의 현재 흐름에 암묵적으로 포함되지 않는다.
+향후 snapshot binding은 Run integrity를 확장하는 별도 기능으로 다뤄야 한다.
+R1a가 private Source Snapshot validator를 도입한다면 `validate_run()`은 현재
+persisted-document validation이 반환된 직후이자 Run manifest validation이
+시작되기 전에 이를 조합해야 한다. 검증된 snapshot artifact path는 manifest
+validation에 전달하는 현재 expected mechanical Evidence path와 합치고, 검증된
+snapshot 결과는 `ValidatedRun`에 immutable하게 담아야 한다. Bundle, Verdict,
+completion consumer는 snapshot validator를 직접 호출하지 않고 이 `ValidatedRun`
+값만 읽어야 한다. 이 삽입 지점은 미래 설계 제약일 뿐이며, 구조 자체가 Source
+Snapshot, current-source 비교, 새 completion gate를 제공하지 않는다.
 
 ## 외부 adapter를 core와 분리하는 이유
 

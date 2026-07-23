@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +28,7 @@ from harness.bundle import (
     create_verification_bundle,
 )
 from harness.evidence import verify_task
+from harness.run_validator import validate_run
 from harness.task import create_task
 
 try:
@@ -311,6 +313,30 @@ class VerifierBundleTests(unittest.TestCase):
 
         with self.assertRaises(BundleEvidenceError):
             self._bundle(run.run_id)
+
+    @unittest.skipUnless(os.name == "posix", "symlink escape coverage requires POSIX")
+    def test_rejects_log_symlink_swap_after_validation(self) -> None:
+        self._create_task()
+        run = self._run()
+        checks = json.loads(
+            (run.evidence_path / "checks.json").read_text(encoding="utf-8")
+        )
+        log_path = run.evidence_path / checks["checks"][0]["stdout_path"]
+        outside = self.root / "outside.log"
+        outside.write_text("outside\n", encoding="utf-8")
+
+        def swap_log_after_validation(*args, **kwargs):
+            validated_run = validate_run(*args, **kwargs)
+            log_path.unlink()
+            log_path.symlink_to(outside)
+            return validated_run
+
+        with mock.patch(
+            "harness.bundle.validate_run",
+            side_effect=swap_log_after_validation,
+        ):
+            with self.assertRaises(BundleEvidenceError):
+                self._bundle(run.run_id)
 
     def test_cli_exports_requested_task_run(self) -> None:
         self._create_task()

@@ -11,20 +11,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-
-# These paths describe Harness's own records rather than product changes.  They
-# are retained in ``ChangeCollection.changes`` for observability, but excluded
-# from ``ChangeCollection.product_changes`` and scope results.
-HARNESS_METADATA_DIRECTORIES = (
-    ".harness/tasks",
-    ".harness/evidence",
-)
-HARNESS_METADATA_FILES = frozenset(
-    {
-        ".harness/runs.jsonl",
-        ".harness/lessons.md",
-        ".harness/config.json",
-    }
+from ._path_policy import (
+    HARNESS_METADATA_DIRECTORIES,
+    HARNESS_METADATA_FILES,
+    is_harness_metadata_path as _is_harness_metadata_path,
+    path_is_within as _path_is_within,
 )
 
 
@@ -381,9 +372,7 @@ def _is_metadata_change(change: FileChange) -> bool:
 def is_harness_metadata_path(path: str) -> bool:
     """Return whether *path* is a Harness metadata path, using path boundaries."""
     normalized = _normalize_relative_path(path, "Git path")
-    if normalized in HARNESS_METADATA_FILES:
-        return True
-    return any(_path_is_within(normalized, directory) for directory in HARNESS_METADATA_DIRECTORIES)
+    return _is_harness_metadata_path(normalized)
 
 
 def _paths_match_scope(paths: tuple[str, ...], scope: tuple[str, ...]) -> bool:
@@ -393,15 +382,6 @@ def _paths_match_scope(paths: tuple[str, ...], scope: tuple[str, ...]) -> bool:
 def _path_matches_any_scope(path: str, scope: tuple[str, ...]) -> bool:
     normalized_path = _normalize_relative_path(path, "Git path")
     return any(_path_is_within(normalized_path, boundary) for boundary in scope)
-
-
-def _path_is_within(path: str, boundary: str) -> bool:
-    """Compare POSIX path components, never string prefixes."""
-    if boundary == ".":
-        return True
-    path_parts = path.split("/")
-    boundary_parts = boundary.split("/")
-    return len(path_parts) >= len(boundary_parts) and path_parts[: len(boundary_parts)] == boundary_parts
 
 
 def _task_baseline(task: Mapping[str, object]) -> str:
