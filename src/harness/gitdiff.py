@@ -83,6 +83,44 @@ class _RawDiffEntry:
     new_path: str | None
     old_mode: str | None
     new_mode: str | None
+    old_oid: str | None
+    new_oid: str | None
+
+
+@dataclass(frozen=True)
+class _FinalTreeCandidate:
+    """One path that may differ between a baseline and the final working tree."""
+
+    path: str
+    baseline_mode: str | None
+    baseline_oid: str | None
+    current_present: bool
+    current_mode: str | None
+
+
+@dataclass(frozen=True)
+class _FinalTreeCandidateSet:
+    """Resolved repository context and final-tree candidates for source readers."""
+
+    repository: Path
+    baseline: str
+    candidates: tuple[_FinalTreeCandidate, ...]
+    tracked_paths: tuple[str, ...]
+    gitlink_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _BaselineTreeEntry:
+    path: str
+    mode: str
+    object_id: str
+
+
+@dataclass(frozen=True)
+class _IndexState:
+    tracked_modes: tuple[tuple[str, str], ...]
+    gitlink_paths: frozenset[str]
+    unmerged_paths: frozenset[str]
 
 
 def collect_changes(
@@ -153,6 +191,110 @@ def resolve_base_ref(
     """
     repository = find_repository_root(cwd)
     return _resolve_task_base_ref(repository, task, base_ref)
+
+
+def _collect_final_tree_candidates(
+    task: Mapping[str, object],
+    *,
+    cwd: str | Path | None = None,
+) -> _FinalTreeCandidateSet:
+    """Collect candidate paths for a baseline-relative final working tree.
+
+    Unlike :func:`collect_changes`, this private boundary deliberately collapses
+    committed, staged, and unstaged layers.  The raw comparison is augmented
+    with the complete baseline tree and current index inventory so Git hints
+    cannot hide a path from a source reader.  The caller still reads actual
+    Working Tree nodes and uses the index only to distinguish tracked paths from
+    ignored untracked paths.
+    """
+    repository = find_repository_root(cwd)
+    baseline = _resolve_task_base_ref(repository, task, None)
+    output = _git_output(
+        repository,
+        "diff",
+        "--raw",
+        "-z",
+        "--no-abbrev",
+        "--no-renames",
+        "--no-ext-diff",
+        "--no-textconv",
+        baseline,
+        "--",
+    )
+
+    raw_paths: set[str] = set()
+    for entry in _parse_raw_diff(output):
+        if entry.git_status[:1] not in {"A", "D", "M", "T"}:
+            raise GitDiffError(
+                f"Unsupported final-tree Git status '{entry.git_status}'."
+            )
+        path = entry.new_path or entry.old_path
+        if path is None:
+            raise GitDiffError("Git final-tree diff record is missing a path.")
+        if path in raw_paths:
+            raise GitDiffError(
+                f"Git final-tree diff contains duplicate path '{path}'."
+            )
+        raw_paths.add(path)
+
+    baseline_entries = {
+        entry.path: entry
+        for entry in _baseline_tree_entries(repository, baseline)
+    }
+    untracked_paths = frozenset(_untracked_paths(repository))
+    index_state = _index_state(repository)
+    if index_state.unmerged_paths:
+        path = min(index_state.unmerged_paths, key=_path_sort_key)
+        raise GitDiffError(
+            f"Unsupported final-tree Git status 'U' for '{path}'."
+        )
+    tracked_modes = dict(index_state.tracked_modes)
+    all_paths = (
+        set(baseline_entries)
+        | set(tracked_modes)
+        | set(untracked_paths)
+        | raw_paths
+    )
+    ordered = tuple(
+        _FinalTreeCandidate(
+            path=path,
+            baseline_mode=(
+                baseline_entries[path].mode
+                if path in baseline_entries
+                else None
+            ),
+            baseline_oid=(
+                baseline_entries[path].object_id
+                if path in baseline_entries
+                else None
+            ),
+            current_present=(
+                path in tracked_modes
+                or path in untracked_paths
+            ),
+            current_mode=tracked_modes.get(path),
+        )
+        for path in sorted(all_paths, key=_path_sort_key)
+    )
+    baseline_gitlinks = {
+        path
+        for path, entry in baseline_entries.items()
+        if entry.mode == "160000"
+    }
+    return _FinalTreeCandidateSet(
+        repository=repository,
+        baseline=baseline,
+        candidates=ordered,
+        tracked_paths=tuple(
+            sorted(tracked_modes, key=_path_sort_key)
+        ),
+        gitlink_paths=tuple(
+            sorted(
+                baseline_gitlinks | set(index_state.gitlink_paths),
+                key=_path_sort_key,
+            )
+        ),
+    )
 
 
 def find_repository_root(cwd: str | Path | None = None) -> Path:
@@ -264,6 +406,8 @@ def _parse_raw_diff(output: bytes) -> list[_RawDiffEntry]:
                 new_path=new_path,
                 old_mode=_mode_or_none(parts[0]),
                 new_mode=_mode_or_none(parts[1]),
+                old_oid=_oid_or_none(parts[2]),
+                new_oid=_oid_or_none(parts[3]),
             )
         )
     return entries
@@ -339,6 +483,106 @@ def _to_file_change(
 def _untracked_paths(repository: Path) -> list[str]:
     output = _git_output(repository, "ls-files", "--others", "--exclude-standard", "-z")
     return [_decode_path(path) for path in output.split(b"\0") if path]
+
+
+def _baseline_tree_entries(
+    repository: Path,
+    baseline: str,
+) -> tuple[_BaselineTreeEntry, ...]:
+    output = _git_output(
+        repository,
+        "ls-tree",
+        "-r",
+        "-z",
+        "--full-tree",
+        baseline,
+    )
+    entries: dict[str, _BaselineTreeEntry] = {}
+    for record in output.split(b"\0"):
+        if not record:
+            continue
+        try:
+            header, raw_path = record.split(b"\t", 1)
+        except ValueError as error:
+            raise GitDiffError("Could not parse Git baseline-tree metadata.") from error
+        parts = header.split()
+        if len(parts) != 3:
+            raise GitDiffError("Could not parse Git baseline-tree metadata.")
+        mode = _decode_ascii(parts[0], "Git baseline-tree mode")
+        object_type = _decode_ascii(parts[1], "Git baseline-tree object type")
+        object_id = _decode_ascii(parts[2], "Git baseline-tree object id")
+        path = _decode_path(raw_path)
+        if path in entries:
+            raise GitDiffError(
+                f"Git baseline tree contains duplicate path '{path}'."
+            )
+        if object_type not in {"blob", "commit"}:
+            raise GitDiffError(
+                f"Unsupported Git baseline-tree object type '{object_type}'."
+            )
+        entries[path] = _BaselineTreeEntry(
+            path=path,
+            mode=mode,
+            object_id=object_id,
+        )
+    return tuple(
+        entries[path]
+        for path in sorted(entries, key=_path_sort_key)
+    )
+
+
+def _index_state(repository: Path) -> _IndexState:
+    output = _git_output(repository, "ls-files", "--stage", "-z")
+    tracked_modes: dict[str, str] = {}
+    gitlink_paths: set[str] = set()
+    unmerged_paths: set[str] = set()
+    for record in output.split(b"\0"):
+        if not record:
+            continue
+        try:
+            header, raw_path = record.split(b"\t", 1)
+        except ValueError as error:
+            raise GitDiffError("Could not parse Git staged-file metadata.") from error
+        parts = header.split()
+        if len(parts) != 3:
+            raise GitDiffError("Could not parse Git staged-file metadata.")
+        path = _decode_path(raw_path)
+        if parts[2] != b"0":
+            unmerged_paths.add(path)
+            continue
+        mode = _decode_ascii(parts[0], "Git staged-file mode")
+        if path in tracked_modes:
+            raise GitDiffError(
+                f"Git staged-file metadata contains duplicate path '{path}'."
+            )
+        tracked_modes[path] = mode
+        if mode == "160000":
+            gitlink_paths.add(path)
+    return _IndexState(
+        tracked_modes=tuple(
+            (path, tracked_modes[path])
+            for path in sorted(tracked_modes, key=_path_sort_key)
+        ),
+        gitlink_paths=frozenset(gitlink_paths),
+        unmerged_paths=frozenset(unmerged_paths),
+    )
+
+
+def _is_git_ignored(repository: Path, path: str) -> bool:
+    """Return Git's current ignore decision for one repository-relative path."""
+    result = _git_result(
+        repository,
+        "check-ignore",
+        "--quiet",
+        "--",
+        path,
+    )
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    _raise_git_failure(result)
+    raise AssertionError("unreachable")
 
 
 def _is_untracked_binary(repository: Path, path: str) -> bool:
@@ -451,6 +695,15 @@ def _status_name(git_status: str) -> str:
 def _mode_or_none(value: bytes) -> str | None:
     mode = _decode_ascii(value, "Git file mode")
     return None if mode == "000000" else mode
+
+
+def _oid_or_none(value: bytes) -> str | None:
+    oid = _decode_ascii(value, "Git object id")
+    return None if oid and set(oid) == {"0"} else oid
+
+
+def _path_sort_key(path: str) -> bytes:
+    return path.encode("utf-8", "surrogateescape")
 
 
 def _git_output(repository: Path, *arguments: str) -> bytes:
