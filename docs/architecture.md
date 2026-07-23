@@ -21,6 +21,7 @@ Harness does not generate Manual Verdicts or guarantee verifier independence. Th
 | harness.task | Read the Task Spec and check catalog, then save the Task snapshot and baseline |
 | harness._path_policy (internal) | Share the pure component-boundary and Harness-metadata path policy without normalizing producer and validator inputs the same way |
 | harness.gitdiff | Collect product changes and scope information between the baseline and current working tree |
+| harness.source_snapshot | Read the Task baseline and final Working Tree to calculate a canonical, read-only product-source Snapshot |
 | harness.checks | Run checks as argv arrays and record stdout and stderr inside the Run |
 | harness._run_artifact_io (internal) | Validate relative Run-artifact paths, read confined raw bytes, and provide the existing atomic Run-artifact writer without interpreting document meaning |
 | harness.run_manifest | Generate and compare the size and SHA-256 of raw mechanical Evidence bytes and the canonical `evidence_sha256` |
@@ -126,25 +127,33 @@ The current model uses `validate_run()` as the single integrity boundary for sto
 
 This is not cryptographic provenance or immutable storage. The manifest detects modification, omission, or replacement of mechanical files after verification, but it cannot prevent the same local user from editing both the Evidence and a recalculated manifest. `evidence_sha256` and the bundle hash are neither completion authority nor remote attestation.
 
-## Known limitations and the next design boundary
+## Standalone Source Snapshot and the next design boundary
 
-The current implementation does not bind the source at verification time to the source at a later time. The manifest verifies only the local consistency of the mechanical Evidence saved at that time; semantic binding between the diff and changed-files, pre/post-check snapshot comparison, and snapshot fingerprints do not exist yet. Therefore, neither `validate_run()` nor `complete` should be interpreted as revalidating the "current source."
+`harness.source_snapshot.collect_source_snapshot()` can calculate a
+deterministic, read-only identity for the current product source relative to the
+saved Task baseline. It collapses committed, staged, and unstaged transitions
+into the final Working Tree result, includes non-ignored untracked product
+files, excludes canonical Harness metadata, and does not limit identity to Task
+Scope. [ADR 0004](adr/0004-canonical-source-snapshot.md) defines its entry,
+digest, symlink, special-file, and stability semantics.
+
+This engine is not connected to verification or stored Runs in R1a. `verify`
+does not call it or save a Snapshot artifact, the Run manifest does not cover a
+Snapshot, and `validate_run()` and `complete` do not compare current source with
+source at verification time. Pre/post-check Snapshot comparison also remains
+unimplemented. Therefore, neither `validate_run()` nor `complete` should be
+interpreted as revalidating the "current source."
 
 `verify --base-ref` can record a separate Git ref as the baseline for a Run instead of the saved Task baseline. This option remains an explicit override in v0.1.1 and does not provide source binding or Task baseline immutability.
 
 Check output may contain sensitive values. Harness attempts to make absolute paths portable, but it does not provide complete secret redaction.
 
-Future snapshot binding must be handled as a separate extension to Run
-integrity. If R1a introduces a private Source Snapshot validator,
-`validate_run()` must compose it after the current persisted-document
-validation returns and before Run manifest validation begins. The validated
-snapshot artifact paths must be merged with the current expected mechanical
-Evidence paths passed to manifest validation, and the validated snapshot result
-must be frozen into `ValidatedRun`. Bundle, Verdict, and completion consumers
-must read only that `ValidatedRun` value rather than call the snapshot validator
-directly. This insertion point is a future design constraint; it does not
-itself provide a Source Snapshot, current-source comparison, or any new
-completion gate.
+Future Snapshot binding must remain a separate extension to Run integrity. It
+will need a versioned stored artifact, validation through the single
+`validate_run()` facade, Run-manifest coverage, and an explicit comparison
+policy before any completion gate can depend on it. Bundle, Verdict, and
+completion consumers must not call the standalone collector as an alternate
+authority.
 
 ## Why external adapters are separated from core
 
