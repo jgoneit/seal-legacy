@@ -706,13 +706,24 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
         self._git("add", "src/base.txt")
         self._commit("ours")
         result = subprocess.run(
-            ["git", "merge", "other"],
+            [
+                "git",
+                "-c",
+                "user.name=Harness Test",
+                "-c",
+                "user.email=harness-test@example.invalid",
+                "merge",
+                "other",
+            ],
             cwd=self.repository,
             check=False,
             capture_output=True,
             text=True,
         )
         self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(
+            self._git_bytes("ls-files", "--unmerged", "-z", "--", "src/base.txt")
+        )
 
         with self.assertRaisesRegex(SourceSnapshotError, "status 'U'"):
             self._snapshot()
