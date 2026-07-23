@@ -32,3 +32,4 @@ jobs:
           "$RUNNER_TEMP/clean-install/bin/python" -c "from harness.run_validator import validate_run; print(validate_run)"
           "$RUNNER_TEMP/clean-install/bin/python" -c "from harness.verdict_validator import validate_verdict; print(validate_verdict)"
           "$RUNNER_TEMP/clean-install/bin/python" -c "from importlib.resources import files; resource = files('harness').joinpath('resources'); assert resource.joinpath('verifier.md').is_file(); assert resource.joinpath('verdict.schema.json').is_file()"
+          "$RUNNER_TEMP/clean-install/bin/python" "$GITHUB_WORKSPACE/scripts/smoke_installed_cli.py" "$RUNNER_TEMP/clean-install/bin/harness"
