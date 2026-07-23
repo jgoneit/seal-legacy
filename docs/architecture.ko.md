@@ -21,6 +21,7 @@ Harness는 Manual Verdict를 생성하거나 verifier의 독립성을 보장하�
 | harness.task | Task Spec과 check catalog를 읽고 Task snapshot 및 baseline을 저장 |
 | harness._path_policy (내부) | producer와 validator 입력 정규화 방식을 합치지 않으면서 순수 component boundary와 Harness metadata path policy를 공유 |
 | harness.gitdiff | baseline과 현재 working tree 사이의 product 변경 및 scope 정보를 수집 |
+| harness.source_snapshot | Task baseline과 final Working Tree를 읽어 canonical read-only product source Snapshot을 계산 |
 | harness.checks | argv 배열로 check를 실행하고 stdout과 stderr를 Run 내부에 기록 |
 | harness._run_artifact_io (내부) | relative Run artifact path를 검증하고 confined raw byte를 읽으며 document 의미를 해석하지 않는 기존 atomic Run artifact writer를 제공 |
 | harness.run_manifest | mechanical Evidence raw byte의 크기·SHA-256·canonical `evidence_sha256`을 생성하고 비교 |
@@ -122,23 +123,32 @@ warning과 note finding은 completion record에 count로 남지만, 그 자체�
 
 이것은 cryptographic provenance 또는 immutable storage가 아니다. manifest는 verify 이후 mechanical file의 수정·누락·교체를 탐지하지만, 동일한 로컬 사용자가 Evidence와 manifest를 함께 다시 계산해 편집하는 것을 막지 못한다. `evidence_sha256`과 bundle hash는 completion authority나 remote attestation이 아니다.
 
-## 알려진 한계와 다음 설계 경계
+## 독립 Source Snapshot과 다음 설계 경계
 
-현재는 verification 당시의 source와 나중의 source가 같은지 binding하지 않는다. manifest는 당시 저장된 mechanical Evidence의 local consistency만 확인하며, diff와 changed-files의 의미적 binding, pre/post check snapshot 비교, snapshot fingerprint는 아직 없다. 따라서 `validate_run()`이나 `complete`가 "현재 source"를 재검증한다고 해석하면 안 된다.
+`harness.source_snapshot.collect_source_snapshot()`은 저장된 Task baseline 대비 현재
+product source의 deterministic read-only identity를 계산할 수 있다. Committed,
+staged, unstaged transition을 final Working Tree 결과로 합치고, non-ignored
+untracked product file을 포함하며, canonical Harness metadata를 제외하고,
+identity를 Task Scope로 제한하지 않는다.
+[ADR 0004](adr/0004-canonical-source-snapshot.ko.md)는 entry, digest, symlink,
+special-file, stability semantics를 정의한다.
+
+R1a에서 이 engine은 verification이나 stored Run에 연결되지 않는다. `verify`는
+collector를 호출하거나 Snapshot artifact를 저장하지 않고, Run manifest도
+Snapshot을 포함하지 않으며, `validate_run()`과 `complete`는 verification 시점
+source와 현재 source를 비교하지 않는다. Pre/post-check Snapshot 비교도 아직
+구현되지 않았다. 따라서 `validate_run()`이나 `complete`가 "현재 source"를
+재검증한다고 해석하면 안 된다.
 
 `verify --base-ref`는 저장된 Task baseline 대신 별도 Git ref를 그 Run의 baseline으로 기록할 수 있다. 이 옵션은 v0.1.1에도 명시적 override로 남아 있으며, source binding이나 Task baseline 불변성을 제공하지 않는다.
 
 check output에는 민감한 값이 있을 수 있다. Harness는 절대 경로를 portable하게 정리하려고 하지만 완전한 secret redaction을 제공하지 않는다.
 
-향후 snapshot binding은 Run integrity를 확장하는 별도 기능으로 다뤄야 한다.
-R1a가 private Source Snapshot validator를 도입한다면 `validate_run()`은 현재
-persisted-document validation이 반환된 직후이자 Run manifest validation이
-시작되기 전에 이를 조합해야 한다. 검증된 snapshot artifact path는 manifest
-validation에 전달하는 현재 expected mechanical Evidence path와 합치고, 검증된
-snapshot 결과는 `ValidatedRun`에 immutable하게 담아야 한다. Bundle, Verdict,
-completion consumer는 snapshot validator를 직접 호출하지 않고 이 `ValidatedRun`
-값만 읽어야 한다. 이 삽입 지점은 미래 설계 제약일 뿐이며, 구조 자체가 Source
-Snapshot, current-source 비교, 새 completion gate를 제공하지 않는다.
+향후 Snapshot binding은 Run integrity를 확장하는 별도 기능으로 유지해야 한다.
+Completion gate가 이를 사용하려면 versioned stored artifact, 단일
+`validate_run()` façade를 통한 validation, Run manifest coverage, 명시적
+comparison policy가 먼저 필요하다. Bundle, Verdict, completion consumer는
+standalone collector를 대체 authority로 직접 호출하면 안 된다.
 
 ## 외부 adapter를 core와 분리하는 이유
 
