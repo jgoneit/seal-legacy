@@ -39,6 +39,18 @@ established names under `harness.evidence` for verification and completion.
 Bundle, Verdict, and completion code do not call the private document validator
 as an alternative authority.
 
+`harness._run_documents` intentionally remains one persisted-document trust
+transaction even though it is a large module. Task, changed-files, check,
+verification, and log documents must be loaded and cross-checked together
+before their derived scope and mechanical-result values are trustworthy.
+Splitting those checks now would require intermediate transfer objects or
+independently callable partial validators, spreading ownership of the same
+integrity invariants and creating alternate internal validation paths. A
+further extraction is justified only when one responsibility has independent
+inputs, outputs, and characterization coverage while remaining composed
+exclusively by the public `validate_run()` facade; file size alone is not that
+boundary.
+
 `schemas/verdict.schema.json` and `prompts/verifier.md` at the repository root are the human-edited canonical contracts. The matching files under `src/harness/resources` are mirrors included in the package, and `scripts/sync_contracts.py` checks that they are synchronized byte for byte.
 
 ## Flow from Task to completion
@@ -122,7 +134,17 @@ The current implementation does not bind the source at verification time to the 
 
 Check output may contain sensitive values. Harness attempts to make absolute paths portable, but it does not provide complete secret redaction.
 
-Future snapshot binding must be handled as a separate extension to Run integrity. Its artifact access and document validation can be composed by the public `validate_run()` facade alongside the existing private boundaries instead of being implemented independently in bundle or completion code. This structure does not itself provide a Source Snapshot, current-source comparison, or any new completion gate.
+Future snapshot binding must be handled as a separate extension to Run
+integrity. If R1a introduces a private Source Snapshot validator,
+`validate_run()` must compose it after the current persisted-document
+validation returns and before Run manifest validation begins. The validated
+snapshot artifact paths must be merged with the current expected mechanical
+Evidence paths passed to manifest validation, and the validated snapshot result
+must be frozen into `ValidatedRun`. Bundle, Verdict, and completion consumers
+must read only that `ValidatedRun` value rather than call the snapshot validator
+directly. This insertion point is a future design constraint; it does not
+itself provide a Source Snapshot, current-source comparison, or any new
+completion gate.
 
 ## Why external adapters are separated from core
 

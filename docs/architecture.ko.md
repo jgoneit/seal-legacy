@@ -37,6 +37,16 @@ Underscore로 시작하는 module은 새 public API가 아니라 private 구현 
 completion에는 `harness.evidence` 아래의 기존 이름을 사용한다. Bundle, Verdict,
 completion code는 private document validator를 별도 authority처럼 직접 호출하지 않는다.
 
+`harness._run_documents`는 큰 module이지만 하나의 persisted-document trust
+transaction으로 의도적으로 유지한다. Task, changed-files, check, verification,
+log document는 파생된 scope와 mechanical result를 신뢰하기 전에 함께 읽고
+교차 검증해야 한다. 지금 이 검사를 나누면 중간 전달 객체나 독립적으로 호출
+가능한 partial validator가 필요해져 같은 integrity invariant의 ownership이
+분산되고 대체 내부 validation 경로가 생긴다. 추가 extraction은 하나의 책임이
+독립된 입력·출력과 Characterization Test를 가지면서도 public `validate_run()`
+façade에서만 조합될 수 있을 때 수행한다. 파일 크기만으로는 그 경계가 되지
+않는다.
+
 root의 schemas/verdict.schema.json과 prompts/verifier.md는 사람이 편집하는 canonical contract다. src/harness/resources 아래의 같은 파일은 package에 포함되는 mirror이며 scripts/sync_contracts.py가 byte-for-byte 동기화를 확인한다.
 
 ## Task에서 completion까지의 흐름
@@ -120,10 +130,15 @@ warning과 note finding은 completion record에 count로 남지만, 그 자체�
 
 check output에는 민감한 값이 있을 수 있다. Harness는 절대 경로를 portable하게 정리하려고 하지만 완전한 secret redaction을 제공하지 않는다.
 
-향후 snapshot binding은 Run integrity를 확장하는 별도 기능으로 다뤄야 한다. 그 artifact
-access와 document validation은 bundle이나 completion에 독립적으로 구현하지 않고 public
-`validate_run()` façade가 기존 private boundary와 함께 조합할 수 있다. 이 구조 자체는
-Source Snapshot, current-source 비교, 새 completion gate를 제공하지 않는다.
+향후 snapshot binding은 Run integrity를 확장하는 별도 기능으로 다뤄야 한다.
+R1a가 private Source Snapshot validator를 도입한다면 `validate_run()`은 현재
+persisted-document validation이 반환된 직후이자 Run manifest validation이
+시작되기 전에 이를 조합해야 한다. 검증된 snapshot artifact path는 manifest
+validation에 전달하는 현재 expected mechanical Evidence path와 합치고, 검증된
+snapshot 결과는 `ValidatedRun`에 immutable하게 담아야 한다. Bundle, Verdict,
+completion consumer는 snapshot validator를 직접 호출하지 않고 이 `ValidatedRun`
+값만 읽어야 한다. 이 삽입 지점은 미래 설계 제약일 뿐이며, 구조 자체가 Source
+Snapshot, current-source 비교, 새 completion gate를 제공하지 않는다.
 
 ## 외부 adapter를 core와 분리하는 이유
 
