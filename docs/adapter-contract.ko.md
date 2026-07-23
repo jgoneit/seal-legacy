@@ -2,9 +2,11 @@
 
 Language: [English](adapter-contract.md) | 한국어
 
-이 문서는 Codex Plugin을 포함한 thin adapter가 Harness Core v0.1.1을
-subprocess로 호출할 때의 공개 계약이다. Adapter는 Core Python package를 import하지
-않고, 아래 CLI와 stdout JSON만 사용해야 한다.
+이 문서는 Codex Plugin을 포함한 thin adapter가 current main의 unreleased Harness
+Core `0.2.0.dev0`을 subprocess로 호출할 때의 공개 계약이다. v0.1.1은 여전히 최신
+published Experimental release이며 legacy non-source-bound completion 계약을
+사용한다. Adapter는 Core Python package를 import하지 않고, 아래 CLI와 stdout
+JSON만 사용해야 한다.
 
 ## Public CLI
 
@@ -19,9 +21,10 @@ subprocess로 호출할 때의 공개 계약이다. Adapter는 Core Python packa
 | `harness verifier show` | `<TASK_ID> --run-id <RUN_ID>` |
 | `harness complete` | `<TASK_ID> --run-id <RUN_ID>` |
 
-`harness verify`는 v0.1.1에서 optional `--base-ref <GIT_REF>`도 지원한다. 이 옵션은
-Task snapshot baseline을 해당 Run에 한해 override하는 알려진 한계이며, Adapter는
-명시적으로 필요한 경우에만 전달해야 한다.
+Current main은 `verify --base-ref`, hidden alias, environment fallback을 지원하지
+않는다. `--base-ref`를 전달하면 invalid argparse input으로 exit 2를 반환한다.
+Verification은 항상 Task snapshot에 저장된 full baseline commit을 사용한다. Task
+baseline revision과 CI 전용 base/head 선택은 별도의 unsupported concern이다.
 
 ## Success stdout
 
@@ -64,28 +67,41 @@ local path로 취급하고 다른 host 또는 repository에 재사용해서는 �
 | 6 | required check timeout at completion |
 | 7 | verifier gate not satisfied |
 | 8 | evidence missing or corrupt |
+| 9 | source binding not satisfied |
 
 이 숫자의 기존 의미는 stable contract다. 자세한 completion 판정 순서는
 [Exit codes](exit-codes.ko.md)를 따른다.
 
 ## Public read-only artifacts
 
-Adapter의 기본 경계는 CLI/JSON이다. Evidence를 보여주거나 archive해야 하는 경우에만,
-아래의 v0.1.1 read-only artifact surface를 사용할 수 있다. Adapter는 이 파일을 만들거나
-수정해서는 안 된다.
+Adapter의 기본 경계는 CLI/JSON이다. Evidence를 보여주거나 archive해야 하는
+경우에만 아래 current-main read-only artifact surface를 사용할 수 있다. Adapter는
+이 파일을 만들거나 수정해서는 안 된다.
 
 | Location | Documented purpose and fields |
 | --- | --- |
 | `.harness/tasks/<TASK_ID>.json` | Task snapshot; `task create`/`task show`와 같은 Task JSON fields |
-| `<evidence_path>/verification.json` | Run identity와 mechanical outcome; `task_id`, `run_id`, `baseline`, `scope_pass`, `required_checks_pass`, `mechanical_result`, `evidence_files` |
+| `<evidence_path>/verification.json` | Versioned Run identity와 mechanical outcome; v1은 legacy field, v2는 `source_snapshot_schema_version`, `source_before_checks_sha256`, `source_after_checks_sha256`, `source_stable_during_checks`도 포함 |
+| `<evidence_path>/source-before-checks.json` | Source Snapshot schema version 1을 사용하는 v2 pre-check S0 product-source Snapshot |
+| `<evidence_path>/source-after-checks.json` | Source Snapshot schema version 1을 사용하는 v2 post-check S1 product-source Snapshot |
 | `<evidence_path>/run-manifest.json` | mechanical file records와 local consistency identifier; `task_id`, `run_id`, `files`, `evidence_sha256` |
 | `<evidence_path>/verdict.raw.json`, `verdict.json` | recorded manual Verdict 원본과 canonical snapshot |
 | `<evidence_path>/completion.json` | successful completion의 Task/Run identity와 consumed `evidence_sha256` |
 
-`changed-files.json`, `checks.json`, check logs, `diff.patch`는 위 Run record의 evidence로
-보존되지만, 이 문서에 열거되지 않은 field나 내부 표현은 Adapter compatibility contract가
-아니다. portable review가 필요하면 filesystem을 직접 조합하는 대신 `verifier bundle`을
-사용한다.
+새 source-bound Run에서는 `verification.json`만 schema version 2로 올라간다. Task,
+changed-files, checks, Run manifest, bundle, Verdict, Completion document schema는
+version 1을 유지한다. Adapter는 optional field 존재를 추측하지 말고 verification
+version으로 dispatch해야 한다.
+
+Valid verification v1 Run은 계속 읽거나 bundle을 만들고 Verdict record/show에 사용할
+수 있다. Current-main `complete`는 exit 9로 거부하며 in-place upgrade하지 않는다.
+v2 bundle은 S0과 S1을 포함하지만 historical artifact다. Bundle 생성은 current S2
+수집, current source 비교, check 재실행, completion 판정을 하지 않는다.
+
+`changed-files.json`, `checks.json`, check logs, `diff.patch`는 위 Run record의
+Evidence로 보존되지만, 이 문서에 열거되지 않은 field나 내부 표현은 Adapter
+compatibility contract가 아니다. Portable review가 필요하면 filesystem을 직접
+조합하는 대신 `verifier bundle`을 사용한다.
 
 ## Unsupported dependencies
 
@@ -98,5 +114,7 @@ Adapter는 다음에 의존하면 안 된다.
 - test fixture, repository-local prompt override, 개발 환경의 editable install
 
 이 분리는 Core의 deterministic local Evidence 책임과 Adapter의 UI, model, network,
-credential, retry 정책을 분리한다. v0.1.1 Core는 모델 API나 외부 verifier CLI를 호출하지
-않는다.
+credential, retry 정책을 분리한다. Harness Core `0.2.0.dev0`은 모델 API나 외부
+verifier CLI를 호출하지 않는다. `0.2.0.dev0` release artifact는 배포하지 않으며,
+v0.1.1 fallback install은 S0/S1/S2 Source Binding이 없는 legacy behavior
+profile이다.

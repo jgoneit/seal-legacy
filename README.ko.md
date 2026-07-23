@@ -14,6 +14,10 @@ Agent가 “완료했습니다”라고 말하는 것과, 실제로 **검토 가
 >
 > **v0.1.1은 최신 Experimental patch release입니다.** 배포 파일은
 > [GitHub Release](https://github.com/jgoneit/harness/releases/tag/v0.1.1)에서 받을 수 있습니다.
+>
+> **Current main은 unreleased `0.2.0.dev0` development line입니다.** 아래에서
+> 설명하는 source-bound verification과 completion을 추가합니다.
+> `0.2.0.dev0` tag나 release artifact는 배포하지 않았습니다.
 
 ---
 
@@ -70,6 +74,8 @@ harness complete
 - shell을 사용하지 않는 argv 기반 check 실행
 - stdout, stderr, exit code, timeout 기록
 - diff와 mechanical verification Evidence 저장
+- 각 새 Run의 canonical pre-check/post-check product-source Snapshot
+- Successful completion 전 current-source 비교
 - raw-byte manifest와 digest로 저장 mechanical Evidence 변경을 탐지하는 canonical integrity validator
 - 특정 Task/Run만 포함하는 portable verifier bundle
 - Schema 기반 Manual Verdict 검증
@@ -83,7 +89,7 @@ harness complete
 | 구분 | 내용 |
 | --- | --- |
 | **의도적 비목표** | Agent reasoning 통제, runtime hook, process state machine, worktree orchestration |
-| **알려진 한계** | Pre/Post-check Source Snapshot 및 current-source binding 부재, `verify --base-ref`의 Run 단위 baseline override, 서명, remote attestation, immutable ledger |
+| **알려진 한계** | Source Binding은 filesystem lock이 아닌 bounded local observation이며, signature, remote attestation, immutable ledger, Task revision, CI pull-request base/head model은 없음 |
 | **외부 연동** | Grok, xAI, OpenAI API 및 외부 verifier CLI 자동 호출 |
 | **Evidence 확장** | 멀티모달 파일, 완전한 secret redaction, automatic trust scoring |
 
@@ -101,6 +107,10 @@ python3 -m pip install \
 GitHub Release에서 wheel이 실제로 발행된 뒤에는 해당 Release에 첨부된
 `outcome_harness-0.1.1-py3-none-any.whl` 파일을 설치할 수 있습니다. 현재 배포 파일은
 [v0.1.1 GitHub Release](https://github.com/jgoneit/harness/releases/tag/v0.1.1)에 있습니다.
+
+Release-tag install은 S0/S1/S2 Source Binding이 없는 legacy v0.1.1 contract를
+사용합니다. 이후 release가 배포되기 전까지 이 README의 source-bound 동작에는
+current-main development install이 필요합니다.
 
 ### 이름
 
@@ -217,6 +227,12 @@ harness task create --file task.json
 harness verify TASK-001
 ```
 
+Verification은 항상 Task에 저장된 baseline을 사용하며 Run 단위 `--base-ref`
+override는 없습니다. Current-main verification은 check 직전 canonical
+product-source Snapshot(S0)과 모든 check 종료 직후 Snapshot(S1)을 수집합니다.
+Required 또는 optional check가 product source를 바꾸면 check 자체가 통과해도
+Run의 mechanical result는 fail입니다.
+
 출력 예시:
 
 ```json
@@ -228,7 +244,11 @@ harness verify TASK-001
 
 이후 명령에서는 출력된 `run_id`를 사용합니다.
 
-> `verify`는 검증 결과를 **기록하는 명령**입니다. Required check가 실패해도 Evidence 저장에 성공했다면 CLI exit code는 `0`일 수 있습니다. 실제 완료 가능 여부는 `complete`가 판단합니다.
+> `verify`는 검증 결과를 **기록하는 명령**입니다. Required check가 실패하거나
+> timeout이 나거나 product source를 바꿔도 versioned Evidence 저장에 성공했다면
+> CLI exit code는 `0`일 수 있습니다. 실제 완료 가능 여부는 `complete`가
+> 판단합니다. S0 또는 S1을 수집하지 못하면 valid manifest나 성공 결과를 만들지
+> 않습니다.
 
 ### 4. Verifier Bundle 생성
 
@@ -246,9 +266,12 @@ Bundle에는 선택한 Run의 다음 정보가 포함됩니다.
 - check 결과
 - stdout / stderr
 - mechanical verification
+- v2 Run의 pre-check S0과 post-check S1 Source Snapshot
 - verifier instruction
 
-Bundle 생성만으로 verifier가 실행되거나 Verdict가 기록되지는 않습니다.
+Bundle 생성만으로 verifier가 실행되거나 Verdict가 기록되지는 않습니다. 또한
+current completion-time S2 Snapshot을 수집하거나 current source를 비교하거나
+check를 재실행하거나 completion을 판정하지 않습니다.
 
 ### 5. Manual Verdict 작성
 
@@ -299,6 +322,9 @@ Completion이 성공하려면 다음 조건을 모두 만족해야 합니다.
 - Task와 Run identity가 일치함
 - 필요한 Evidence 파일이 존재함
 - 저장된 결과 사이에 모순이 없음
+- Run이 source-bound verification Evidence v2를 사용함
+- Pre-check S0과 post-check S1 Snapshot이 일치함
+- Current completion-time S2 Snapshot이 S1과 일치함
 - scope 위반이 없음
 - 모든 required check가 성공함
 - timeout이 없음
@@ -308,9 +334,21 @@ Completion이 성공하려면 다음 조건을 모두 만족해야 합니다.
 
 Verifier가 optional인 Task는 Verdict 없이 completion할 수 있습니다. 단, 이미 기록된 Verdict가 `fail`, `unable`이거나 blocker를 포함한다면 이를 무시하고 완료할 수 없습니다.
 
+Legacy verification v1 Run은 계속 읽고 bundle로 만들고 Verdict record/show에
+사용할 수 있지만 current-main completion은 exit 9로 거부합니다. 새 v2
+verification Run이 필요하며 historical Evidence를 in-place upgrade하지 않습니다.
+
+`verification.json`만 schema version 2로 올라갑니다. Task, changed-files,
+checks, Run manifest, bundle, Verdict, Completion document schema는 version 1을
+유지하며 두 Source Snapshot document도 별도 Snapshot contract의 version 1을
+사용합니다.
+
 ---
 
 ## 📁 생성되는 파일
+
+아래 tree는 current source-bound verification v2 Run을 나타냅니다. Legacy v1
+Run에는 두 Source Snapshot file이 없습니다.
 
 ```text
 .harness/
@@ -327,6 +365,8 @@ Verifier가 optional인 Task는 Verdict 없이 completion할 수 있습니다. �
             ├── checks/
             │   ├── <check>.stdout
             │   └── <check>.stderr
+            ├── source-before-checks.json
+            ├── source-after-checks.json
             ├── verification.json
             ├── run-manifest.json
             ├── verdict.raw.json
@@ -336,7 +376,7 @@ Verifier가 optional인 Task는 Verdict 없이 completion할 수 있습니다. �
 
 | 파일 | 생성 시점 |
 | --- | --- |
-| `task.json` ~ `verification.json`, check log | `harness verify` |
+| `task.json`부터 두 Source Snapshot document와 `verification.json`, check log | `harness verify` |
 | `run-manifest.json` | `harness verify`가 mechanical Evidence 저장을 마친 마지막 단계 |
 | `verdict.raw.json` | `harness verifier record` |
 | `verdict.json` | `harness verifier record` |
@@ -356,11 +396,29 @@ Verifier가 optional인 Task는 Verdict 없이 completion할 수 있습니다. �
 
 ### Mechanical Evidence
 
-Harness가 직접 수집한 diff, 변경 파일, check 결과, scope 판정입니다. 사람의 의미적 판단인 Manual Verdict와는 별개입니다.
+Harness가 직접 수집한 diff, 변경 파일, check 결과, Source Snapshot, scope와
+source stability 판정입니다. 사람의 의미적 판단인 Manual Verdict와는 별개입니다.
+
+### Source Binding
+
+Verification v2 Run에서 S0은 check 직전 product source, S1은 모든 check 종료 직후
+product source를 식별합니다. Completion에서 Harness는 current source를 S2로
+수집하고 verifier, scope, timeout, required-check gate를 적용하기 전에
+S0 = S1 = S2를 요구합니다. S2는 live comparison이며 Evidence로 저장하지 않습니다.
+
+Snapshot identity는 저장된 Task baseline 대비 final product byte, path, normalized
+executable mode, symlink target을 나타냅니다. 동일한 final source를 unstaged,
+staged, committed 상태 사이에서 이동해도 identity는 바뀌지 않습니다. Gitignored
+untracked file과 canonical Harness metadata는 제외하며 Task Scope는 Snapshot
+identity를 제한하지 않습니다.
 
 ### Run Evidence Manifest
 
-`run-manifest.json`은 Task/run identity와 mechanical Evidence 파일·check log의 상대 경로, raw-byte 크기, SHA-256을 정렬해 기록합니다. `evidence_sha256`은 timestamp를 제외한 canonical JSON file record의 local consistency identifier입니다. Verdict와 Completion은 verify 이후에 생기므로 manifest 대상이 아닙니다.
+`run-manifest.json`은 Task/run identity와 mechanical Evidence file·check log의
+relative path, raw-byte size, SHA-256을 정렬해 기록하며 v2 Run의 S0과 S1도
+포함합니다. `evidence_sha256`은 timestamp를 제외한 canonical JSON file record의
+local consistency identifier입니다. Verdict와 Completion은 verify 이후에 생기므로
+manifest 대상이 아닙니다.
 
 ### Manual Verdict
 
@@ -368,7 +426,9 @@ Harness가 직접 수집한 diff, 변경 파일, check 결과, scope 판정입�
 
 ### Completion
 
-저장된 Evidence와 Verdict가 완료 조건을 만족하는지 판단하는 마지막 gate입니다. `complete`는 check를 다시 실행하거나 Git diff를 다시 수집하지 않습니다.
+Stored Evidence, 기록된 Verdict, current S2 source identity가 완료 조건을
+만족하는지 판단하는 마지막 gate입니다. `complete`는 check를 다시 실행하거나
+Git diff를 다시 수집하지 않습니다.
 
 ### Manifest의 신뢰 경계
 
@@ -385,11 +445,12 @@ Harness는 현재 다음을 제공합니다.
 - 제한된 범위의 verifier bundle
 - raw Verdict와 검증된 snapshot 재검증
 - 저장 Evidence 간 기본 consistency 검사
+- Verification 전후 source stability와 completion-time current-source 비교
 - 조건 미충족 시 completion 거부
 
 하지만 다음을 보장하지는 않습니다.
 
-- Verify 이후 코드가 변경되지 않았다는 보장
+- Bounded S2 observation 뒤 또는 `complete` 반환 뒤 source가 그대로 유지됨
 - 동일한 로컬 사용자의 의도적인 전체 Evidence 조작 방어
 - cryptographic signature
 - remote attestation
@@ -438,20 +499,25 @@ CI에서는 다음을 검사합니다.
 - [v0.1.0 Release Notes](docs/releases/v0.1.0.ko.md)
 - [v0.1.1 Release Notes](docs/releases/v0.1.1.ko.md)
 - [Task Schema](schemas/task.schema.json)
+- [Verification Schema](schemas/verification.schema.json)
 - [Verdict Schema](schemas/verdict.schema.json)
 - [Verifier prompt](prompts/verifier.md)
 - [Canonical Verdict Contract ADR](docs/adr/0001-canonical-verdict-contract.ko.md)
 - [Run Integrity ADR](docs/adr/0002-run-integrity-vs-completion-policy.ko.md)
 - [Run Evidence Manifest ADR](docs/adr/0003-run-evidence-manifest.ko.md)
+- [Canonical Source Snapshot ADR](docs/adr/0004-canonical-source-snapshot.ko.md)
+- [Verify/Complete Source Binding ADR](docs/adr/0005-verify-complete-source-binding.ko.md)
 
 ---
 
 ## 🛣️ Roadmap
 
-현재 우선순위:
+Current main은 pre/post-check Snapshot binding을 완료하고 Run 단위
+`--base-ref` 우회를 제거했습니다. 이후 가능한 작업은 의도적으로 분리합니다.
 
-1. Pre/Post-check Snapshot binding
-2. `--base-ref` 우회 제거
+1. 저장 baseline을 의도적으로 바꾸는 Task revision policy
+2. CI 전용 pull-request base/head command와 contract
+3. Optional cryptographic 또는 remote trust anchor
 
 Roadmap은 구현 순서에 따라 변경될 수 있습니다.
 

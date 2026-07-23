@@ -2,7 +2,11 @@
 
 Language: English | [한국어](exit-codes.ko.md)
 
-The exit codes below are part of the public CLI contract. New commands may be added later, but the meanings of already defined numbers will not change.
+The exit codes below describe unreleased current main `0.2.0.dev0` and are part
+of its public CLI contract. v0.1.1 remains the latest published release; it
+defines exits 0 and 2–8 but does not provide source-bound exit 9. New commands
+may be added later, but the meanings of already defined numbers will not
+change.
 
 | Code | Meaning | Typical condition |
 | ---: | --- | --- |
@@ -14,28 +18,78 @@ The exit codes below are part of the public CLI contract. New commands may be ad
 | 6 | timeout | A required check timeout is stored |
 | 7 | verifier gate not satisfied | Required verifier Evidence is missing, or the recorded Verdict is fail/unable or contains a blocker |
 | 8 | evidence missing or corrupt | Required Evidence files are missing, JSON is unreadable, or stored records contradict one another |
+| 9 | source binding not satisfied | The Run is legacy v1, checks changed product source, or current product source differs from the post-check Snapshot |
 
 ## `harness complete` decision process
 
-`harness complete <TASK_ID> --run-id <RUN_ID>` reads only the Evidence in the specified Run directory and does not rerun checks or regenerate the Git diff. First, the canonical `validate_run()` checks the stored Task/Run identity, artifact paths, check results, scope, mechanical result, and raw-byte digest integrity in `run-manifest.json`. `--run-id` is required; implicit latest-Run selection is not supported.
+`harness complete <TASK_ID> --run-id <RUN_ID>` does not rerun checks or
+regenerate the Git diff. First, the canonical `validate_run()` checks only the
+stored Task/Run identity, artifact paths, check results, scope, mechanical
+result, versioned Source Snapshot Evidence, and raw-byte digest integrity in
+`run-manifest.json`. Completion separately collects the current product-source
+Snapshot after stored Evidence and any recorded Verdict have passed their
+integrity checks. `--run-id` is required; implicit latest-Run selection is not
+supported.
 
 All of the following must be true for success (exit 0):
 
 - The requested Task and Run ID match the identity in the saved Task and `verification.json`.
 - The required Evidence files and the Evidence files listed in `verification.json` exist, and JSON Evidence passes parsing and internal consistency checks.
 - `run-manifest.json` matches the expected mechanical file list exactly, and each file's raw-byte size and SHA-256 and the canonical `evidence_sha256` match.
+- `verification.json` is version 2, both Snapshot files are valid schema-version-1 documents, and their baselines and digests match the Task and verification records.
+- The pre-check S0 and post-check S1 Snapshots are equal, so `source_stable_during_checks=true`.
+- The current completion-time S2 Snapshot is equal to S1.
 - `scope_pass` is `true`.
 - Every required check has `passed=true` and none timed out.
-- `required_checks_pass=true` and `mechanical_result="pass"`.
+- `required_checks_pass=true` and the v2 mechanical result, which also includes source stability, is `"pass"`.
 - If the Task has `verifier.required` set to `true`, a valid Manual Verdict exists, the Verdict is `pass`, and it has zero blockers.
 - If the Task has `verifier.required` set to `false`, the Task can complete mechanically without a Verdict. However, exit 7 is returned if a recorded Verdict is `fail` or `unable` or contains a blocker.
 
-A required check failure, timeout, Scope violation, or `mechanical_result="fail"` is not itself an error from `validate_run()`. These are validly recorded failed Runs that can still be exported as bundles or have Manual Verdicts recorded. Only `complete` rejects them with exit 4, 5, 6, or 7 according to completion policy.
+A required-check failure, timeout, Scope violation, source instability, or
+`mechanical_result="fail"` is not itself an error from `validate_run()`. These
+are validly recorded failed Runs that can still be exported as bundles or have
+Manual Verdicts recorded. Only `complete` rejects them with exit 4–7 or 9
+according to completion policy.
 
 When a Verdict has been recorded, the raw Verdict and normalized snapshot must both exist, parse successfully, and match. If only one is present or either is corrupt, completion returns exit 8 even when the verifier is optional. If neither exists and the verifier is optional, mechanical-only completion remains allowed. Warning and note findings do not block `complete`; their counts are recorded in `completion.json`. A successful completion also records the `evidence_sha256` of the consumed mechanical Evidence set.
 
-After the stored Evidence has been read successfully, the verifier gate (exit 7) is evaluated first, followed by scope (exit 4), required timeout (exit 6), and required check failure (exit 5). Missing or corrupt Evidence (exit 8) is reported before these completion decisions.
+A failed completion does not create or overwrite `completion.json`. If an
+earlier successful completion record already exists, a later refusal leaves
+that historical record in place; it does not make the current source eligible.
 
-`validate_run()` operates only on stored files. It does not collect or compare the current working tree, regenerate the Git diff, or rerun checks. A manifest mismatch is treated as Evidence corruption with exit 8 and does not repair or roll back files. Current source binding is therefore not part of this exit-code contract.
+The fail-closed decision order is:
 
-Because `harness verify` records check results as Evidence, it returns exit 0 if Evidence recording itself succeeds, even when a required check fails or times out. A later `harness complete` expresses the refusal to complete through the exit codes above.
+1. Missing, corrupt, or contradictory mechanical Evidence, including v2
+   Snapshot Evidence, returns exit 8.
+2. Missing, corrupt, or contradictory recorded Verdict Evidence returns exit 8.
+3. For a v2 Run, failure to collect S2 from the current repository returns
+   exit 3.
+4. A legacy v1 Run, S0/S1 instability, or an S1/S2 mismatch returns exit 9.
+5. An unsatisfied verifier gate returns exit 7.
+6. A Scope violation returns exit 4.
+7. A required timeout returns exit 6.
+8. A non-timeout required-check failure returns exit 5.
+
+A valid v1 Run remains available to `validate_run()`, bundle export, and Verdict
+record/show, but it cannot satisfy current-source-bound completion and returns
+exit 9 after stored Evidence and recorded Verdict integrity checks. It is not
+automatically upgraded; create a new v2 verification Run. The v1 completion
+path does not collect S2.
+
+`validate_run()` still operates only on stored files. It does not collect or
+compare the current Working Tree, regenerate the Git diff, or rerun checks.
+Current S2 collection belongs only to the completion-time Source Binding
+boundary. A manifest mismatch is Evidence corruption with exit 8 and does not
+repair or roll back files. An S1/S2 identity mismatch is valid Evidence with an
+unsatisfied binding and therefore returns exit 9.
+
+Because `harness verify` records check and Source Snapshot results as Evidence,
+it returns exit 0 if Evidence recording itself succeeds, even when a required
+check fails, times out, or changes product source. S0 or S1 collection failure
+does not produce a valid manifest or successful stdout result. A later
+`harness complete` expresses refusal through the exit codes above.
+
+Source Binding is a bounded observation. Exit 0 means S2 matched the validated
+post-check S1 when `complete` collected it; Harness does not lock the filesystem
+or guarantee that source remains unchanged after that observation or after the
+command returns.

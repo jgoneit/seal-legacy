@@ -81,3 +81,9 @@ cryptographic provenance, or external trust anchor.
 - Store complete source file bodies in the Snapshot
 - Add a generic repository, provider, signing, CI, or remote-attestation layer
 - Integrate verify, Evidence, `validate_run()`, bundle, or completion in R1a
+
+## R1b amendment
+
+[ADR 0005](0005-verify-complete-source-binding.md) integrates this unchanged
+canonical collector as S0, S1, and S2, versions the stored verification
+contract, and removes the Run-level `--base-ref` override.

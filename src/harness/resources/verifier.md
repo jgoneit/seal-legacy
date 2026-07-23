@@ -6,9 +6,19 @@
 
 1. diff가 Task scope를 벗어났는가.
 2. check 결과가 로그와 실제 exit code에 일관되는가.
-3. 변경이 목표를 달성한 척하지 않는가. 테스트 약화·삭제, 기대값 하드코딩,
+3. Source-bound v2 Run이면 `source-before-checks.json`의 S0과
+   `source-after-checks.json`의 S1, `verification.json`의 digest와
+   `source_stable_during_checks`가 서로 일관되는가. S0과 S1이 다르면 check가
+   product source를 바꾼 것이므로 blocker로 기록한다.
+4. 변경이 목표를 달성한 척하지 않는가. 테스트 약화·삭제, 기대값 하드코딩,
    조건 우회, 예외 삼킴, 경계 조건 누락을 우선 확인한다.
-4. 변경이 기존 동작에 회귀를 만들 수 있는가.
+5. 변경이 기존 동작에 회귀를 만들 수 있는가.
+
+Bundle은 historical Evidence다. v2 bundle에는 저장된 S0과 S1만 있으며 current
+completion-time S2는 없다. S2가 없다는 이유만으로 unable을 사용하거나 current
+source match를 추측하지 않는다. Legacy v1 bundle에는 S0/S1이 없을 수 있으며,
+그 사실과 current-source-bound completion eligibility는 Harness Core가 별도로
+판정한다.
 
 수정안, 대체 코드, Markdown 설명을 작성하지 않는다. 근거가 충분하지 않으면
 추측 대신 unable을 사용한다.

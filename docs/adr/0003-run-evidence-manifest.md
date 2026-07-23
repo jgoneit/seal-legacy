@@ -35,3 +35,9 @@ The manifest is a local consistency identifier. It is not a signature, remote at
 - Add a self-hash or signature for the manifest to this local contract
 - Add automatic repair, source rollback, or runtime hooks, approvals, and monitoring for manifest mismatches
 - Introduce current-source snapshot binding in the same Phase
+
+## R1b amendment
+
+[ADR 0005](0005-verify-complete-source-binding.md) adds the two persisted Source
+Snapshot documents to the raw-byte manifest set for verification v2 Runs. The
+manifest, Verdict, and Completion document schemas remain version 1.

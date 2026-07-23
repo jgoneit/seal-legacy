@@ -79,3 +79,9 @@ cryptographic provenance 또는 external trust anchor가 아니다.
 - Snapshot에 source file body 전체를 저장하는 방식
 - 범용 repository, provider, signing, CI 또는 remote-attestation layer를 추가하는 방식
 - R1a에서 verify, Evidence, `validate_run()`, bundle 또는 completion을 연결하는 방식
+
+## R1b amendment
+
+[ADR 0005](0005-verify-complete-source-binding.ko.md)는 이 canonical collector를
+변경 없이 S0, S1, S2로 연결하고 stored verification contract를 versioning하며,
+Run 단위 `--base-ref` override를 제거한다.

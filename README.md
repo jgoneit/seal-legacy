@@ -14,6 +14,10 @@ There is a difference between an Agent saying “done” and leaving behind **ev
 >
 > **v0.1.1 is the latest Experimental patch release.** Distribution artifacts are available from the
 > [GitHub Release](https://github.com/jgoneit/harness/releases/tag/v0.1.1).
+>
+> **Current main is the unreleased `0.2.0.dev0` development line.** It adds
+> source-bound verification and completion described below. No `0.2.0.dev0`
+> tag or release artifact is published.
 
 ---
 
@@ -70,6 +74,8 @@ harness complete
 - Shell-free, argv-based check execution
 - Recording of stdout, stderr, exit code, and timeout
 - Storage of diff and mechanical verification Evidence
+- Canonical pre-check and post-check product-source Snapshots for each new Run
+- Current-source comparison before successful completion
 - A canonical integrity validator that uses a raw-byte manifest and digests to detect changes to stored mechanical Evidence
 - Portable verifier bundles containing only a specific Task/Run
 - Schema-based Manual Verdict validation
@@ -83,7 +89,7 @@ harness complete
 | Category | Details |
 | --- | --- |
 | **Intentional non-goals** | Controlling Agent reasoning, runtime hooks, process state machines, and worktree orchestration |
-| **Known limitations** | No Pre/Post-check Source Snapshots or current-source binding; Run-level baseline override through `verify --base-ref`; no signatures, remote attestation, or immutable ledger |
+| **Known limitations** | Source Binding is a bounded local observation, not a filesystem lock; no signatures, remote attestation, immutable ledger, Task revision, or CI pull-request base/head model |
 | **External integrations** | Automatic invocation of Grok, xAI, the OpenAI API, or an external verifier CLI |
 | **Evidence extensions** | Multimodal files, complete secret redaction, and automatic trust scoring |
 
@@ -101,6 +107,10 @@ python3 -m pip install \
 Once a wheel has been published to a GitHub Release, you can install the attached
 `outcome_harness-0.1.1-py3-none-any.whl` file. The current distribution artifact is available from the
 [v0.1.1 GitHub Release](https://github.com/jgoneit/harness/releases/tag/v0.1.1).
+
+The release-tag installation uses the legacy v0.1.1 contract without S0/S1/S2
+Source Binding. The source-bound behavior in this README requires a
+current-main development installation until a later release is published.
 
 ### Naming
 
@@ -218,6 +228,12 @@ The current Git `HEAD` is recorded as the Task's baseline.
 harness verify TASK-001
 ```
 
+Verification always uses the baseline saved in the Task; there is no
+Run-level `--base-ref` override. Current-main verification collects a canonical
+product-source Snapshot immediately before checks (S0) and immediately after
+all checks finish (S1). A required or optional check that changes product
+source makes the Run mechanically fail, even if the check itself passes.
+
 Example output:
 
 ```json
@@ -229,7 +245,12 @@ Example output:
 
 Use the returned `run_id` in the commands that follow.
 
-> `verify` is a command that **records verification results**. Even when a required check fails, the CLI exit code can be `0` if the Evidence was stored successfully. `complete` determines whether completion is actually allowed.
+> `verify` is a command that **records verification results**. Even when a
+> required check fails, times out, or changes product source, the CLI exit code
+> can be `0` if the versioned Evidence was stored successfully. `complete`
+> determines whether completion is actually allowed. If S0 or S1 cannot be
+> collected, verification does not produce a valid manifest or successful
+> result.
 
 ### 4. Create a Verifier Bundle
 
@@ -247,9 +268,12 @@ The Bundle contains the following information for the selected Run:
 - Check results
 - stdout / stderr
 - Mechanical verification
+- Pre-check S0 and post-check S1 Source Snapshots for a v2 Run
 - Verifier instructions
 
-Creating a Bundle does not run a verifier or record a Verdict.
+Creating a Bundle does not run a verifier or record a Verdict. It also does not
+collect the current completion-time S2 Snapshot, compare current source, rerun
+checks, or decide completion.
 
 ### 5. Write a Manual Verdict
 
@@ -300,6 +324,9 @@ Completion succeeds only when all of the following conditions are met:
 - The Task and Run identities match
 - The required Evidence files exist
 - The stored results do not contradict one another
+- The Run uses source-bound verification Evidence v2
+- The pre-check S0 and post-check S1 Snapshots match
+- The current completion-time S2 Snapshot matches S1
 - There are no scope violations
 - All required checks passed
 - No timeout occurred
@@ -309,9 +336,22 @@ Completion succeeds only when all of the following conditions are met:
 
 A Task whose verifier is optional can complete without a Verdict. However, an already recorded Verdict cannot be ignored if it is `fail`, `unable`, or contains a blocker.
 
+Legacy verification v1 Runs remain readable, bundleable, and usable with
+Verdict record/show, but current-main completion rejects them with exit 9. A
+new v2 verification Run is required; Harness does not upgrade historical
+Evidence in place.
+
+Only `verification.json` advances to schema version 2. The Task,
+changed-files, checks, Run manifest, bundle, Verdict, and Completion document
+schemas remain version 1, as do the two Source Snapshot documents under their
+own Snapshot contract.
+
 ---
 
 ## 📁 Generated files
+
+The tree below shows a current source-bound verification v2 Run. Legacy v1 Runs
+do not have the two Source Snapshot files.
 
 ```text
 .harness/
@@ -328,6 +368,8 @@ A Task whose verifier is optional can complete without a Verdict. However, an al
             ├── checks/
             │   ├── <check>.stdout
             │   └── <check>.stderr
+            ├── source-before-checks.json
+            ├── source-after-checks.json
             ├── verification.json
             ├── run-manifest.json
             ├── verdict.raw.json
@@ -337,7 +379,7 @@ A Task whose verifier is optional can complete without a Verdict. However, an al
 
 | File | Created by |
 | --- | --- |
-| `task.json` through `verification.json`, plus check logs | `harness verify` |
+| `task.json` through the two Source Snapshot documents and `verification.json`, plus check logs | `harness verify` |
 | `run-manifest.json` | The final step of `harness verify`, after storing the mechanical Evidence |
 | `verdict.raw.json` | `harness verifier record` |
 | `verdict.json` | `harness verifier record` |
@@ -357,11 +399,32 @@ A verification record created by one execution of `verify`. Every Verdict and ev
 
 ### Mechanical Evidence
 
-The diff, changed files, check results, and scope decision collected directly by Harness. It is separate from a Manual Verdict, which is a human semantic judgment.
+The diff, changed files, check results, Source Snapshots, and scope and source
+stability decisions collected directly by Harness. It is separate from a
+Manual Verdict, which is a human semantic judgment.
+
+### Source Binding
+
+For a verification v2 Run, S0 identifies product source immediately before
+checks and S1 identifies it immediately after all checks. At completion, Harness
+collects current source as S2 and requires S0 = S1 = S2 before applying the
+verifier, scope, timeout, and required-check gates. S2 is a live comparison and
+is not stored as Evidence.
+
+Snapshot identity describes final product bytes, paths, normalized executable
+modes, and symlink targets relative to the saved Task baseline. Moving the same
+final source among unstaged, staged, and committed states does not change its
+identity. Gitignored untracked files and canonical Harness metadata are
+excluded; Task Scope does not limit Snapshot identity.
 
 ### Run Evidence Manifest
 
-`run-manifest.json` records, in sorted order, the Task/run identity and the relative path, raw-byte size, and SHA-256 digest of each mechanical Evidence file and check log. `evidence_sha256` is a local consistency identifier for the canonical JSON file records, excluding the timestamp. Verdict and Completion files are created after verification and therefore are not covered by the manifest.
+`run-manifest.json` records, in sorted order, the Task/run identity and the
+relative path, raw-byte size, and SHA-256 digest of each mechanical Evidence
+file and check log, including S0 and S1 for a v2 Run. `evidence_sha256` is a
+local consistency identifier for the canonical JSON file records, excluding
+the timestamp. Verdict and Completion files are created after verification and
+therefore are not covered by the manifest.
 
 ### Manual Verdict
 
@@ -369,7 +432,9 @@ Schema-valid JSON written by a human after reviewing the Bundle. The input is pr
 
 ### Completion
 
-The final gate that determines whether the stored Evidence and Verdict satisfy the completion conditions. `complete` does not rerun checks or recollect the Git diff.
+The final gate that determines whether stored Evidence, any recorded Verdict,
+and the current S2 source identity satisfy the completion conditions.
+`complete` does not rerun checks or recollect the Git diff.
 
 ### Trust boundary of the manifest
 
@@ -386,11 +451,12 @@ Harness currently provides:
 - A verifier Bundle with limited scope
 - Revalidation of the raw Verdict and comparison with its validated snapshot
 - Basic consistency checks among stored Evidence
+- Source stability checks around verification and a current-source comparison at completion
 - Rejection of completion when conditions are unmet
 
 However, it does not guarantee:
 
-- That the code remains unchanged after verification
+- That source remains unchanged after the bounded S2 observation or after `complete` returns
 - Protection against intentional manipulation of all Evidence by the same local user
 - Cryptographic signatures
 - Remote attestation
@@ -439,20 +505,25 @@ CI checks the following:
 - [v0.1.0 Release Notes](docs/releases/v0.1.0.md)
 - [v0.1.1 Release Notes](docs/releases/v0.1.1.md)
 - [Task Schema](schemas/task.schema.json)
+- [Verification Schema](schemas/verification.schema.json)
 - [Verdict Schema](schemas/verdict.schema.json)
 - [Verifier prompt](prompts/verifier.md)
 - [Canonical Verdict Contract ADR](docs/adr/0001-canonical-verdict-contract.md)
 - [Run Integrity ADR](docs/adr/0002-run-integrity-vs-completion-policy.md)
 - [Run Evidence Manifest ADR](docs/adr/0003-run-evidence-manifest.md)
+- [Canonical Source Snapshot ADR](docs/adr/0004-canonical-source-snapshot.md)
+- [Verify/Complete Source Binding ADR](docs/adr/0005-verify-complete-source-binding.md)
 
 ---
 
 ## 🛣️ Roadmap
 
-Current priorities:
+Current main has completed pre/post-check Snapshot binding and removed the
+Run-level `--base-ref` bypass. Potential later work is deliberately separate:
 
-1. Pre/Post-check Snapshot binding
-2. Removal of the `--base-ref` bypass
+1. A Task revision policy for intentionally changing a saved baseline
+2. A CI-specific pull-request base/head command and contract
+3. Optional cryptographic or remote trust anchors
 
 The Roadmap may change with the implementation sequence.
 
