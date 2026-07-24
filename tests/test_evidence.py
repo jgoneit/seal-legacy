@@ -421,6 +421,58 @@ class VerificationEvidenceTests(unittest.TestCase):
         self.assertEqual(sources, {"staged", "unstaged"})
         self.assertIn("+staged", patch)
 
+    def test_diff_patch_ignores_git_replace_refs(self) -> None:
+        baseline = self._git("rev-parse", "HEAD")
+        self._create_task([self._python_check("ok", "print('ok')", required=True)])
+        self._write("src/example.txt", "after\n")
+        self._git("add", "src/example.txt")
+        self._git(
+            "-c",
+            "user.name=Harness Test",
+            "-c",
+            "user.email=harness-test@example.invalid",
+            "commit",
+            "--quiet",
+            "-m",
+            "candidate",
+        )
+        candidate = self._git("rev-parse", "HEAD")
+        self._git("replace", baseline, candidate)
+        try:
+            with_replace = verify_task("TASK-VERIFY", cwd=self.repository)
+        finally:
+            self._git("replace", "-d", baseline)
+        without_replace = verify_task("TASK-VERIFY", cwd=self.repository)
+
+        expected_changes = [
+            change
+            for change in with_replace.verification["changed_files"]
+            if change["path"] == "src/example.txt"
+        ]
+        self.assertEqual(
+            [(change["source"], change["status"]) for change in expected_changes],
+            [("committed", "modified")],
+        )
+        self.assertEqual(
+            with_replace.verification["changed_files"],
+            without_replace.verification["changed_files"],
+        )
+        self.assertEqual(
+            with_replace.verification["source_before_checks_sha256"],
+            without_replace.verification["source_before_checks_sha256"],
+        )
+        self.assertEqual(
+            with_replace.verification["source_after_checks_sha256"],
+            without_replace.verification["source_after_checks_sha256"],
+        )
+        patch_with_replace = (with_replace.evidence_path / "diff.patch").read_bytes()
+        patch_without_replace = (
+            without_replace.evidence_path / "diff.patch"
+        ).read_bytes()
+        self.assertEqual(patch_with_replace, patch_without_replace)
+        self.assertIn(b"-before\n", patch_with_replace)
+        self.assertIn(b"+after\n", patch_with_replace)
+
     def test_large_diff_patch_is_written_to_evidence_file(self) -> None:
         byte_count = 1_000_000
         self._create_task([self._python_check("ok", "print('ok')", required=True)])
