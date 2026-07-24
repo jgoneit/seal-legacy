@@ -1,7 +1,5 @@
 # ADR 0005: Bind Completion to the Verified Product Source
 
-Language: English | [한국어](0005-verify-complete-source-binding.ko.md)
-
 ## Status
 
 Accepted
@@ -9,22 +7,22 @@ Accepted
 ## Context
 
 ADR 0004 defined a canonical identity for the final product source relative to a
-saved Task baseline, but R1a did not store that identity in Evidence or compare
-it at completion. A Run could therefore describe checks performed against one
-source state while `complete` accepted the Run after the product source had
-changed. The Run-level `verify --base-ref` override also allowed a verification
-baseline to differ from the baseline saved with the Task.
+saved Task baseline, but the initial collector did not store that identity in
+Evidence or compare it at completion. A Run could therefore describe checks
+performed against one source state while `complete` accepted the Run after the
+product source had changed. The former Run-level `verify --base-ref` override
+also allowed a verification baseline to differ from the baseline saved with the
+Task.
 
 Source binding must preserve the existing separation between stored Run
-integrity and current-source policy. Historical Runs must remain reviewable,
-and bundle and Verdict operations must not become authorities for the current
-Working Tree.
+integrity and current-source policy. Bundle and Verdict operations must not
+become authorities for the current Working Tree.
 
 ## Decision
 
 - Remove `verify --base-ref` and its Python API path. Verification and Source
   Snapshots use only the full commit SHA saved as the Task baseline.
-- A new verification Run uses `verification.json` schema version 2. The Task,
+- A supported verification Run uses `verification.json` schema version 2. The Task,
   changed-files, checks, manifest, bundle, Verdict, and Completion document
   schemas remain version 1; each Source Snapshot document also uses Snapshot
   schema version 1.
@@ -46,25 +44,18 @@ Working Tree.
   or successful stdout result; an incomplete UUID directory and already
   written logs may remain for diagnosis.
 - `validate_run()` remains the single public authority for persisted Run
-  integrity and never reads the current Working Tree. Version-specific
-  validators parse and cross-check the stored Snapshot documents, baselines,
+  integrity and never reads the current Working Tree. It requires verification
+  schema version 2 and cross-checks the stored Snapshot documents, baselines,
   digests, stability flag, aggregate result, and manifest records.
 - `complete` performs a separate current-source step after persisted Evidence
-  and any recorded Verdict have passed integrity validation. For a v2 Run it
-  collects S2 through `collect_source_snapshot()` and requires S0 = S1 = S2
-  before applying verifier, scope, timeout, and required-check policy. S2 is
-  not stored.
-- Completion refuses a structurally valid legacy v1 Run, S0/S1 instability, or
-  an S1/S2 mismatch with exit 9. Corrupt stored Evidence returns exit 8, and a
-  failure to collect the current Snapshot returns exit 3. The remaining
-  precedence is verifier 7, scope 4, required timeout 6, and required-check
-  failure 5.
-- A v1 Run remains valid input to `validate_run()`, bundle export, and Verdict
-  record/show, including historical Runs whose recorded baseline came from the
-  former override. Its completion path does not collect S2. It is not upgraded
-  in place and must be reverified to become eligible for source-bound
-  completion.
-- A bundle includes persisted S0 and S1 for a v2 Run, but does not collect S2,
+  and any recorded Verdict have passed integrity validation. It collects S2
+  through `collect_source_snapshot()` and requires S0 = S1 = S2 before applying
+  verifier, scope, timeout, and required-check policy. S2 is not stored.
+- Completion refuses S0/S1 instability or an S1/S2 mismatch with exit 9.
+  Unsupported, missing, or corrupt stored Evidence returns exit 8, and a failure
+  to collect the current Snapshot returns exit 3. The remaining precedence is
+  verifier 7, scope 4, required timeout 6, and required-check failure 5.
+- A bundle includes persisted S0 and S1, but does not collect S2,
   rerun checks, compare current source, or decide completion.
 
 ## Consequences
@@ -88,6 +79,9 @@ the same local user rewriting all Evidence and its manifest.
 This decision does not add Task revision, CI pull-request base/head semantics,
 automatic formatter or code-generation allowances, check reruns, source
 rollback, external verifier APIs, or a release.
+
+Unsupported historical Evidence is not upgraded in place. The operational
+boundary is documented in [Migrating verification Evidence to v0.2](../migration-v0.2.md).
 
 ## Rejected alternatives
 

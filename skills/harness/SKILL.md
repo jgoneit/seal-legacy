@@ -1,28 +1,27 @@
 ---
 name: harness
-description: Use the Harness Core CLI to define Tasks, capture verification Evidence, prepare verifier bundles, record Manual Verdicts, and evaluate explicit completion requests without controlling how the coding Agent implements the work.
+description: Use the Harness Core CLI to define Tasks, capture verification Evidence, prepare verifier bundles, record Manual Verdicts, and evaluate explicit completion requests.
 ---
 
 # Harness
 
-Use Harness only as an explicit, thin UX adapter over the Core CLI. The Core CLI is the verification authority; this Skill must not reimplement or reinterpret it.
+Use this Skill only as a thin adapter over the Harness Core CLI. Core is the
+verification authority; the Skill does not reimplement or reinterpret it.
 
-## Activation boundary
+## Activation
 
-Use this Skill only when the user:
+Use this Skill only when the user explicitly invokes `$harness` or asks to:
 
-- explicitly invokes $harness;
-- asks to create a Harness Task;
-- asks to verify a Harness Task;
-- asks to prepare a verifier bundle;
-- asks to record or show a Manual Verdict; or
-- explicitly asks to complete a Task.
+- create or inspect a Harness Task;
+- verify a Task;
+- prepare a verifier bundle;
+- record or show a Manual Verdict; or
+- complete a Task.
 
-For ordinary coding work, do not create a Task, run verification, prepare a bundle, record a Verdict, or complete a Task automatically.
+Do not trigger Core operations automatically during ordinary coding work, and
+do not direct the coding Agent's implementation process.
 
-Do not direct how the coding Agent implements work. In particular, do not prescribe implementation order, tools, subagent count, worktree structure, repair algorithms, or file-by-file implementation plans.
-
-## Core preflight
+## Preflight
 
 Before every Core operation, run:
 
@@ -30,130 +29,68 @@ Before every Core operation, run:
 harness --version
 ~~~
 
-Read the version from the command output. Support the legacy Core profile
-`>=0.1.0,<0.2.0.dev0` and the source-bound Core profile
-`>=0.2.0.dev0,<0.3.0`. If the CLI is missing, do not install it automatically.
-Explain the missing-command error and provide this command for the user to run:
+Support Core `>=0.2.0.dev0,<0.3.0`. If the command is missing, do not install it
+automatically. Direct the user to the repository README Installation section
+and stop the requested Core operation. If the version is unparseable or
+unsupported, show the actual output and stop.
+
+Run Core commands only as subprocesses. Depend only on documented commands,
+stdout JSON, stderr, and exit codes. Do not import Core internals or reproduce
+Task validation, check execution, Evidence generation, digest calculation, Run
+validation, Verdict validation, source binding, or completion policy.
+
+Run commands from the target Git repository. Confirm that the repository and
+current HEAD exist. For an existing Task operation, also run:
 
 ~~~bash
-python3 -m pip install \
-  "git+https://github.com/jgoneit/harness.git@v0.1.1"
+harness task show <TASK_ID>
 ~~~
 
-State that this fallback installs the latest published v0.1.1 release and uses
-the legacy behavior profile: it does not store S0/S1 Source Snapshot Evidence
-or bind completion to current source. `0.2.0.dev0` is current-main development
-state, not a published release.
+Before Task creation, confirm `.harness/checks.json` exists. Do not create
+configuration, Tasks, Evidence, or Verdict files merely to satisfy preflight.
 
-If the version cannot be parsed or is unsupported, show the actual output and stop before the requested Core operation.
+## Task
 
-Run Core commands as subprocesses only. Depend only on documented commands, stdout JSON, stderr, and exit codes. Do not import harness.task, harness.evidence, harness.bundle, harness.run_validator, or harness.verdict_validator; do not read Core internals to decide an outcome; and do not reproduce schema validation, scope checks, Git diff collection, check execution, Evidence generation, digest calculation, Run consistency, Verdict validation, or completion policy.
-
-## Repository preflight
-
-Run requested Core commands from the target project's Git repository. Before every operation, confirm:
-
-- Git repository and current HEAD exist;
-- a requested Task ID exists, using harness task show TASK_ID when applicable.
-
-Before `harness task create`, also confirm that `.harness/checks.json` exists.
-Task creation reads the current catalog to materialize checks in the saved Task
-snapshot.
-
-Do not require `.harness/checks.json` for `harness verify`, `harness verifier
-bundle`, `harness verifier record`, `harness verifier show`, or `harness
-complete`. `harness verify` executes checks from the saved Task snapshot; the
-other commands validate saved Task and Run artifacts. These operations do not
-need the current catalog.
-
-Do not generate project configuration, Tasks, Evidence, or Verdict files merely to satisfy preflight. Show Git or Core CLI errors as returned.
-
-## Create a Task
-
-When asked to define a Task, collect only its objective, scope, checks, risk, and verifier.required. Keep the Task description about the intended outcome, not the Agent's implementation process. Include the Core-required id and type as concise metadata.
-
-Show a draft Task JSON first:
-
-~~~json
-{
-  "schema_version": 1,
-  "id": "TASK-001",
-  "type": "feature",
-  "objective": "…",
-  "scope": ["…"],
-  "checks": ["…"],
-  "risk": "medium",
-  "verifier": {
-    "required": true
-  }
-}
-~~~
-
-Only after the user requests creation, write or use the chosen Task JSON file and run:
+Collect only `id`, `type`, `objective`, `scope`, `checks`, `risk`, and
+`verifier.required`. Describe the intended outcome, not the implementation
+process. Show the draft Task JSON first. After the user requests creation, run:
 
 ~~~bash
 harness task create --file <TASK_JSON>
 ~~~
 
-Do not require an approval token, a plan hash, or an exact-y response.
-
 ## Verify
 
-Run verification only when the user requests it:
+Run verification only when requested:
 
 ~~~bash
 harness verify <TASK_ID>
 ~~~
 
-Parse successful stdout as JSON and report only the documented run_id and evidence_path fields. Do not calculate, reinterpret, or add a mechanical result, digest, or completion claim.
+Report only the documented `run_id` and `evidence_path` from successful stdout.
+Do not pass `--base-ref`, inspect S0/S1, or treat Evidence recording as
+completion.
 
-For the source-bound Core profile, do not pass `--base-ref`; the option has been
-removed and invalid CLI input returns exit 2. Core uses only the baseline saved
-in the Task. Core records the pre-check S0 and post-check S1 Snapshots itself.
-Do not read or compare those artifacts in the Skill, and do not treat
-successful Evidence recording as a completion claim.
-
-## Prepare a verifier bundle
-
-Run:
+## Bundle
 
 ~~~bash
-harness verifier bundle <TASK_ID> \
-  --run-id <RUN_ID> \
-  --output <OUTPUT_DIR>
+harness verifier bundle <TASK_ID> --run-id <RUN_ID> --output <OUTPUT_DIR>
 ~~~
 
-State clearly that generating a bundle is not reviewer execution, Verdict creation, or completion. Do not inspect Core files to construct or modify a bundle yourself.
+Report the bundle path. State that export does not execute a reviewer, create a
+Verdict, collect S2, or complete the Task.
 
-For a source-bound v2 Run, the bundle includes historical S0 and S1 Snapshot
-Evidence. Bundle creation does not collect the current S2 Snapshot, compare
-current source, rerun checks, or decide completion. Legacy v1 Runs remain
-bundleable.
+## Manual Verdict
 
-## Record or show a Manual Verdict
-
-Do not represent a Verdict created in the same implementation conversation as independent verification. Offer these paths:
-
-1. A person reviews the bundle directly.
-2. A new clean-context Codex thread receives only the bundle.
-3. The user provides a separately prepared Verdict JSON.
-
-Record only user-provided Verdict JSON through Core:
+Do not present a Verdict created in the implementation conversation as
+independent verification. A person, a clean-context thread using only the
+bundle, or the user may provide the Verdict JSON. Record or show it only through
+Core:
 
 ~~~bash
-harness verifier record <TASK_ID> \
-  --run-id <RUN_ID> \
-  --file <VERDICT_JSON>
+harness verifier record <TASK_ID> --run-id <RUN_ID> --file <VERDICT_JSON>
+harness verifier show <TASK_ID> --run-id <RUN_ID>
 ~~~
-
-Show a recorded Verdict through Core:
-
-~~~bash
-harness verifier show <TASK_ID> \
-  --run-id <RUN_ID>
-~~~
-
-Do not reimplement the Verdict Schema. Preserve Core stderr and exit codes as the authoritative result.
 
 ## Complete
 
@@ -163,20 +100,14 @@ Run completion only when the user explicitly requests it:
 harness complete <TASK_ID> --run-id <RUN_ID>
 ~~~
 
-On failure, report the Core exit code and stderr. Do not roll back source, alter
-Evidence, repair automatically, verify automatically, or retry completion
-automatically.
+Report Core stdout, stderr, and exit code. On failure, do not alter source or
+Evidence, generate a replacement Run, verify automatically, retry, or roll
+back. Core validates stored v2 Evidence, collects current S2, and applies its
+source-binding and completion policy.
 
-Apply the installed Core profile when explaining completion:
+## Exclusions
 
-- Legacy `0.1.x` completion evaluates saved Run Evidence without current-source
-  binding.
-- Source-bound `0.2.x` completion validates persisted Evidence, then Core
-  collects current S2 and compares it with the post-check S1. A legacy v1 Run,
-  source changed during checks, or current-source mismatch is refused with exit
-  9. The Skill must report the Core result without collecting Snapshots,
-  changing source, generating a replacement Run, or retrying.
-
-## Never add control-plane behavior
-
-Do not add hooks, PreToolUse/PostToolUse or Stop hooks, approval state, plan hashes, process state machines, tool denylists, file-write interception, implementation monitoring, worktree orchestration, subagent-topology control, automatic repair, automatic verify, automatic complete, model API calls, or external verifier CLI calls.
+Do not add hooks, approvals, plan hashes, state machines, tool interception,
+implementation monitoring, worktree orchestration, subagent topology, repair
+loops, automatic verify or complete, model API calls, or external verifier
+invocation.

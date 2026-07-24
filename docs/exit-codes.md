@@ -1,12 +1,7 @@
 # Harness exit codes
 
-Language: English | [한국어](exit-codes.ko.md)
-
-The exit codes below describe unreleased current main `0.2.0.dev0` and are part
-of its public CLI contract. v0.1.1 remains the latest published release; it
-defines exits 0 and 2–8 but does not provide source-bound exit 9. New commands
-may be added later, but the meanings of already defined numbers will not
-change.
+The exit codes below describe unreleased current Core `0.2.0.dev0` and are part
+of its public CLI contract. Existing meanings are stable.
 
 | Code | Meaning | Typical condition |
 | ---: | --- | --- |
@@ -17,8 +12,8 @@ change.
 | 5 | required check failure | A non-timeout required check failure is stored |
 | 6 | timeout | A required check timeout is stored |
 | 7 | verifier gate not satisfied | Required verifier Evidence is missing, or the recorded Verdict is fail/unable or contains a blocker |
-| 8 | evidence missing or corrupt | Required Evidence files are missing, JSON is unreadable, or stored records contradict one another |
-| 9 | source binding not satisfied | The Run is legacy v1, checks changed product source, or current product source differs from the post-check Snapshot |
+| 8 | evidence missing or corrupt | Required Evidence files are missing, JSON is unreadable, the verification schema version is unsupported, or stored records contradict one another |
+| 9 | source binding not satisfied | S0 differs from S1, or current S2 differs from the validated post-check S1 |
 
 ## `harness complete` decision process
 
@@ -59,22 +54,15 @@ that historical record in place; it does not make the current source eligible.
 
 The fail-closed decision order is:
 
-1. Missing, corrupt, or contradictory mechanical Evidence, including v2
-   Snapshot Evidence, returns exit 8.
+1. Missing, corrupt, contradictory, or unsupported mechanical Evidence,
+   including required Snapshot Evidence, returns exit 8.
 2. Missing, corrupt, or contradictory recorded Verdict Evidence returns exit 8.
-3. For a v2 Run, failure to collect S2 from the current repository returns
-   exit 3.
-4. A legacy v1 Run, S0/S1 instability, or an S1/S2 mismatch returns exit 9.
+3. Failure to collect S2 from the current repository returns exit 3.
+4. S0/S1 instability or an S1/S2 mismatch returns exit 9.
 5. An unsatisfied verifier gate returns exit 7.
 6. A Scope violation returns exit 4.
 7. A required timeout returns exit 6.
 8. A non-timeout required-check failure returns exit 5.
-
-A valid v1 Run remains available to `validate_run()`, bundle export, and Verdict
-record/show, but it cannot satisfy current-source-bound completion and returns
-exit 9 after stored Evidence and recorded Verdict integrity checks. It is not
-automatically upgraded; create a new v2 verification Run. The v1 completion
-path does not collect S2.
 
 `validate_run()` still operates only on stored files. It does not collect or
 compare the current Working Tree, regenerate the Git diff, or rerun checks.

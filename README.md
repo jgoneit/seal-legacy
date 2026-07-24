@@ -2,172 +2,84 @@
 
 Language: English | [한국어](README.ko.md)
 
-> **Verify whether a completion claim is supported by evidence, without controlling how an Agent works.**
+> **Verify whether a completion claim is supported by evidence, without
+> controlling how an Agent works.**
 
-Harness is an experimental local CLI that records Task scope, check results,
-source identity at verification time, and optional review results, then decides
-whether the current result can be claimed complete.
+Harness is an experimental local CLI that saves a Task snapshot, product
+changes, check results, and source identity as a reviewable Evidence Run.
 
-There is a difference between an Agent saying “done” and leaving behind **evidence that can actually be reviewed**. Harness focuses on narrowing that gap.
+Current main is unreleased `0.2.0.dev0`. It supports source-bound verification
+Evidence v2 only. Historical v0.1.x Evidence is not upgraded in place; see
+[Migrating verification Evidence to v0.2](docs/migration-v0.2.md).
 
-> 🚧 **Status: Experimental**
->
-> It is currently suited to personal projects, local experiments, and research into outcome-based completion gates.
->
-> **v0.1.1 is the latest Experimental patch release.** Distribution artifacts are available from the
-> [GitHub Release](https://github.com/jgoneit/harness/releases/tag/v0.1.1).
->
-> **Current main is the unreleased `0.2.0.dev0` development line.** It adds
-> source-bound verification and completion described below. No `0.2.0.dev0`
-> tag or release artifact is published.
+## What Harness does
 
----
+Harness helps answer:
 
-## 🎯 What problem does it solve?
+> Does this saved Run support the claim that the current product source
+> completed the requested Task?
 
-Even when tests pass during a typical Agent task, the following problems can go unnoticed:
+It records evidence that ordinary “tests passed” claims can omit:
 
-- Files outside the requested scope were changed
-- Tests were weakened or bypassed
-- The implementation exists but does not satisfy the actual objective
-- The code at verification time differs from the code for which completion is claimed
-- Test results contradict the stored Evidence
+- the saved Task objective, Scope, checks, risk, and baseline commit;
+- committed, staged, unstaged, and untracked product changes;
+- binary-safe diff and check stdout/stderr;
+- pre-check S0 and post-check S1 Source Snapshots;
+- a raw-byte Run Manifest;
+- an optional user-provided Manual Verdict; and
+- explicit completion policy results.
 
-Harness does not restrict the Agent's reasoning or tool use.
+Harness does not intercept tools, restrict implementation choices, call a
+model, execute an external verifier, repair code, or provide immutable storage.
 
-Instead, after the work is done, it leaves behind material that can answer this question:
-
-> **“Is there enough Evidence to claim that this result is complete?”**
-
----
-
-## 🔄 How it works
+## Workflow
 
 ```text
-task create
-   ↓
-Agent work
-   ↓
-verify
-   ↓
-Evidence Run
-   ↓
-complete
+Task Spec
+   │ harness task create
+   ▼
+Task snapshot + full baseline commit
+   │ implementation
+   ▼
+harness verify: S0 → checks → S1
+   ▼
+Saved Evidence v2
+   ├── verifier bundle       optional explicit export
+   ├── verifier record/show  optional user-provided Verdict
+   └── complete              explicit S2 and policy evaluation
 ```
 
-| Stage | Role |
-| --- | --- |
-| **Task Spec** | Define the objective, allowed scope, and checks |
-| **Verify** | Store the diff, check results, and verification-time source identity as Evidence |
-| **Complete** | Determine whether the stored Evidence and current source support a completion claim |
+The minimum default flow ends when `verify` saves the Run. Bundle export,
+Verdict operations, and completion evaluation occur only when explicitly
+requested.
 
-Verifier Bundle export and a user-provided Manual Verdict belong to the
-separate [Reviewed Flow](#-reviewed-flow); they are not required in the basic
-mechanical flow.
+## Installation
 
----
-
-## ✨ Current features
-
-- Task snapshots based on Git `HEAD`
-- Scope-based changed-file collection
-- Shell-free, argv-based check execution
-- Recording of stdout, stderr, exit code, and timeout
-- Storage of diff and mechanical verification Evidence
-- Canonical pre-check and post-check product-source Snapshots for each new Run
-- Current-source comparison before successful completion
-- A canonical integrity validator that uses a raw-byte manifest and digests to detect changes to stored mechanical Evidence
-- Portable verifier bundles containing only a specific Task/Run
-- Schema-based Manual Verdict validation
-- Comparison of the raw Verdict with its validated snapshot
-- Fail-closed completion that rejects unmet conditions
-- Stable CLI exit codes
-- unittest and GitHub Actions CI
-
-### Features not yet provided
-
-| Category | Details |
-| --- | --- |
-| **Process control** | No Agent orchestration, runtime hooks, process state machines, autonomy adjustment, or worktree control |
-| **Trust boundary** | Local bounded observations only; no central authority, cryptographic provenance, remote attestation, or immutable audit ledger |
-| **Review boundary** | Manual user-provided review only; no automatic external or cross-vendor verification |
-| **Security boundary** | No preventive sandbox, secret scanner, DLP, or complete secret redaction |
-
----
-
-## 📦 Installation
-
-### Install from a release tag
-
-```bash
-python3 -m pip install \
-  "git+https://github.com/jgoneit/harness.git@v0.1.1"
-```
-
-Once a wheel has been published to a GitHub Release, you can install the attached
-`outcome_harness-0.1.1-py3-none-any.whl` file. The current distribution artifact is available from the
-[v0.1.1 GitHub Release](https://github.com/jgoneit/harness/releases/tag/v0.1.1).
-
-The release-tag installation uses the legacy v0.1.1 contract without S0/S1/S2
-Source Binding. The source-bound behavior in this README requires a
-current-main development installation until a later release is published.
-
-### Naming
-
-The user-facing product, CLI, and Codex Plugin are all named **Harness**.
-
-- CLI: `harness`
-- Codex Plugin selection: `@harness`
-- Explicit Codex Skill invocation: `$harness`
-
-For compatibility with existing installations, the Python distribution and wheel filename retain
-`outcome-harness` / `outcome_harness`.
-
-### Install for development
+No final v0.2 release artifact is published by this development contract.
+Install the current checkout for development:
 
 ```bash
 git clone https://github.com/jgoneit/harness.git
 cd harness
-
 python3 -m venv .venv
-source .venv/bin/activate
-
-python3 -m pip install -e '.[test]'
+. .venv/bin/activate
+python -m pip install -e ".[test,release]"
+harness --version
 ```
 
-Windows PowerShell:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
-### Requirements
+Requirements:
 
 - Python 3.11 or later
-- A Git repository with at least one commit
-- A local runtime capable of running the project's checks
+- Git
 
-### Supported platforms
+The Python distribution name is `outcome-harness`; the console command and
+Codex Plugin name are `harness`.
 
-- **macOS**: Supported. Checks run and are cleaned up in a separate POSIX process group.
-- **Linux**: Uses the same POSIX process-group path as macOS.
-- **Windows**: Cleans up the check process tree with a Job object. Children that intentionally
-  request breakaway remain outside this cleanup boundary.
+## Quick start
 
-The only tests skipped on macOS are two boundary E2E tests for non-UTF-8 byte filenames that APFS
-cannot create; they are not general functionality tests. Platform-independent unit tests continue to
-verify the corresponding JSON escaping logic, so these skips do not mean that macOS support has been
-withdrawn or the functionality abandoned.
+### 1. Configure checks
 
----
-
-## 🚀 Quick Start
-
-The following example assumes a Python project with a `tests/` directory.
-
-### 1. Create a check catalog
-
-Create `.harness/checks.json` at the project root.
+Create `.harness/checks.json`:
 
 ```json
 {
@@ -175,14 +87,7 @@ Create `.harness/checks.json` at the project root.
   "checks": [
     {
       "name": "unit-test",
-      "argv": [
-        "python3",
-        "-m",
-        "unittest",
-        "discover",
-        "-s",
-        "tests"
-      ],
+      "argv": ["python3", "-m", "unittest", "discover", "-s", "tests"],
       "required": true,
       "timeout_seconds": 60
     }
@@ -190,23 +95,22 @@ Create `.harness/checks.json` at the project root.
 }
 ```
 
-### 2. Define a Task
+Checks are argv arrays, not shell command strings. `task create` resolves named
+checks into the saved Task snapshot; `verify` later executes that saved
+definition.
 
-Create `task.json`.
+### 2. Create a Task
+
+Create `task.json`:
 
 ```json
 {
   "schema_version": 1,
   "id": "TASK-001",
   "type": "feature",
-  "objective": "Add an API for retrieving user profiles.",
-  "scope": [
-    "src",
-    "tests"
-  ],
-  "checks": [
-    "unit-test"
-  ],
+  "objective": "Add the requested behavior.",
+  "scope": ["src", "tests"],
+  "checks": ["unit-test"],
   "risk": "medium",
   "verifier": {
     "required": false
@@ -214,182 +118,80 @@ Create `task.json`.
 }
 ```
 
-Create the Task snapshot.
+Save the normalized Task snapshot and current full Git baseline:
 
 ```bash
 harness task create --file task.json
+harness task show TASK-001
 ```
 
-The current Git `HEAD` is recorded as the Task's baseline.
+### 3. Verify
 
-### 3. Verify after changing the code
+After implementing the change:
 
 ```bash
 harness verify TASK-001
 ```
 
-Verification always uses the baseline saved in the Task; there is no
-Run-level `--base-ref` override. Current-main verification collects a canonical
-product-source Snapshot immediately before checks (S0) and immediately after
-all checks finish (S1). A required or optional check that changes product
-source makes the Run mechanically fail, even if the check itself passes.
-
-Example output:
+Successful Evidence recording prints:
 
 ```json
 {
-  "evidence_path": "/project/.harness/evidence/TASK-001/...",
-  "run_id": "8d7ea7f77bc7430f9b2f7b97b31ecfa2"
+  "evidence_path": "/path/to/repository/.harness/evidence/TASK-001/<RUN_ID>",
+  "run_id": "<RUN_ID>"
 }
 ```
 
-Use the returned `run_id` to evaluate completion.
+`verify` returns success when it safely records Evidence, even if a required
+check fails, times out, violates Scope, or changes product source. Those are
+recorded failed outcomes. `complete` applies completion policy.
 
-> `verify` is a command that **records verification results**. Even when a
-> required check fails, times out, a Scope violation is found, or a check
-> changes product source, the CLI exit code can be `0` if the versioned
-> Evidence Run was stored successfully. `complete` determines whether
-> completion is actually allowed. If S0 or S1 cannot be collected,
-> verification does not produce a valid manifest or successful result.
+`verify --base-ref` is not supported. Verification uses only the full baseline
+saved in the Task snapshot.
 
-### 4. Evaluate completion
+### Optional explicit operations
 
-```bash
-harness complete TASK-001 --run-id <RUN_ID>
-```
-
-Completion succeeds only when all of the following conditions are met:
-
-- The Task and Run identities match
-- The required Evidence files exist
-- The stored results do not contradict one another
-- The Run uses source-bound verification Evidence v2
-- The pre-check S0 and post-check S1 Snapshots match
-- The current completion-time S2 Snapshot matches S1
-- There are no scope violations
-- All required checks passed
-- No timeout occurred
-- The mechanical result is `pass`
-- Any required verifier's Verdict is `pass`
-- There are no blocker findings
-
-A Task whose verifier is optional can complete without a Verdict. However, an
-already recorded Verdict cannot be ignored if it is `fail`, `unable`, or
-contains a blocker. If current source differs from the source verified as S1,
-`complete` fails with exit 9.
-
-Legacy verification v1 Runs remain readable, bundleable, and usable with
-Verdict record/show, but current-main completion rejects them with exit 9. A
-new v2 verification Run is required; Harness does not upgrade historical
-Evidence in place.
-
-Only `verification.json` advances to schema version 2. The Task,
-changed-files, checks, Run manifest, bundle, Verdict, and Completion document
-schemas remain version 1, as do the two Source Snapshot documents under their
-own Snapshot contract.
-
----
-
-## 🔎 Reviewed Flow
-
-Use an independent review for medium- or high-risk work, authentication or
-authorization changes, database migrations, API behavior changes, large
-refactors, and work whose meaning cannot be judged by mechanical checks alone.
-
-```text
-task create
-   ↓
-Agent work
-   ↓
-verify
-   ↓
-verifier bundle
-   ↓
-fresh-context or human review
-   ↓
-verifier record
-   ↓
-complete
-```
-
-Harness does not generate a Manual Verdict. A person or fresh-context reviewer
-reviews the exported Bundle and supplies the Verdict JSON.
-
-### 1. Export a Verifier Bundle
+Export a portable review bundle:
 
 ```bash
 harness verifier bundle TASK-001 \
   --run-id <RUN_ID> \
-  --output ./verifier-bundle
+  --output ./bundle-TASK-001
 ```
 
-The Bundle contains the following information for the selected Run:
+The bundle contains validated historical S0/S1 Evidence. It does not rerun
+checks, execute a reviewer, collect current S2, create a Verdict, or complete
+the Task.
 
-- Task snapshot
-- List of changed files
-- `diff.patch`
-- Check results
-- stdout / stderr
-- Mechanical verification
-- Pre-check S0 and post-check S1 Source Snapshots for a v2 Run
-- Verifier instructions
-
-Creating a Bundle does not run a verifier or record a Verdict. It also does not
-collect the current completion-time S2 Snapshot, compare current source, rerun
-checks, or decide completion.
-
-### 2. Record a Manual Verdict
-
-Create `verdict.json`.
-
-```json
-{
-  "schema_version": 1,
-  "task_id": "TASK-001",
-  "run_id": "8d7ea7f77bc7430f9b2f7b97b31ecfa2",
-  "verifier": {
-    "kind": "manual",
-    "runner": "human",
-    "model": null,
-    "fresh_context": true
-  },
-  "verdict": "pass",
-  "summary": "I reviewed the Evidence and found no blockers that would prevent completion.",
-  "findings": [],
-  "reviewed_at": "2026-07-16T00:00:00Z"
-}
-```
-
-Record the Verdict for the Run.
+Record and show a separately prepared Manual Verdict:
 
 ```bash
 harness verifier record TASK-001 \
   --run-id <RUN_ID> \
   --file verdict.json
-```
 
-Inspect the recorded Verdict.
-
-```bash
 harness verifier show TASK-001 --run-id <RUN_ID>
 ```
 
-The only currently supported verifier kind is `manual`. Harness does not automatically call a model or external service.
+Evaluate completion:
 
----
+```bash
+harness complete TASK-001 --run-id <RUN_ID>
+```
 
-## 📁 Generated files
+Completion validates stored Evidence and any recorded Verdict, collects current
+S2, requires S0 = S1 = S2, and then applies verifier, Scope, timeout, and
+required-check gates.
 
-The tree below shows a current source-bound verification v2 Run. Legacy v1 Runs
-do not have the two Source Snapshot files.
+## Evidence v2
 
 ```text
 .harness/
 ├── checks.json
 ├── tasks/
-│   └── <TASK_ID>.json
+│   └── TASK-001.json
 └── evidence/
-    └── <TASK_ID>/
+    └── TASK-001/
         └── <RUN_ID>/
             ├── task.json
             ├── changed-files.json
@@ -402,164 +204,64 @@ do not have the two Source Snapshot files.
             ├── source-after-checks.json
             ├── verification.json
             ├── run-manifest.json
-            ├── verdict.raw.json
-            ├── verdict.json
-            └── completion.json
+            ├── verdict.raw.json   # optional
+            ├── verdict.json       # optional
+            └── completion.json    # successful complete only
 ```
 
-| File | Created by |
-| --- | --- |
-| `task.json` through the two Source Snapshot documents and `verification.json`, plus check logs | `harness verify` |
-| `run-manifest.json` | The final step of `harness verify`, after storing the mechanical Evidence |
-| `verdict.raw.json` | `harness verifier record` |
-| `verdict.json` | `harness verifier record` |
-| `completion.json` | A successful `harness complete` |
+Only `verification.json` uses schema version 2. Task, changed-files, checks, Run
+Manifest, Source Snapshot, Bundle, Verdict, and Completion schemas retain their
+existing versions.
 
----
+Unsupported verification versions, missing files, tampering, or contradictory
+stored data are Evidence errors (exit 8). Exit 9 is reserved for a valid v2 Run
+whose source binding fails because S0 differs from S1 or S1 differs from S2.
 
-## 🧩 Core concepts
+## Trust and security boundaries
 
-### Task Spec
+- The Run Manifest detects missing or modified mechanical files by raw-byte
+  size and SHA-256. It is not a signature, remote attestation, or immutable
+  storage.
+- Bundle export replaces known spellings of the current repository root and
+  user home. Other POSIX, Windows, UNC, URL-like text and arbitrary check-output
+  bytes are preserved. This is not general path anonymization or secret
+  redaction.
+- Check logs may contain sensitive values. Inspect a bundle before sharing it.
+- Repository-local Codex credential policy is documented separately; it is not
+  a Harness Core feature.
+- Source binding is a bounded observation. Harness does not lock the filesystem
+  after S2 is collected.
 
-Defines the objective, allowed scope of changes, check commands, risk level, and whether a verifier is required.
-
-### Evidence Run
-
-A verification record created by one execution of `verify`. Every Verdict and every Completion is tied to an explicit Task/Run pair.
-
-### Mechanical Evidence
-
-The diff, changed files, check results, Source Snapshots, and scope and source
-stability decisions collected directly by Harness. It is separate from a
-Manual Verdict, which is a human semantic judgment.
-
-### Source Binding
-
-For a verification v2 Run, S0 identifies product source immediately before
-checks and S1 identifies it immediately after all checks. At completion, Harness
-collects current source as S2 and requires S0 = S1 = S2 before applying the
-verifier, scope, timeout, and required-check gates. S2 is a live comparison and
-is not stored as Evidence.
-
-Snapshot identity describes final product bytes, paths, normalized executable
-modes, and symlink targets relative to the saved Task baseline. Moving the same
-final source among unstaged, staged, and committed states does not change its
-identity. Gitignored untracked files and canonical Harness metadata are
-excluded; Task Scope does not limit Snapshot identity.
-
-### Run Evidence Manifest
-
-`run-manifest.json` records, in sorted order, the Task/run identity and the
-relative path, raw-byte size, and SHA-256 digest of each mechanical Evidence
-file and check log, including S0 and S1 for a v2 Run. `evidence_sha256` is a
-local consistency identifier for the canonical JSON file records, excluding
-the timestamp. Verdict and Completion files are created after verification and
-therefore are not covered by the manifest.
-
-### Manual Verdict
-
-Schema-valid JSON written by a human after reviewing the Bundle. The input is preserved as `verdict.raw.json`, and the snapshot that passes schema validation is stored as `verdict.json`.
-
-### Completion
-
-The final gate that determines whether stored Evidence, any recorded Verdict,
-and the current S2 source identity satisfy the completion conditions.
-`complete` does not rerun checks or recollect the Git diff.
-
-### Trust boundary of the manifest
-
-The manifest detects modified, missing, or replaced files at consumption time after verification, but it is not a signature, remote attestation, or immutable storage. It cannot prevent the same local user from recomputing and modifying both the Evidence and the entire manifest. `evidence_sha256` and the Bundle's `bundle_sha256` identify the original mechanical Evidence and portable bundle payload, respectively; neither is completion authority or an external trust anchor.
-
----
-
-## 🔐 Trust and security boundaries
-
-Harness currently provides:
-
-- Shell-free check execution
-- Explicit Task/Run identity
-- A verifier Bundle with limited scope
-- Revalidation of the raw Verdict and comparison with its validated snapshot
-- Basic consistency checks among stored Evidence
-- Source stability checks around verification and a current-source comparison at completion
-- Rejection of completion when conditions are unmet
-
-However, it does not guarantee:
-
-- That source remains unchanged after the bounded S2 observation or after `complete` returns
-- Protection against intentional manipulation of all Evidence by the same local user
-- Cryptographic signatures
-- Remote attestation
-- Immutable storage
-- Complete secret detection and redaction
-- Actual verifier independence or fresh context
-
-> ⚠️ Check stdout and stderr can contain sensitive information. Always inspect a Bundle before sharing it externally.
-
-Bundle export redacts only known spellings of the current repository root, the
-user home, and the selected Evidence directory. Other POSIX, Windows, UNC, URL,
-route, shell, application, and configuration path text remains unchanged, as
-do arbitrary check-output bytes. This is not general path anonymization,
-secret scanning, or DLP.
-
-See [Architecture](docs/architecture.md) for more details.
-
----
-
-## 🧪 Development and testing
-
-Check the contract mirrors:
+## Development verification
 
 ```bash
 python3 scripts/sync_contracts.py --check
+python3 -m unittest discover -s tests -v
+python3 -m build
+python3 -m twine check dist/*
+python3 scripts/smoke_installed_cli.py --help
+git diff --check
 ```
 
-Run the full test suite:
+CI also builds and installs a wheel in a clean environment to verify the CLI,
+public imports, and packaged contract resources.
 
-```bash
-PYTHONPATH=src python3 -m unittest discover -s tests -v
-```
-
-CI checks the following:
-
-- Editable installation with development dependencies
-- Consistency between the canonical contract and package resources
-- unittest
-- Git diff checks
-- CLI execution from a clean wheel installation
-- Access to the packaged Schema and verifier prompt
-
----
-
-## 📚 Documentation
+## Documentation
 
 - [Architecture](docs/architecture.md)
-- [Codex credential boundary](docs/credential-boundary.md)
+- [Adapter CLI contract](docs/adapter-contract.md)
 - [Exit codes](docs/exit-codes.md)
-- [v0.1.0 Release Scope](docs/release-scope-v0.1.0.md)
-- [Adapter CLI Contract](docs/adapter-contract.md)
+- [Credential boundary](docs/credential-boundary.md)
+- [v0.2 Evidence migration](docs/migration-v0.2.md)
+- [ADR 0000: Outcome Over Process (historical)](docs/adr/0000-outcome-over-process.md)
+- [ADR 0001: Canonical Verdict Contract](docs/adr/0001-canonical-verdict-contract.md)
+- [ADR 0002: Run Integrity and Completion Policy](docs/adr/0002-run-integrity-vs-completion-policy.md)
+- [ADR 0003: Run Evidence Manifest](docs/adr/0003-run-evidence-manifest.md)
+- [ADR 0004: Canonical Source Snapshot](docs/adr/0004-canonical-source-snapshot.md)
+- [ADR 0005: Verify/Complete Source Binding](docs/adr/0005-verify-complete-source-binding.md)
 - [v0.1.0 Release Notes](docs/releases/v0.1.0.md)
 - [v0.1.1 Release Notes](docs/releases/v0.1.1.md)
-- [Task Schema](schemas/task.schema.json)
-- [Verification Schema](schemas/verification.schema.json)
-- [Verdict Schema](schemas/verdict.schema.json)
-- [Verifier prompt](prompts/verifier.md)
-- [Canonical Verdict Contract ADR](docs/adr/0001-canonical-verdict-contract.md)
-- [Run Integrity ADR](docs/adr/0002-run-integrity-vs-completion-policy.md)
-- [Run Evidence Manifest ADR](docs/adr/0003-run-evidence-manifest.md)
-- [Canonical Source Snapshot ADR](docs/adr/0004-canonical-source-snapshot.md)
-- [Verify/Complete Source Binding ADR](docs/adr/0005-verify-complete-source-binding.md)
-
----
-
-## 🛣️ Roadmap
-
-After v0.2.0, use Harness for at least 10 real Tasks. Consider one follow-up
-feature only when the same problem has repeated at least three times. If no
-problem repeats, stop feature development and enter maintenance mode.
-
----
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE).

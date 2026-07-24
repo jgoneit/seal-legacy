@@ -8,20 +8,18 @@ from urllib.parse import unquote
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = REPOSITORY_ROOT / "docs"
+README = REPOSITORY_ROOT / "README.md"
+KOREAN_README = REPOSITORY_ROOT / "README.ko.md"
+SKILL = REPOSITORY_ROOT / "skills" / "harness" / "SKILL.md"
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 
 
-def _english_documents() -> tuple[Path, ...]:
-    docs = sorted(
-        path
-        for path in DOCS_ROOT.rglob("*.md")
-        if not path.name.endswith(".ko.md")
+def _public_documents() -> tuple[Path, ...]:
+    return (
+        README,
+        KOREAN_README,
+        *sorted(DOCS_ROOT.rglob("*.md")),
     )
-    return (REPOSITORY_ROOT / "README.md", *docs)
-
-
-def _korean_path(english_path: Path) -> Path:
-    return english_path.with_name(f"{english_path.stem}.ko.md")
 
 
 def _local_link_targets(document: Path) -> list[Path]:
@@ -33,59 +31,38 @@ def _local_link_targets(document: Path) -> list[Path]:
 
         target_without_title = raw_target.split(maxsplit=1)[0].strip("<>")
         path_text = unquote(target_without_title.split("#", 1)[0])
-        if not path_text:
-            continue
-
-        targets.append((document.parent / path_text).resolve())
+        if path_text:
+            targets.append((document.parent / path_text).resolve())
     return targets
 
 
 class PublicDocumentationTest(unittest.TestCase):
-    def setUp(self) -> None:
-        self.english_documents = _english_documents()
-        self.expected_korean_documents = {
-            _korean_path(document) for document in self.english_documents
-        }
-        self.all_public_documents = {
-            *self.english_documents,
-            *self.expected_korean_documents,
-        }
+    def test_readme_language_selectors_are_reciprocal(self) -> None:
+        english_lines = README.read_text(encoding="utf-8").splitlines()
+        korean_lines = KOREAN_README.read_text(encoding="utf-8").splitlines()
 
-    def test_every_public_document_has_exactly_one_language_pair(self) -> None:
-        actual_korean_documents = {
-            REPOSITORY_ROOT / "README.ko.md",
-            *DOCS_ROOT.rglob("*.ko.md"),
-        }
+        self.assertEqual(english_lines[:3], [
+            "# Harness",
+            "",
+            "Language: English | [한국어](README.ko.md)",
+        ])
+        self.assertEqual(korean_lines[:3], [
+            "# Harness",
+            "",
+            "Language: [English](README.md) | 한국어",
+        ])
 
-        self.assertEqual(actual_korean_documents, self.expected_korean_documents)
-        for document in self.all_public_documents:
+    def test_technical_docs_are_canonical_english(self) -> None:
+        self.assertEqual(list(DOCS_ROOT.rglob("*.ko.md")), [])
+        for document in DOCS_ROOT.rglob("*.md"):
             with self.subTest(document=document.relative_to(REPOSITORY_ROOT)):
-                self.assertTrue(document.is_file())
+                self.assertNotIn(
+                    "Language:",
+                    document.read_text(encoding="utf-8"),
+                )
 
-    def test_language_selectors_are_reciprocal_and_below_the_title(self) -> None:
-        for english_document in self.english_documents:
-            korean_document = _korean_path(english_document)
-            english_lines = english_document.read_text(encoding="utf-8").splitlines()
-            korean_lines = korean_document.read_text(encoding="utf-8").splitlines()
-            english_selector = (
-                f"Language: English | [한국어]({korean_document.name})"
-            )
-            korean_selector = (
-                f"Language: [English]({english_document.name}) | 한국어"
-            )
-
-            with self.subTest(document=english_document.relative_to(REPOSITORY_ROOT)):
-                self.assertTrue(english_lines[0].startswith("# "))
-                self.assertEqual(english_lines[1], "")
-                self.assertEqual(english_lines[2], english_selector)
-
-            with self.subTest(document=korean_document.relative_to(REPOSITORY_ROOT)):
-                self.assertTrue(korean_lines[0].startswith("# "))
-                self.assertEqual(korean_lines[1], "")
-                self.assertEqual(korean_lines[2], korean_selector)
-
-    def test_all_local_markdown_links_resolve_to_existing_files(self) -> None:
-        for document in self.all_public_documents:
+    def test_all_local_markdown_links_resolve(self) -> None:
+        for document in _public_documents():
             for target in _local_link_targets(document):
                 with self.subTest(
                     document=document.relative_to(REPOSITORY_ROOT),
@@ -94,31 +71,42 @@ class PublicDocumentationTest(unittest.TestCase):
                     self.assertTrue(target.is_relative_to(REPOSITORY_ROOT))
                     self.assertTrue(target.exists())
 
-    def test_cross_document_links_stay_in_the_source_language(self) -> None:
-        english_set = set(self.english_documents)
-        korean_set = self.expected_korean_documents
+    def test_historical_release_notes_remain_available_in_english(self) -> None:
+        self.assertTrue((DOCS_ROOT / "releases" / "v0.1.0.md").is_file())
+        self.assertTrue((DOCS_ROOT / "releases" / "v0.1.1.md").is_file())
 
-        for english_document in self.english_documents:
-            allowed_selector_target = _korean_path(english_document)
-            for target in _local_link_targets(english_document):
-                if target not in korean_set or target == allowed_selector_target:
-                    continue
-                self.fail(
-                    f"{english_document.relative_to(REPOSITORY_ROOT)} links to "
-                    f"Korean document {target.relative_to(REPOSITORY_ROOT)}"
-                )
+    def test_current_contract_docs_do_not_claim_v1_compatibility(self) -> None:
+        current_documents = (
+            README,
+            KOREAN_README,
+            DOCS_ROOT / "architecture.md",
+            DOCS_ROOT / "adapter-contract.md",
+            DOCS_ROOT / "exit-codes.md",
+        )
+        forbidden = (
+            "Legacy verification v1",
+            "legacy v1",
+            "v1 Run remains",
+            "v0.1.1 fallback",
+            "legacy behavior profile",
+        )
+        for document in current_documents:
+            contents = document.read_text(encoding="utf-8")
+            for phrase in forbidden:
+                with self.subTest(
+                    document=document.relative_to(REPOSITORY_ROOT),
+                    phrase=phrase,
+                ):
+                    self.assertNotIn(phrase, contents)
 
-        for korean_document in korean_set:
-            english_document = korean_document.with_name(
-                korean_document.name.removesuffix(".ko.md") + ".md"
-            )
-            for target in _local_link_targets(korean_document):
-                if target not in english_set or target == english_document:
-                    continue
-                self.fail(
-                    f"{korean_document.relative_to(REPOSITORY_ROOT)} links to "
-                    f"English document {target.relative_to(REPOSITORY_ROOT)}"
-                )
+    def test_skill_supports_only_the_v0_2_development_profile(self) -> None:
+        contents = SKILL.read_text(encoding="utf-8")
+
+        self.assertIn("`>=0.2.0.dev0,<0.3.0`", contents)
+        self.assertNotIn(">=0.1.0", contents)
+        self.assertNotIn("v0.1.1", contents)
+        self.assertNotIn("git+https://", contents)
+        self.assertNotRegex(contents, r"(?m)^\s*(?:from|import)\s+harness")
 
 
 if __name__ == "__main__":

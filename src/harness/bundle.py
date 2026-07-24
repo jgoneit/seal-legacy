@@ -193,8 +193,8 @@ def _bundle_payloads(
     diff_patch: bytes,
     log_paths: tuple[PurePosixPath, ...],
     evidence_path: Path,
-    source_before_checks: SourceSnapshot | None,
-    source_after_checks: SourceSnapshot | None,
+    source_before_checks: SourceSnapshot,
+    source_after_checks: SourceSnapshot,
     prompt: str,
 ) -> dict[str, bytes]:
     replacements = _path_replacements(repository)
@@ -210,13 +210,12 @@ def _bundle_payloads(
         "diff.patch": _sanitize_bytes(diff_patch, replacements),
         "verifier.md": prompt.encode("utf-8"),
     }
-    if source_before_checks is not None and source_after_checks is not None:
-        payloads[SOURCE_BEFORE_CHECKS_FILENAME] = _pretty_json_bytes(
-            source_before_checks.to_document()
-        )
-        payloads[SOURCE_AFTER_CHECKS_FILENAME] = _pretty_json_bytes(
-            source_after_checks.to_document()
-        )
+    payloads[SOURCE_BEFORE_CHECKS_FILENAME] = _pretty_json_bytes(
+        source_before_checks.to_document()
+    )
+    payloads[SOURCE_AFTER_CHECKS_FILENAME] = _pretty_json_bytes(
+        source_after_checks.to_document()
+    )
     for relative_path in log_paths:
         payloads[relative_path.as_posix()] = _sanitize_bytes(
             _read_validated_log_bytes(evidence_path, relative_path),

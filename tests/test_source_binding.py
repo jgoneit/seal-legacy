@@ -10,7 +10,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
 import stat
 import subprocess
 import sys
@@ -34,9 +33,8 @@ from harness.evidence import (
     verify_task,
 )
 from harness.run_manifest import create_run_manifest
-from harness.run_validator import validate_run
+from harness.run_validator import RunValidationError, validate_run
 from harness.task import create_task
-from harness.verdict import record_verdict, show_verdict
 from tests._evidence_fixtures import rewrite_failed_check_as_timeout
 
 
@@ -49,7 +47,6 @@ SOURCE_BINDING_FIELDS = {
     "source_stable_during_checks",
 }
 SOURCE_MISMATCH_EXIT_CODE = 9
-LEGACY_FIXTURE = PROJECT_ROOT / "tests" / "fixtures" / "legacy-v1-base-ref"
 
 
 class SourceBindingIntegrationTests(unittest.TestCase):
@@ -296,7 +293,6 @@ class SourceBindingIntegrationTests(unittest.TestCase):
         )
 
         validated = validate_run(task_id, run.run_id, cwd=repository)
-        self.assertEqual(validated.evidence_version, 2)
         self.assertTrue(validated.source_stable_during_checks)
         self.assertEqual(
             validated.source_before_checks.to_document(),
@@ -677,7 +673,7 @@ class SourceBindingIntegrationTests(unittest.TestCase):
 
                 self.assertTrue(completion.completion_path.is_file())
 
-    def test_legacy_v1_run_validates_but_cannot_complete(self) -> None:
+    def test_v1_style_run_is_unsupported_for_all_consumers(self) -> None:
         repository = self._new_repository()
         task_id = self._create_task(repository)
         run = verify_task(task_id, cwd=repository)
@@ -712,115 +708,73 @@ class SourceBindingIntegrationTests(unittest.TestCase):
             ),
         )
 
-        validated = validate_run(task_id, run.run_id, cwd=repository)
-        self.assertEqual(validated.evidence_version, 1)
-        self.assertIsNone(validated.source_before_checks)
-        self.assertIsNone(validated.source_after_checks)
-        self.assertIsNone(validated.source_stable_during_checks)
+        with self.assertRaisesRegex(
+            RunValidationError,
+            "unsupported schema_version",
+        ):
+            validate_run(task_id, run.run_id, cwd=repository)
 
-        result = self._complete(repository, task_id, run.run_id)
-
-        self.assertEqual(
-            result.returncode,
-            SOURCE_MISMATCH_EXIT_CODE,
-            result.stderr,
-        )
-        self.assertFalse((run.evidence_path / "completion.json").exists())
-
-    def test_checked_in_legacy_base_ref_fixture_keeps_review_compatibility(self) -> None:
-        repository = self._new_repository()
-        task_id = "TASK-LEGACY-BASE-REF"
-        run_id = "legacy-base-ref-run"
-        task_path = repository / ".harness" / "tasks" / f"{task_id}.json"
-        task_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(LEGACY_FIXTURE / "task.json", task_path)
-        evidence_path = (
-            repository / ".harness" / "evidence" / task_id / run_id
-        )
-        shutil.copytree(LEGACY_FIXTURE, evidence_path)
-
-        validated = validate_run(task_id, run_id, cwd=repository)
-
-        self.assertEqual(validated.evidence_version, 1)
-        self.assertNotEqual(
-            validated.task["baseline"],
-            validated.verification["baseline"],
-        )
-        bundle = create_verification_bundle(
-            task_id,
-            run_id,
-            self.root / "legacy-bundle",
-            cwd=repository,
-        )
-        self.assertNotIn(
-            SOURCE_BEFORE_CHECKS,
-            {record["path"] for record in bundle.manifest["files"]},
-        )
-
-        verdict_source = self.root / "legacy-verdict.json"
+        verdict_source = self.root / "verdict.json"
         verdict_source.write_text(
             json.dumps(
                 {
                     "schema_version": 1,
                     "task_id": task_id,
-                    "run_id": run_id,
+                    "run_id": run.run_id,
                     "verifier": {
                         "kind": "manual",
-                        "runner": "fixture-reviewer",
+                        "runner": "test-reviewer",
                         "model": None,
                         "fresh_context": True,
                     },
                     "verdict": "pass",
-                    "summary": "Legacy fixture remains reviewable.",
+                    "summary": "Valid input that must not bypass Run validation.",
                     "findings": [],
                     "reviewed_at": "2026-07-23T00:00:00Z",
                 }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        commands = (
+            (
+                "verifier",
+                "bundle",
+                task_id,
+                "--run-id",
+                run.run_id,
+                "--output",
+                str(self.root / "unsupported-bundle"),
             ),
-            encoding="utf-8",
+            (
+                "verifier",
+                "record",
+                task_id,
+                "--run-id",
+                run.run_id,
+                "--file",
+                str(verdict_source),
+            ),
+            (
+                "verifier",
+                "show",
+                task_id,
+                "--run-id",
+                run.run_id,
+            ),
+            (
+                "complete",
+                task_id,
+                "--run-id",
+                run.run_id,
+            ),
         )
-        recorded = record_verdict(
-            task_id,
-            run_id,
-            verdict_source,
-            cwd=repository,
-        )
-        shown = show_verdict(task_id, run_id, cwd=repository)
-        self.assertEqual(shown.verdict, recorded.verdict)
-
-        completion = self._complete(repository, task_id, run_id)
-        self.assertEqual(
-            completion.returncode,
-            SOURCE_MISMATCH_EXIT_CODE,
-            completion.stderr,
-        )
-
-    def test_legacy_v1_verdict_integrity_precedes_exit_9(self) -> None:
-        repository = self._new_repository()
-        task_id = self._create_task(repository)
-        run = verify_task(task_id, cwd=repository)
-        verification_path = run.evidence_path / "verification.json"
-        verification = self._read_json(verification_path)
-        verification["schema_version"] = 1
-        for field in SOURCE_BINDING_FIELDS:
-            verification.pop(field)
-        verification["evidence_files"] = [
-            path
-            for path in verification["evidence_files"]
-            if path not in {SOURCE_BEFORE_CHECKS, SOURCE_AFTER_CHECKS}
-        ]
-        self._write_json(verification_path, verification)
-        (run.evidence_path / SOURCE_BEFORE_CHECKS).unlink()
-        (run.evidence_path / SOURCE_AFTER_CHECKS).unlink()
-        self._refresh_manifest(task_id, run.run_id, run.evidence_path)
-        (run.evidence_path / "verdict.raw.json").write_text(
-            "{}",
-            encoding="utf-8",
-        )
-
-        result = self._complete(repository, task_id, run.run_id)
-
-        self.assertEqual(result.returncode, 8, result.stderr)
-        self.assertFalse((run.evidence_path / "completion.json").exists())
+        for command in commands:
+            with self.subTest(command=command[:2]):
+                result = self._run_cli(repository, *command)
+                self.assertEqual(result.returncode, 8, result.stderr)
+                self.assertIn("unsupported schema_version", result.stderr)
+                self.assertEqual(result.stdout, "")
 
     def test_bundle_packages_recorded_snapshots_without_current_source_gate(self) -> None:
         repository = self._new_repository()

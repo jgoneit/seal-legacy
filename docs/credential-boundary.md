@@ -1,7 +1,5 @@
 # Codex credential boundary
 
-Language: English | [한국어](credential-boundary.ko.md)
-
 ## Purpose
 
 Harness does not control how a coding Agent works. When Codex's permission-profile

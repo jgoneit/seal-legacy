@@ -31,20 +31,16 @@ from .task import TASK_SCHEMA_VERSION
 
 
 RUN_DOCUMENT_SCHEMA_VERSION = 1
-LEGACY_RUN_EVIDENCE_VERSION = 1
 RUN_EVIDENCE_SCHEMA_VERSION = SOURCE_BOUND_EVIDENCE_VERSION
-_REQUIRED_EVIDENCE_FILES_V1 = (
+_REQUIRED_EVIDENCE_FILES = (
     "task.json",
     "changed-files.json",
     "diff.patch",
     "checks.json",
     "verification.json",
-)
-_REQUIRED_EVIDENCE_FILES_V2 = (
-    *_REQUIRED_EVIDENCE_FILES_V1,
     *SOURCE_BINDING_EVIDENCE_FILES,
 )
-_VERIFICATION_FIELDS_V1 = frozenset(
+_VERIFICATION_FIELDS = frozenset(
     {
         "schema_version",
         "task_id",
@@ -59,10 +55,7 @@ _VERIFICATION_FIELDS_V1 = frozenset(
         "timestamp",
         "duration",
     }
-)
-_VERIFICATION_FIELDS_V2 = (
-    _VERIFICATION_FIELDS_V1 | SOURCE_BINDING_VERIFICATION_FIELDS
-)
+) | SOURCE_BINDING_VERIFICATION_FIELDS
 _CHANGED_FILES_FIELDS = frozenset({"schema_version", "baseline", "scope", "changes"})
 _CHECKS_FIELDS = frozenset({"schema_version", "checks"})
 _CHECK_RECORD_FIELDS = frozenset(
@@ -122,10 +115,9 @@ class ValidatedRunDocuments:
     required_check_records: tuple[dict[str, Any], ...]
     log_paths: tuple[PurePosixPath, ...]
     expected_evidence_files: tuple[PurePosixPath, ...]
-    evidence_version: int
-    source_before_checks: SourceSnapshot | None
-    source_after_checks: SourceSnapshot | None
-    source_stable_during_checks: bool | None
+    source_before_checks: SourceSnapshot
+    source_after_checks: SourceSnapshot
+    source_stable_during_checks: bool
     scope_pass: bool
     required_checks_pass: bool
     mechanical_result: str
@@ -154,7 +146,7 @@ def validate_run_documents(
             f"task.json does not match saved Task snapshot '{task_id}'."
         )
 
-    evidence_version = _validate_verification_document(verification)
+    _validate_verification_document(verification)
     if verification["task_id"] != task_id:
         raise RunDocumentIdentityError(
             "verification.json task_id does not match the requested Task id."
@@ -164,42 +156,32 @@ def validate_run_documents(
             "verification.json run_id does not match the requested run id."
         )
 
-    required_evidence_files = _required_evidence_files(evidence_version)
     evidence_files = _validate_listed_evidence_files(
         evidence_path,
         verification,
-        required_evidence_files,
+        _REQUIRED_EVIDENCE_FILES,
     )
     check_records, required_records, log_paths = _validate_check_records(
         task,
         checks,
         evidence_files,
         evidence_path,
-        required_evidence_files,
+        _REQUIRED_EVIDENCE_FILES,
     )
     computed_scope_pass = _validate_changed_files(
         task,
         changed_files,
         verification,
     )
-    source_before_checks: SourceSnapshot | None = None
-    source_after_checks: SourceSnapshot | None = None
-    source_stable_during_checks: bool | None = None
-    if evidence_version == SOURCE_BOUND_EVIDENCE_VERSION:
-        try:
-            stored_binding = load_and_validate_stored_source_binding(
-                evidence_path,
-                task=task,
-                changed_files=changed_files,
-                verification=verification,
-            )
-        except SourceBindingDocumentError as error:
-            raise RunDocumentEvidenceError(str(error)) from error
-        source_before_checks = stored_binding.source_before_checks
-        source_after_checks = stored_binding.source_after_checks
-        source_stable_during_checks = (
-            stored_binding.source_stable_during_checks
+    try:
+        stored_binding = load_and_validate_stored_source_binding(
+            evidence_path,
+            task=task,
+            changed_files=changed_files,
+            verification=verification,
         )
+    except SourceBindingDocumentError as error:
+        raise RunDocumentEvidenceError(str(error)) from error
 
     computed_required_checks_pass = all(
         record["passed"] for record in required_records
@@ -208,10 +190,7 @@ def validate_run_documents(
         "pass"
         if computed_scope_pass
         and computed_required_checks_pass
-        and (
-            evidence_version == LEGACY_RUN_EVIDENCE_VERSION
-            or source_stable_during_checks is True
-        )
+        and stored_binding.source_stable_during_checks
         else "fail"
     )
     if verification["required_checks_pass"] != computed_required_checks_pass:
@@ -225,7 +204,7 @@ def validate_run_documents(
 
     expected_evidence_files = _expected_mechanical_evidence_files(
         log_paths,
-        required_evidence_files,
+        _REQUIRED_EVIDENCE_FILES,
     )
     _validate_exact_evidence_file_list(evidence_files, expected_evidence_files)
     return ValidatedRunDocuments(
@@ -237,10 +216,9 @@ def validate_run_documents(
         required_check_records=tuple(required_records),
         log_paths=log_paths,
         expected_evidence_files=expected_evidence_files,
-        evidence_version=evidence_version,
-        source_before_checks=source_before_checks,
-        source_after_checks=source_after_checks,
-        source_stable_during_checks=source_stable_during_checks,
+        source_before_checks=stored_binding.source_before_checks,
+        source_after_checks=stored_binding.source_after_checks,
+        source_stable_during_checks=stored_binding.source_stable_during_checks,
         scope_pass=computed_scope_pass,
         required_checks_pass=computed_required_checks_pass,
         mechanical_result=computed_mechanical_result,
@@ -388,21 +366,16 @@ def _task_checks(
 
 def _validate_verification_document(
     verification: Mapping[str, Any],
-) -> int:
-    evidence_version = verification.get("schema_version")
-    if type(evidence_version) is not int or evidence_version not in {
-        LEGACY_RUN_EVIDENCE_VERSION,
-        SOURCE_BOUND_EVIDENCE_VERSION,
-    }:
+) -> None:
+    schema_version = verification.get("schema_version")
+    if (
+        type(schema_version) is not int
+        or schema_version != RUN_EVIDENCE_SCHEMA_VERSION
+    ):
         raise RunDocumentEvidenceError(
             "verification.json has an unsupported schema_version."
         )
-    expected_fields = (
-        _VERIFICATION_FIELDS_V1
-        if evidence_version == LEGACY_RUN_EVIDENCE_VERSION
-        else _VERIFICATION_FIELDS_V2
-    )
-    _require_exact_keys(verification, expected_fields, "verification.json")
+    _require_exact_keys(verification, _VERIFICATION_FIELDS, "verification.json")
     _require_nonempty_string(
         verification.get("task_id"), "verification.json task_id"
     )
@@ -446,15 +419,6 @@ def _validate_verification_document(
         raise RunDocumentEvidenceError(
             "verification.json duration must be a non-negative number."
         )
-    return evidence_version
-
-
-def _required_evidence_files(evidence_version: int) -> tuple[str, ...]:
-    if evidence_version == LEGACY_RUN_EVIDENCE_VERSION:
-        return _REQUIRED_EVIDENCE_FILES_V1
-    return _REQUIRED_EVIDENCE_FILES_V2
-
-
 def _validate_listed_evidence_files(
     evidence_path: Path,
     verification: Mapping[str, Any],
