@@ -53,6 +53,7 @@ from .gitdiff import (
     FileChange,
     GitDiffError,
     GitDiffTaskError,
+    _git_command,
     collect_changes,
     find_repository_root,
     is_harness_metadata_path,
@@ -242,15 +243,13 @@ def _write_diff_patch(
     changes: ChangeCollection,
 ) -> None:
     """Write committed, staged, unstaged, and untracked patches in order."""
-    prefix = [
-        "git",
-        "-C",
-        str(repository),
+    prefix = _git_command(
+        repository,
         "diff",
         "--binary",
         "--no-ext-diff",
         "--no-textconv",
-    ]
+    )
     pathspecs = ["--", ".", *_metadata_exclude_pathspecs()]
     commands: list[tuple[list[str], set[int]]] = [
         ([*prefix, changes.baseline, "HEAD", *pathspecs], {0}),
