@@ -21,7 +21,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from ._path_policy import is_harness_metadata_path
+from ._path_policy import (
+    git_path_sort_key as _path_sort_key,
+    is_harness_metadata_path,
+)
 from .gitdiff import (
     GitDiffError,
     _FinalTreeCandidate,
@@ -956,7 +959,3 @@ def _canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
         separators=(",", ":"),
         sort_keys=True,
     ).encode("ascii")
-
-
-def _path_sort_key(path: str) -> bytes:
-    return path.encode("utf-8", "surrogateescape")

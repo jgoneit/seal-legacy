@@ -14,6 +14,7 @@ from pathlib import Path
 from ._path_policy import (
     HARNESS_METADATA_DIRECTORIES,
     HARNESS_METADATA_FILES,
+    git_path_sort_key as _path_sort_key,
     is_harness_metadata_path as _is_harness_metadata_path,
     path_is_within as _path_is_within,
 )
@@ -712,10 +713,6 @@ def _mode_or_none(value: bytes) -> str | None:
 def _oid_or_none(value: bytes) -> str | None:
     oid = _decode_ascii(value, "Git object id")
     return None if oid and set(oid) == {"0"} else oid
-
-
-def _path_sort_key(path: str) -> bytes:
-    return path.encode("utf-8", "surrogateescape")
 
 
 def _git_output(repository: Path, *arguments: str) -> bytes:
