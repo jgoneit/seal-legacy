@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -602,6 +603,37 @@ class SourceBindingIntegrationTests(unittest.TestCase):
 
         restored = complete_task(task_id, run.run_id, cwd=repository)
         self.assertTrue(restored.completion_path.is_file())
+
+    @unittest.skipUnless(os.name == "posix", "executable mode requires POSIX")
+    def test_owner_execute_removal_returns_source_mismatch(self) -> None:
+        repository = self._new_repository()
+        path = repository / "src/mode.txt"
+        path.chmod(stat.S_IMODE(path.stat().st_mode) | 0o111)
+        if not path.stat().st_mode & stat.S_IXUSR:
+            self.skipTest("filesystem does not preserve executable mode")
+        self._git(
+            repository,
+            "update-index",
+            "--chmod=+x",
+            "--",
+            "src/mode.txt",
+        )
+        self._commit(repository, "executable baseline")
+        task_id = self._create_task(repository)
+        run = verify_task(task_id, cwd=repository)
+
+        path.chmod(
+            (stat.S_IMODE(path.stat().st_mode) | stat.S_IXGRP | stat.S_IXOTH)
+            & ~stat.S_IXUSR
+        )
+        current_mode = path.stat().st_mode
+        self.assertFalse(current_mode & stat.S_IXUSR)
+        self.assertTrue(current_mode & stat.S_IXGRP)
+        self.assertTrue(current_mode & stat.S_IXOTH)
+        result = self._complete(repository, task_id, run.run_id)
+
+        self.assertEqual(result.returncode, SOURCE_MISMATCH_EXIT_CODE, result.stderr)
+        self.assertFalse((run.evidence_path / "completion.json").exists())
 
     def test_exit_9_preserves_an_existing_successful_completion_record(self) -> None:
         repository = self._new_repository()

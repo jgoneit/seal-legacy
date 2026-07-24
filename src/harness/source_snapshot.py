@@ -733,7 +733,7 @@ def _regular_mode(
     candidate: _FinalTreeCandidate,
 ) -> str:
     if os.name != "nt":
-        return "100755" if source_stat.st_mode & 0o111 else "100644"
+        return "100755" if source_stat.st_mode & stat.S_IXUSR else "100644"
     if (
         candidate.current_mode == "120000"
         or (

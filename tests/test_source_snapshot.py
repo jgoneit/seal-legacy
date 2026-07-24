@@ -384,6 +384,55 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
         self.assertEqual(entry.mode, "100755")
 
     @unittest.skipUnless(os.name == "posix", "executable mode requires POSIX")
+    def test_group_and_other_execute_bits_do_not_change_source_identity(self) -> None:
+        if self._git("config", "--bool", "core.filemode") == "false":
+            self.skipTest("Git is configured to ignore executable mode")
+        clean = self._snapshot()
+        path = self.repository / "src" / "script.sh"
+        original_mode = stat.S_IMODE(path.stat().st_mode)
+
+        for execute_bit in (stat.S_IXGRP, stat.S_IXOTH):
+            with self.subTest(execute_bit=execute_bit):
+                path.chmod((original_mode & ~0o111) | execute_bit)
+                try:
+                    if not path.stat().st_mode & execute_bit:
+                        self.skipTest("filesystem does not preserve executable mode")
+                    self.assertEqual(
+                        self._git_bytes(
+                            "diff",
+                            "--raw",
+                            "-z",
+                            self.baseline,
+                            "--",
+                            "src/script.sh",
+                        ),
+                        b"",
+                    )
+                    self.assertEqual(self._snapshot(), clean)
+                finally:
+                    path.chmod(original_mode)
+
+    @unittest.skipUnless(os.name == "posix", "executable mode requires POSIX")
+    def test_clearing_owner_execute_bit_records_nonexecutable_mode(self) -> None:
+        if self._git("config", "--bool", "core.filemode") == "false":
+            self.skipTest("Git is configured to ignore executable mode")
+        path = self.repository / "src" / "script.sh"
+        path.chmod(stat.S_IMODE(path.stat().st_mode) | 0o111)
+        if not path.stat().st_mode & stat.S_IXUSR:
+            self.skipTest("filesystem does not preserve executable mode")
+        self._git("add", "src/script.sh")
+        self._commit("executable baseline")
+        self.baseline = self._git("rev-parse", "HEAD")
+
+        path.chmod(
+            (stat.S_IMODE(path.stat().st_mode) | stat.S_IXGRP | stat.S_IXOTH)
+            & ~stat.S_IXUSR
+        )
+        entry = self._entries(self._snapshot())["src/script.sh"]
+
+        self.assertEqual(entry.mode, "100644")
+
+    @unittest.skipUnless(os.name == "posix", "executable mode requires POSIX")
     def test_core_filemode_false_does_not_hide_executable_mode(self) -> None:
         path = self.repository / "src" / "script.sh"
         path.chmod(path.stat().st_mode & ~0o111)
