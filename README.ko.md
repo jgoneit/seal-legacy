@@ -4,7 +4,9 @@ Language: [English](README.md) | 한국어
 
 > **Agent의 작업 방식을 통제하지 않고, 완료 주장에 근거가 있는지를 검증합니다.**
 
-Harness는 코딩 Agent가 만든 변경 사항, 테스트 결과, diff, 검토 Verdict를 하나의 Evidence Run으로 묶는 실험적 로컬 CLI입니다.
+Harness는 Task 범위, check 결과, 검증 시점의 source identity와 선택적인 review
+결과를 기록하고, 현재 결과가 완료라고 주장할 수 있는지 판정하는 실험적 로컬
+CLI입니다.
 
 Agent가 “완료했습니다”라고 말하는 것과, 실제로 **검토 가능한 근거를 남긴 것**은 다릅니다. Harness는 그 간극을 줄이는 데 집중합니다.
 
@@ -42,28 +44,26 @@ Harness는 Agent의 reasoning이나 tool 사용을 막지 않습니다.
 ## 🔄 동작 방식
 
 ```text
-Task Spec
+task create
    ↓
-코드 변경
+Agent 작업
    ↓
-harness verify
+verify
    ↓
 Evidence Run
    ↓
-Verifier Bundle
-   ↓
-Manual Verdict
-   ↓
-harness complete
+complete
 ```
 
 | 단계 | 역할 |
 | --- | --- |
 | **Task Spec** | 작업 목적, 수정 범위, 검사 항목 정의 |
-| **Verify** | diff와 check 결과를 Evidence로 저장 |
-| **Verifier Bundle** | 특정 Run만 독립적으로 검토할 수 있게 패키징 |
-| **Manual Verdict** | 사람이 Evidence를 검토한 결과 기록 |
-| **Complete** | 저장된 Evidence가 완료 조건을 충족하는지 판정 |
+| **Verify** | diff, check 결과, 검증 시점의 source identity를 Evidence로 저장 |
+| **Complete** | 저장 Evidence와 현재 source가 완료 주장을 뒷받침하는지 판정 |
+
+Verifier Bundle export와 사용자가 제공하는 Manual Verdict는 별도의
+[Reviewed Flow](#-reviewed-flow)에 속하며 기본 mechanical flow에는 필요하지
+않습니다.
 
 ---
 
@@ -88,10 +88,10 @@ harness complete
 
 | 구분 | 내용 |
 | --- | --- |
-| **의도적 비목표** | Agent reasoning 통제, runtime hook, process state machine, worktree orchestration |
-| **알려진 한계** | Source Binding은 filesystem lock이 아닌 bounded local observation이며, signature, remote attestation, immutable ledger, Task revision, CI pull-request base/head model은 없음 |
-| **외부 연동** | Grok, xAI, OpenAI API 및 외부 verifier CLI 자동 호출 |
-| **Evidence 확장** | 멀티모달 파일, 완전한 secret redaction, automatic trust scoring |
+| **Process control** | Agent orchestration, runtime hook, process state machine, autonomy adjustment, worktree 제어 없음 |
+| **Trust boundary** | Local bounded observation만 제공하며 중앙 authority, cryptographic provenance, remote attestation, immutable audit ledger 없음 |
+| **Review boundary** | 사용자가 제공하는 manual review만 지원하며 외부 또는 cross-vendor 자동 검증 없음 |
+| **Security boundary** | Preventive sandbox, secret scanner, DLP, 완전한 secret redaction 없음 |
 
 ---
 
@@ -208,7 +208,7 @@ unit test로 계속 검증하므로, 이 skip은 macOS 지원 중단이나 기�
   ],
   "risk": "medium",
   "verifier": {
-    "required": true
+    "required": false
   }
 }
 ```
@@ -242,15 +242,77 @@ Run의 mechanical result는 fail입니다.
 }
 ```
 
-이후 명령에서는 출력된 `run_id`를 사용합니다.
+출력된 `run_id`로 completion을 판정합니다.
 
 > `verify`는 검증 결과를 **기록하는 명령**입니다. Required check가 실패하거나
-> timeout이 나거나 product source를 바꿔도 versioned Evidence 저장에 성공했다면
-> CLI exit code는 `0`일 수 있습니다. 실제 완료 가능 여부는 `complete`가
-> 판단합니다. S0 또는 S1을 수집하지 못하면 valid manifest나 성공 결과를 만들지
-> 않습니다.
+> timeout이 나거나 Scope violation이 발견되거나 check가 product source를
+> 바꿔도 versioned Evidence Run 저장에 성공했다면 CLI exit code는 `0`일 수
+> 있습니다. 실제 완료 가능 여부는 `complete`가 판단합니다. S0 또는 S1을
+> 수집하지 못하면 valid manifest나 성공 결과를 만들지 않습니다.
 
-### 4. Verifier Bundle 생성
+### 4. 완료 판정
+
+```bash
+harness complete TASK-001 --run-id <RUN_ID>
+```
+
+Completion이 성공하려면 다음 조건을 모두 만족해야 합니다.
+
+- Task와 Run identity가 일치함
+- 필요한 Evidence 파일이 존재함
+- 저장된 결과 사이에 모순이 없음
+- Run이 source-bound verification Evidence v2를 사용함
+- Pre-check S0과 post-check S1 Snapshot이 일치함
+- Current completion-time S2 Snapshot이 S1과 일치함
+- scope 위반이 없음
+- 모든 required check가 성공함
+- timeout이 없음
+- mechanical result가 `pass`
+- Required인 verifier의 Verdict가 `pass`
+- blocker finding이 없음
+
+Verifier가 optional인 Task는 Verdict 없이 completion할 수 있습니다. 단, 이미
+기록된 Verdict가 `fail`, `unable`이거나 blocker를 포함한다면 이를 무시하고
+완료할 수 없습니다. Current source가 S1로 검증된 source와 다르면 `complete`는
+exit 9로 실패합니다.
+
+Legacy verification v1 Run은 계속 읽고 bundle로 만들고 Verdict record/show에
+사용할 수 있지만 current-main completion은 exit 9로 거부합니다. 새 v2
+verification Run이 필요하며 historical Evidence를 in-place upgrade하지 않습니다.
+
+`verification.json`만 schema version 2로 올라갑니다. Task, changed-files,
+checks, Run manifest, bundle, Verdict, Completion document schema는 version 1을
+유지하며 두 Source Snapshot document도 별도 Snapshot contract의 version 1을
+사용합니다.
+
+---
+
+## 🔎 Reviewed Flow
+
+Medium/high risk 작업, 인증·권한 변경, DB migration, API behavior 변경, 대규모
+refactor, mechanical check만으로 의미를 판정하기 어려운 작업에는 독립 review를
+권장합니다.
+
+```text
+task create
+   ↓
+Agent 작업
+   ↓
+verify
+   ↓
+verifier bundle
+   ↓
+fresh-context 또는 human review
+   ↓
+verifier record
+   ↓
+complete
+```
+
+Harness는 Manual Verdict를 생성하지 않습니다. 사람 또는 fresh-context reviewer가
+export된 Bundle을 검토하고 Verdict JSON을 제공합니다.
+
+### 1. Verifier Bundle export
 
 ```bash
 harness verifier bundle TASK-001 \
@@ -273,7 +335,7 @@ Bundle 생성만으로 verifier가 실행되거나 Verdict가 기록되지는 �
 current completion-time S2 Snapshot을 수집하거나 current source를 비교하거나
 check를 재실행하거나 completion을 판정하지 않습니다.
 
-### 5. Manual Verdict 작성
+### 2. Manual Verdict 기록
 
 `verdict.json`을 작성합니다.
 
@@ -310,38 +372,6 @@ harness verifier show TASK-001 --run-id <RUN_ID>
 ```
 
 현재 지원하는 verifier kind는 `manual`뿐입니다. Harness가 모델이나 외부 서비스를 자동 호출하지는 않습니다.
-
-### 6. 완료 판정
-
-```bash
-harness complete TASK-001 --run-id <RUN_ID>
-```
-
-Completion이 성공하려면 다음 조건을 모두 만족해야 합니다.
-
-- Task와 Run identity가 일치함
-- 필요한 Evidence 파일이 존재함
-- 저장된 결과 사이에 모순이 없음
-- Run이 source-bound verification Evidence v2를 사용함
-- Pre-check S0과 post-check S1 Snapshot이 일치함
-- Current completion-time S2 Snapshot이 S1과 일치함
-- scope 위반이 없음
-- 모든 required check가 성공함
-- timeout이 없음
-- mechanical result가 `pass`
-- required verifier의 Verdict가 `pass`
-- blocker finding이 없음
-
-Verifier가 optional인 Task는 Verdict 없이 completion할 수 있습니다. 단, 이미 기록된 Verdict가 `fail`, `unable`이거나 blocker를 포함한다면 이를 무시하고 완료할 수 없습니다.
-
-Legacy verification v1 Run은 계속 읽고 bundle로 만들고 Verdict record/show에
-사용할 수 있지만 current-main completion은 exit 9로 거부합니다. 새 v2
-verification Run이 필요하며 historical Evidence를 in-place upgrade하지 않습니다.
-
-`verification.json`만 schema version 2로 올라갑니다. Task, changed-files,
-checks, Run manifest, bundle, Verdict, Completion document schema는 version 1을
-유지하며 두 Source Snapshot document도 별도 Snapshot contract의 version 1을
-사용합니다.
 
 ---
 
@@ -460,6 +490,11 @@ Harness는 현재 다음을 제공합니다.
 
 > ⚠️ Check의 stdout과 stderr에는 민감한 정보가 포함될 수 있습니다. Bundle은 외부 공유 전에 반드시 내용을 확인하세요.
 
+Bundle export는 현재 repository root, user home, 선택한 Evidence directory의
+알려진 spelling만 치환합니다. 그 밖의 POSIX, Windows, UNC, URL, route, shell,
+application, config path text와 임의의 check-output byte는 그대로 보존합니다.
+이는 일반적인 path 익명화, secret scanning, DLP가 아닙니다.
+
 자세한 구조는 [Architecture](docs/architecture.ko.md)를 참고하세요.
 
 ---
@@ -512,14 +547,9 @@ CI에서는 다음을 검사합니다.
 
 ## 🛣️ Roadmap
 
-Current main은 pre/post-check Snapshot binding을 완료하고 Run 단위
-`--base-ref` 우회를 제거했습니다. 이후 가능한 작업은 의도적으로 분리합니다.
-
-1. 저장 baseline을 의도적으로 바꾸는 Task revision policy
-2. CI 전용 pull-request base/head command와 contract
-3. Optional cryptographic 또는 remote trust anchor
-
-Roadmap은 구현 순서에 따라 변경될 수 있습니다.
+v0.2.0 이후 실제 Task를 최소 10건 사용합니다. 같은 문제가 최소 3회 반복될
+때만 하나의 후속 기능 후보를 검토합니다. 반복되는 문제가 없으면 기능 개발을
+중단하고 유지보수 모드로 전환합니다.
 
 ---
 

@@ -8,7 +8,11 @@ completion behavior.
 
 ## Responsibility boundaries
 
-Harness does not control the coding Agent's work process, tool calls, reasoning, or runtime state. Its responsibility is to preserve stored changes, check results, and Manual Verdicts for a specific Task as readable Evidence, and to evaluate saved Run integrity separately from completion policy.
+Harness does not control the coding Agent's work process, tool calls, reasoning,
+or runtime state. Its responsibility is to record Task scope, check results,
+verification-time source identity, and optional user-provided review results,
+then evaluate whether the current result supports a completion claim. Saved Run
+integrity remains separate from completion policy.
 
 This boundary separates two things:
 
@@ -77,19 +81,28 @@ persisted verification records but is not a second live Snapshot API.
        ├── source-before-checks.json (S0)
        ├── source-after-checks.json (S1)
        ├── mechanical result
-       ├── verifier bundle
-       └── Manual Verdict record
-                │
-                │ validate stored Run + Verdict
-                ▼
-             complete: collect S2 → source gates → policy gates
+       │
+       ├───────────────────────────────┐
+       │ basic flow                    │ reviewed flow
+       ▼                               ▼
+    complete: S2                 verifier bundle
+       │                               │
+       │                         human/fresh-context review
+       │                               │
+       │                         Manual Verdict record
+       └───────────────┬───────────────┘
+                       ▼
+             source gates → policy gates
 
 `task create` saves a snapshot of the Task Spec and records the current Git HEAD
 as its full baseline commit. Current-main `verify` uses only that saved baseline;
 the Run-level `--base-ref` override and its Python API have been removed.
 Task-baseline revision and CI pull-request base/head selection are not implicit
-fallbacks. `bundle` exports only the limited persisted payload needed for review
-without rerunning the saved Run or collecting S2.
+fallbacks. In the basic flow, `complete` consumes the saved Run directly and an
+optional-verifier Task needs no Verdict. The reviewed flow explicitly exports a
+Bundle, obtains a human or fresh-context Verdict, records that user-provided
+JSON, and then calls `complete`. `bundle` does not rerun the saved Run or collect
+S2.
 
 `complete`, `bundle`, and `verifier record/show` first read the specified Task/run through `validate_run()`. This validator does not recalculate checks or the Git diff, and it does not select the latest Run implicitly.
 
@@ -223,8 +236,14 @@ still change after S2 is observed or after `complete` returns. The local
 manifest also cannot prevent the same local user from recalculating and
 rewriting all Evidence.
 
-Check output may contain sensitive values. Harness attempts to make absolute
-paths portable, but it does not provide complete secret redaction.
+Bundle export replaces only known spellings of the current repository root,
+the user home, and the selected Evidence directory. Structured JSON keys and
+values, `diff.patch`, stdout, and stderr share that one replacement set.
+Arbitrary bytes and other POSIX, Windows, UNC, URL, route, shell, application,
+and configuration path text are preserved. The staging directory used for the
+atomic Bundle write is not a payload field. This is not general path
+anonymization, secret scanning, or DLP, and check output may still contain
+sensitive values.
 
 ## Why external adapters are separated from core
 

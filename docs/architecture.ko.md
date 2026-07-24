@@ -7,7 +7,11 @@ published release이며 historical non-source-bound completion 동작을 유지�
 
 ## 책임 경계
 
-Harness는 coding Agent의 작업 과정, tool 호출, reasoning, runtime state를 제어하지 않는다. 이 도구의 책임은 특정 Task에 대해 저장된 변경·check 결과·Manual Verdict를 읽을 수 있는 Evidence로 남기고, 저장 Run의 integrity와 completion policy를 분리해 판정하는 데 있다.
+Harness는 coding Agent의 작업 과정, tool 호출, reasoning, runtime state를
+제어하지 않는다. 이 도구의 책임은 Task 범위, check 결과, 검증 시점의 source
+identity, 사용자가 선택적으로 제공한 review 결과를 기록하고 현재 결과가 완료
+주장을 뒷받침하는지 판정하는 데 있다. 저장 Run의 integrity와 completion policy는
+분리한다.
 
 이 경계는 두 가지를 분리한다.
 
@@ -71,19 +75,27 @@ verification record를 정의하지만 두 번째 live Snapshot API는 아니다
        ├── source-before-checks.json (S0)
        ├── source-after-checks.json (S1)
        ├── mechanical result
-       ├── verifier bundle
-       └── Manual Verdict record
-                │
-                │ stored Run + Verdict validate
-                ▼
-             complete: S2 수집 → source gate → policy gate
+       │
+       ├───────────────────────────────┐
+       │ 기본 흐름                     │ reviewed flow
+       ▼                               ▼
+    complete: S2                 verifier bundle
+       │                               │
+       │                         human/fresh-context review
+       │                               │
+       │                         Manual Verdict record
+       └───────────────┬───────────────┘
+                       ▼
+                source gate → policy gate
 
 `task create`는 Task Spec을 snapshot으로 저장하고 그 시점의 Git HEAD를 full
 baseline commit으로 남긴다. Current-main `verify`는 이 saved baseline만 사용하며
 Run 단위 `--base-ref` override와 그 Python API는 제거했다. Task-baseline
-revision과 CI pull-request base/head 선택은 implicit fallback이 아니다. `bundle`은
-저장된 Run을 다시 실행하거나 S2를 수집하지 않고 검토에 필요한 제한된 persisted
-payload만 export한다.
+revision과 CI pull-request base/head 선택은 implicit fallback이 아니다. 기본
+흐름에서는 `complete`가 저장 Run을 바로 소비하며 optional-verifier Task에는
+Verdict가 필요 없다. Reviewed flow는 Bundle을 명시적으로 export하고 사람 또는
+fresh-context Verdict를 받아 사용자가 제공한 JSON을 기록한 뒤 `complete`를
+호출한다. `bundle`은 저장 Run을 다시 실행하거나 S2를 수집하지 않는다.
 
 complete, bundle, verifier record/show는 먼저 특정 Task/run을 `validate_run()`으로 읽는다. 이 validator는 check나 Git diff를 다시 계산하지 않으며 latest-run 선택도 하지 않는다.
 
@@ -208,8 +220,13 @@ Collector는 ADR 0004가 설명한 supported race를 탐지하지만 S2 관찰 �
 `complete` 반환 뒤 source가 바뀌는 것을 막지 않는다. Local manifest도 동일한
 local user가 Evidence 전체를 다시 계산해 쓰는 공격을 막지 못한다.
 
-Check output에는 민감한 값이 있을 수 있다. Harness는 absolute path를 portable하게
-정리하려고 하지만 완전한 secret redaction을 제공하지 않는다.
+Bundle export는 현재 repository root, user home, 선택한 Evidence directory의
+알려진 spelling만 치환한다. Structured JSON key/value, `diff.patch`, stdout,
+stderr는 같은 replacement set을 공유한다. 임의의 byte와 그 밖의 POSIX,
+Windows, UNC, URL, route, shell, application, config path text는 보존한다.
+Atomic Bundle write에 쓰는 staging directory는 payload field가 아니다. 이는
+일반적인 path 익명화, secret scanning, DLP가 아니며 check output에는 여전히
+민감한 값이 포함될 수 있다.
 
 ## 외부 adapter를 core와 분리하는 이유
 

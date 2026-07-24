@@ -18,8 +18,17 @@
 - Task, Evidence, Verdict, bundle Schema의 공개 의미를 보존한다.
 - failed check, timeout, scope violation을 corrupt Evidence와 구분한다.
 - bundle은 저장 Run을 재실행하지 않는다.
-- current-source binding이 없는 동안 이를 제공한다고 주장하지 않는다.
 - runtime dependency는 명시적 설계 근거 없이 추가하지 않는다.
+
+## Scope freeze
+
+- v0.2.0 전에는 새 CLI command, Schema version, Evidence artifact를 추가하지 않는다.
+- 실제 반복 사례가 없는 기능은 구현하지 않는다.
+- legacy compatibility보다 현재 계약 단순성을 우선한다.
+- 지원 범위를 넓히기 전에 fail-closed 처리가 가능한지 검토한다.
+- 새 기능과 삭제 대안을 항상 함께 비교한다.
+- 전체 구조는 조사하되 dependency cone 밖을 자동으로 전면 리팩터링하지 않는다.
+- 기존 대형 모듈에 새 책임을 계속 누적하지 않는다.
 
 ## Change protocol
 
@@ -53,6 +62,6 @@
 - authority나 책임 경계가 바뀌면 architecture와 ADR을 함께 검토한다.
 - stable exit code와 adapter contract의 drift를 확인한다.
 - superseded 문서는 historical 상태를 명확히 유지한다.
-- 알려진 한계와 source-binding 부재를 숨기지 않는다.
+- 현재 구현의 알려진 한계와 bounded source-binding 경계를 숨기지 않는다.
 - public Markdown은 English와 Korean 쌍 및 reciprocal link를 유지한다.
 - 구현되지 않은 기능을 현재 계약으로 문서화하지 않는다.
