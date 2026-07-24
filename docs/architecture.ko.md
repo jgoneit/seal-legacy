@@ -22,7 +22,7 @@ Harness는 Manual Verdict를 생성하거나 verifier의 독립성을 보장하�
 | --- | --- |
 | harness.cli | CLI 인자를 명령별 함수로 연결하고 stable exit code를 반환 |
 | harness.task | Task Spec과 check catalog를 읽고 Task snapshot 및 baseline을 저장 |
-| harness._path_policy (내부) | producer와 validator 입력 정규화 방식을 합치지 않으면서 순수 component boundary와 Harness metadata path policy를 공유 |
+| harness._path_policy (내부) | producer와 validator 입력 정규화 방식을 합치지 않으면서 component boundary, Harness metadata, canonical Git-byte ordering policy를 공유 |
 | harness.gitdiff | baseline과 현재 working tree 사이의 product 변경 및 scope 정보를 수집 |
 | harness.source_snapshot | 유일한 live canonical product-source Snapshot을 수집하고 persisted Snapshot document를 parse·validate |
 | harness.checks | argv 배열로 check를 실행하고 stdout과 stderr를 Run 내부에 기록 |

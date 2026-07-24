@@ -23,7 +23,7 @@ Harness does not generate Manual Verdicts or guarantee verifier independence. Th
 | --- | --- |
 | harness.cli | Connect CLI arguments to command-specific functions and return stable exit codes |
 | harness.task | Read the Task Spec and check catalog, then save the Task snapshot and baseline |
-| harness._path_policy (internal) | Share the pure component-boundary and Harness-metadata path policy without normalizing producer and validator inputs the same way |
+| harness._path_policy (internal) | Share component-boundary, Harness-metadata, and canonical Git-byte ordering policy without normalizing producer and validator inputs the same way |
 | harness.gitdiff | Collect product changes and scope information between the baseline and current working tree |
 | harness.source_snapshot | Collect the sole live canonical product-source Snapshot and parse and validate persisted Snapshot documents |
 | harness.checks | Run checks as argv arrays and record stdout and stderr inside the Run |
