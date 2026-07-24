@@ -722,16 +722,21 @@ def _git_output(repository: Path, *arguments: str) -> bytes:
     return result.stdout
 
 
+def _git_command(repository: Path, *arguments: str) -> list[str]:
+    """Build a repository-local Git command with replacement refs disabled."""
+    return [
+        "git",
+        "--no-replace-objects",
+        "-C",
+        str(repository),
+        *arguments,
+    ]
+
+
 def _git_result(repository: Path, *arguments: str) -> subprocess.CompletedProcess[bytes]:
     try:
         return subprocess.run(
-            [
-                "git",
-                "--no-replace-objects",
-                "-C",
-                str(repository),
-                *arguments,
-            ],
+            _git_command(repository, *arguments),
             check=False,
             capture_output=True,
         )

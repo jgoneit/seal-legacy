@@ -30,6 +30,7 @@ from .gitdiff import (
     _FinalTreeCandidate,
     _FinalTreeContext,
     _collect_final_tree_candidates,
+    _git_command,
     _is_git_ignored,
     _resolve_final_tree_context,
 )
@@ -636,14 +637,7 @@ def _hash_git_blobs(
     try:
         with tempfile.TemporaryFile(mode="w+b") as stderr:
             process = subprocess.Popen(
-                [
-                    "git",
-                    "--no-replace-objects",
-                    "-C",
-                    str(repository),
-                    "cat-file",
-                    "--batch",
-                ],
+                _git_command(repository, "cat-file", "--batch"),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=stderr,
