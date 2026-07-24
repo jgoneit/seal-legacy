@@ -4,7 +4,9 @@ Language: English | [한국어](README.ko.md)
 
 > **Verify whether a completion claim is supported by evidence, without controlling how an Agent works.**
 
-Harness is an experimental local CLI that packages changes made by a coding Agent, test results, a diff, and a review Verdict into a single Evidence Run.
+Harness is an experimental local CLI that records Task scope, check results,
+source identity at verification time, and optional review results, then decides
+whether the current result can be claimed complete.
 
 There is a difference between an Agent saying “done” and leaving behind **evidence that can actually be reviewed**. Harness focuses on narrowing that gap.
 
@@ -42,28 +44,26 @@ Instead, after the work is done, it leaves behind material that can answer this 
 ## 🔄 How it works
 
 ```text
-Task Spec
+task create
    ↓
-Code changes
+Agent work
    ↓
-harness verify
+verify
    ↓
 Evidence Run
    ↓
-Verifier Bundle
-   ↓
-Manual Verdict
-   ↓
-harness complete
+complete
 ```
 
 | Stage | Role |
 | --- | --- |
 | **Task Spec** | Define the objective, allowed scope, and checks |
-| **Verify** | Store the diff and check results as Evidence |
-| **Verifier Bundle** | Package a specific Run for independent review |
-| **Manual Verdict** | Record the result of a human review of the Evidence |
-| **Complete** | Determine whether the stored Evidence satisfies the completion conditions |
+| **Verify** | Store the diff, check results, and verification-time source identity as Evidence |
+| **Complete** | Determine whether the stored Evidence and current source support a completion claim |
+
+Verifier Bundle export and a user-provided Manual Verdict belong to the
+separate [Reviewed Flow](#-reviewed-flow); they are not required in the basic
+mechanical flow.
 
 ---
 
@@ -88,10 +88,10 @@ harness complete
 
 | Category | Details |
 | --- | --- |
-| **Intentional non-goals** | Controlling Agent reasoning, runtime hooks, process state machines, and worktree orchestration |
-| **Known limitations** | Source Binding is a bounded local observation, not a filesystem lock; no signatures, remote attestation, immutable ledger, Task revision, or CI pull-request base/head model |
-| **External integrations** | Automatic invocation of Grok, xAI, the OpenAI API, or an external verifier CLI |
-| **Evidence extensions** | Multimodal files, complete secret redaction, and automatic trust scoring |
+| **Process control** | No Agent orchestration, runtime hooks, process state machines, autonomy adjustment, or worktree control |
+| **Trust boundary** | Local bounded observations only; no central authority, cryptographic provenance, remote attestation, or immutable audit ledger |
+| **Review boundary** | Manual user-provided review only; no automatic external or cross-vendor verification |
+| **Security boundary** | No preventive sandbox, secret scanner, DLP, or complete secret redaction |
 
 ---
 
@@ -209,7 +209,7 @@ Create `task.json`.
   ],
   "risk": "medium",
   "verifier": {
-    "required": true
+    "required": false
   }
 }
 ```
@@ -243,16 +243,79 @@ Example output:
 }
 ```
 
-Use the returned `run_id` in the commands that follow.
+Use the returned `run_id` to evaluate completion.
 
 > `verify` is a command that **records verification results**. Even when a
-> required check fails, times out, or changes product source, the CLI exit code
-> can be `0` if the versioned Evidence was stored successfully. `complete`
-> determines whether completion is actually allowed. If S0 or S1 cannot be
-> collected, verification does not produce a valid manifest or successful
-> result.
+> required check fails, times out, a Scope violation is found, or a check
+> changes product source, the CLI exit code can be `0` if the versioned
+> Evidence Run was stored successfully. `complete` determines whether
+> completion is actually allowed. If S0 or S1 cannot be collected,
+> verification does not produce a valid manifest or successful result.
 
-### 4. Create a Verifier Bundle
+### 4. Evaluate completion
+
+```bash
+harness complete TASK-001 --run-id <RUN_ID>
+```
+
+Completion succeeds only when all of the following conditions are met:
+
+- The Task and Run identities match
+- The required Evidence files exist
+- The stored results do not contradict one another
+- The Run uses source-bound verification Evidence v2
+- The pre-check S0 and post-check S1 Snapshots match
+- The current completion-time S2 Snapshot matches S1
+- There are no scope violations
+- All required checks passed
+- No timeout occurred
+- The mechanical result is `pass`
+- Any required verifier's Verdict is `pass`
+- There are no blocker findings
+
+A Task whose verifier is optional can complete without a Verdict. However, an
+already recorded Verdict cannot be ignored if it is `fail`, `unable`, or
+contains a blocker. If current source differs from the source verified as S1,
+`complete` fails with exit 9.
+
+Legacy verification v1 Runs remain readable, bundleable, and usable with
+Verdict record/show, but current-main completion rejects them with exit 9. A
+new v2 verification Run is required; Harness does not upgrade historical
+Evidence in place.
+
+Only `verification.json` advances to schema version 2. The Task,
+changed-files, checks, Run manifest, bundle, Verdict, and Completion document
+schemas remain version 1, as do the two Source Snapshot documents under their
+own Snapshot contract.
+
+---
+
+## 🔎 Reviewed Flow
+
+Use an independent review for medium- or high-risk work, authentication or
+authorization changes, database migrations, API behavior changes, large
+refactors, and work whose meaning cannot be judged by mechanical checks alone.
+
+```text
+task create
+   ↓
+Agent work
+   ↓
+verify
+   ↓
+verifier bundle
+   ↓
+fresh-context or human review
+   ↓
+verifier record
+   ↓
+complete
+```
+
+Harness does not generate a Manual Verdict. A person or fresh-context reviewer
+reviews the exported Bundle and supplies the Verdict JSON.
+
+### 1. Export a Verifier Bundle
 
 ```bash
 harness verifier bundle TASK-001 \
@@ -275,7 +338,7 @@ Creating a Bundle does not run a verifier or record a Verdict. It also does not
 collect the current completion-time S2 Snapshot, compare current source, rerun
 checks, or decide completion.
 
-### 5. Write a Manual Verdict
+### 2. Record a Manual Verdict
 
 Create `verdict.json`.
 
@@ -312,39 +375,6 @@ harness verifier show TASK-001 --run-id <RUN_ID>
 ```
 
 The only currently supported verifier kind is `manual`. Harness does not automatically call a model or external service.
-
-### 6. Evaluate completion
-
-```bash
-harness complete TASK-001 --run-id <RUN_ID>
-```
-
-Completion succeeds only when all of the following conditions are met:
-
-- The Task and Run identities match
-- The required Evidence files exist
-- The stored results do not contradict one another
-- The Run uses source-bound verification Evidence v2
-- The pre-check S0 and post-check S1 Snapshots match
-- The current completion-time S2 Snapshot matches S1
-- There are no scope violations
-- All required checks passed
-- No timeout occurred
-- The mechanical result is `pass`
-- The required verifier's Verdict is `pass`
-- There are no blocker findings
-
-A Task whose verifier is optional can complete without a Verdict. However, an already recorded Verdict cannot be ignored if it is `fail`, `unable`, or contains a blocker.
-
-Legacy verification v1 Runs remain readable, bundleable, and usable with
-Verdict record/show, but current-main completion rejects them with exit 9. A
-new v2 verification Run is required; Harness does not upgrade historical
-Evidence in place.
-
-Only `verification.json` advances to schema version 2. The Task,
-changed-files, checks, Run manifest, bundle, Verdict, and Completion document
-schemas remain version 1, as do the two Source Snapshot documents under their
-own Snapshot contract.
 
 ---
 
@@ -466,6 +496,12 @@ However, it does not guarantee:
 
 > ⚠️ Check stdout and stderr can contain sensitive information. Always inspect a Bundle before sharing it externally.
 
+Bundle export redacts only known spellings of the current repository root, the
+user home, and the selected Evidence directory. Other POSIX, Windows, UNC, URL,
+route, shell, application, and configuration path text remains unchanged, as
+do arbitrary check-output bytes. This is not general path anonymization,
+secret scanning, or DLP.
+
 See [Architecture](docs/architecture.md) for more details.
 
 ---
@@ -518,14 +554,9 @@ CI checks the following:
 
 ## 🛣️ Roadmap
 
-Current main has completed pre/post-check Snapshot binding and removed the
-Run-level `--base-ref` bypass. Potential later work is deliberately separate:
-
-1. A Task revision policy for intentionally changing a saved baseline
-2. A CI-specific pull-request base/head command and contract
-3. Optional cryptographic or remote trust anchors
-
-The Roadmap may change with the implementation sequence.
+After v0.2.0, use Harness for at least 10 real Tasks. Consider one follow-up
+feature only when the same problem has repeated at least three times. If no
+problem repeats, stop feature development and enter maintenance mode.
 
 ---
 
