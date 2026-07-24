@@ -119,6 +119,45 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
             cwd=self.repository,
         )
 
+    def _make_merge_conflicts(self, *relative_paths: str) -> None:
+        original_branch = self._git("branch", "--show-current")
+        self._git("switch", "-c", "conflicting")
+        for relative_path in relative_paths:
+            self._write(relative_path, f"other: {relative_path}\n")
+        self._git("add", "--", *relative_paths)
+        self._commit("conflicting branch")
+        self._git("switch", original_branch)
+        for relative_path in relative_paths:
+            self._write(relative_path, f"ours: {relative_path}\n")
+        self._git("add", "--", *relative_paths)
+        self._commit("current branch")
+        result = subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=Harness Test",
+                "-c",
+                "user.email=harness-test@example.invalid",
+                "merge",
+                "conflicting",
+            ],
+            cwd=self.repository,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        for relative_path in relative_paths:
+            self.assertTrue(
+                self._git_bytes(
+                    "ls-files",
+                    "--unmerged",
+                    "-z",
+                    "--",
+                    relative_path,
+                )
+            )
+
     @staticmethod
     def _entries(snapshot: SourceSnapshot) -> dict[str, SourceSnapshotEntry]:
         return {entry.path: entry for entry in snapshot.entries}
@@ -711,36 +750,46 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
             self._snapshot()
 
     def test_unmerged_worktree_fails_closed(self) -> None:
-        original_branch = self._git("branch", "--show-current")
-        self._git("switch", "-c", "other")
-        self._write("src/base.txt", "other\n")
-        self._git("add", "src/base.txt")
-        self._commit("other")
-        self._git("switch", original_branch)
-        self._write("src/base.txt", "ours\n")
-        self._git("add", "src/base.txt")
-        self._commit("ours")
-        result = subprocess.run(
-            [
-                "git",
-                "-c",
-                "user.name=Harness Test",
-                "-c",
-                "user.email=harness-test@example.invalid",
-                "merge",
-                "other",
-            ],
-            cwd=self.repository,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertTrue(
-            self._git_bytes("ls-files", "--unmerged", "-z", "--", "src/base.txt")
-        )
+        self._make_merge_conflicts("src/base.txt")
 
-        with self.assertRaisesRegex(SourceSnapshotError, "status 'U'"):
+        with self.assertRaisesRegex(
+            SourceSnapshotError,
+            "status 'U' for 'src/base.txt'",
+        ):
+            self._snapshot()
+
+    def test_metadata_only_merge_conflicts_do_not_change_source_identity(self) -> None:
+        metadata_paths = (
+            ".harness/config.json",
+            ".harness/tasks/TASK-X.json",
+        )
+        for relative_path in metadata_paths:
+            self._write(relative_path, f"baseline: {relative_path}\n")
+        self._git("add", "--", *metadata_paths)
+        self._commit("tracked metadata")
+        self.baseline = self._git("rev-parse", "HEAD")
+        clean = self._snapshot()
+
+        self._make_merge_conflicts(*metadata_paths)
+
+        self.assertEqual(self._snapshot(), clean)
+
+    def test_metadata_conflict_does_not_hide_product_lookalike_conflict(self) -> None:
+        paths = (
+            ".harness/config.json",
+            ".harness/tasks-extra/product.txt",
+        )
+        for relative_path in paths:
+            self._write(relative_path, f"baseline: {relative_path}\n")
+        self._git("add", "--", *paths)
+        self._commit("tracked metadata and lookalike")
+        self.baseline = self._git("rev-parse", "HEAD")
+        self._make_merge_conflicts(*paths)
+
+        with self.assertRaisesRegex(
+            SourceSnapshotError,
+            "status 'U' for '.harness/tasks-extra/product.txt'",
+        ):
             self._snapshot()
 
     def test_staged_deleted_path_recreated_as_ignored_remains_deleted(self) -> None:

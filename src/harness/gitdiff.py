@@ -237,8 +237,13 @@ def _collect_final_tree_candidates(
     }
     untracked_paths = frozenset(_untracked_paths(repository))
     index_state = _index_state(repository)
-    if index_state.unmerged_paths:
-        path = min(index_state.unmerged_paths, key=_path_sort_key)
+    product_unmerged_paths = frozenset(
+        path
+        for path in index_state.unmerged_paths
+        if not _is_harness_metadata_path(path)
+    )
+    if product_unmerged_paths:
+        path = min(product_unmerged_paths, key=_path_sort_key)
         raise GitDiffError(
             f"Unsupported final-tree Git status 'U' for '{path}'."
         )
