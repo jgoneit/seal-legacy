@@ -1,7 +1,5 @@
 # ADR 0000: Outcome Over Process (historical)
 
-Language: English | [한국어](0000-outcome-over-process.ko.md)
-
 Status: Superseded
 Date: 2026-07-16
 

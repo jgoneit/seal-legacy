@@ -1,7 +1,5 @@
 # ADR 0003: Identify Mechanical Evidence with a Versioned Run Manifest
 
-Language: English | [한국어](0003-run-evidence-manifest.ko.md)
-
 ## Status
 
 Accepted
@@ -15,11 +13,11 @@ Verifier Verdicts and completion are created by separate commands after verifica
 ## Decision
 
 - Each new Run stores `run-manifest.json` as the final verification step after saving `verification.json`.
-- The manifest includes only `task.json`, `changed-files.json`, `diff.patch`, `checks.json`, `verification.json`, and every stdout and stderr log referenced by a recorded check.
+- The manifest includes `task.json`, `changed-files.json`, `diff.patch`, `checks.json`, `source-before-checks.json`, `source-after-checks.json`, `verification.json`, and every stdout and stderr log referenced by a recorded check.
 - It excludes the manifest itself, `verdict.raw.json`, `verdict.json`, and `completion.json`.
 - File records are ordered by ascending relative POSIX path, and each record contains the raw-byte `size_bytes` and SHA-256. No text normalization is performed.
 - `evidence_sha256` is calculated by serializing only the schema version, Task ID, Run ID, and sorted file records as canonical JSON using UTF-8, `ensure_ascii=False`, sorted keys, and compact separators. `created_at` is excluded from the digest.
-- `validate_run()` compares the expected mechanical file list, file records, actual raw-byte sizes, file SHA-256 values, and `evidence_sha256`. Older Runs without a manifest are rejected as legacy or incomplete Evidence, and the user creates a new verification Run.
+- `validate_run()` compares the expected mechanical file list, file records, actual raw-byte sizes, file SHA-256 values, and `evidence_sha256`. A Run without a manifest is rejected as incomplete Evidence.
 - A bundle does not recalculate the validated Run's digest; it records that digest as `source_evidence_sha256`. Successful completion records the same value as `evidence_sha256`.
 
 ## Consequences
@@ -34,10 +32,6 @@ The manifest is a local consistency identifier. It is not a signature, remote at
 - Hash only parsed JSON results or normalized text
 - Add a self-hash or signature for the manifest to this local contract
 - Add automatic repair, source rollback, or runtime hooks, approvals, and monitoring for manifest mismatches
-- Introduce current-source snapshot binding in the same Phase
+- Introduce current-source snapshot binding in the same initial change
 
-## R1b amendment
-
-[ADR 0005](0005-verify-complete-source-binding.md) adds the two persisted Source
-Snapshot documents to the raw-byte manifest set for verification v2 Runs. The
-manifest, Verdict, and Completion document schemas remain version 1.
+The manifest, Verdict, and Completion document schemas remain version 1.

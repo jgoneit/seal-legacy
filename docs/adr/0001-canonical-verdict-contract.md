@@ -1,7 +1,5 @@
 # ADR 0001: Use the Verdict Schema as the Canonical Contract
 
-Language: English | [한국어](0001-canonical-verdict-contract.ko.md)
-
 ## Status
 
 Accepted

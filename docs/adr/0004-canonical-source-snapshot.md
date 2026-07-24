@@ -1,7 +1,5 @@
 # ADR 0004: Identify Final Product Source with a Canonical Snapshot
 
-Language: English | [한국어](0004-canonical-source-snapshot.ko.md)
-
 ## Status
 
 Accepted
@@ -14,10 +12,9 @@ Evidence, but they do not provide one identity for the final product source
 represented by the current Working Tree. Moving unchanged bytes from unstaged
 to staged or from staged to committed must not change that identity.
 
-R1a establishes the source calculation independently before any later phase
-binds it to verification, stored Evidence, or completion. Scope enforcement
-remains a separate mechanical policy, so source identity must include product
-changes outside the Task Scope.
+The source calculation is independent from verification persistence and
+completion policy. Scope enforcement remains a separate mechanical policy, so
+source identity must include product changes outside the Task Scope.
 
 ## Decision
 
@@ -69,10 +66,11 @@ The filesystem is not a transactional snapshot service. The bounded double
 observation and file-descriptor checks detect supported concurrent changes but
 do not claim hostile-kernel or remote-filesystem atomicity.
 
-R1a does not save a Snapshot artifact, run checks, change CLI output, extend
-`validate_run()`, add a completion gate, or remove `--base-ref`. The digest is a
-local deterministic identifier, not a signature, remote attestation,
-cryptographic provenance, or external trust anchor.
+The collector itself does not save artifacts, run checks, change CLI output, or
+apply completion policy. The digest is a local deterministic identifier, not a
+signature, remote attestation, cryptographic provenance, or external trust
+anchor. [ADR 0005](0005-verify-complete-source-binding.md) uses the unchanged
+collector for S0, S1, and S2.
 
 ## Rejected alternatives
 
@@ -82,10 +80,5 @@ cryptographic provenance, or external trust anchor.
 - Reject every symlink instead of preserving Git's `120000` blob semantics
 - Store complete source file bodies in the Snapshot
 - Add a generic repository, provider, signing, CI, or remote-attestation layer
-- Integrate verify, Evidence, `validate_run()`, bundle, or completion in R1a
-
-## R1b amendment
-
-[ADR 0005](0005-verify-complete-source-binding.md) integrates this unchanged
-canonical collector as S0, S1, and S2, versions the stored verification
-contract, and removes the Run-level `--base-ref` override.
+- Couple verify, Evidence, `validate_run()`, bundle, or completion directly to
+  collector internals
