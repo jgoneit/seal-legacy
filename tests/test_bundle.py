@@ -24,7 +24,11 @@ from harness import cli
 from harness.bundle import (
     BundleEvidenceError,
     BundleInputError,
+    _path_replacements,
+    _path_spellings,
     _pretty_json_bytes,
+    _sanitize_text,
+    _sanitize_value,
     create_verification_bundle,
 )
 from harness.evidence import verify_task
@@ -106,12 +110,13 @@ class VerifierBundleTests(unittest.TestCase):
         *,
         task_id: str = "TASK-BUNDLE",
         checks: list[dict[str, object]] | None = None,
+        objective: str = "Exercise portable verifier bundle export.",
     ) -> None:
         specification = {
             "schema_version": 1,
             "id": task_id,
             "type": "test",
-            "objective": "Exercise portable verifier bundle export.",
+            "objective": objective,
             "scope": ["src"],
             "checks": checks
             if checks is not None
@@ -231,12 +236,15 @@ class VerifierBundleTests(unittest.TestCase):
         with self.assertRaises(BundleInputError):
             self._bundle(run.run_id, task_id="TASK-SECOND")
 
-    def test_sanitizes_absolute_and_home_paths_without_serializing_environment(self) -> None:
+    def test_redacts_known_local_roots_without_serializing_environment(self) -> None:
         self._create_task(
             checks=[
                 self._python_check(
                     "paths",
-                    "from pathlib import Path; print(Path.home()); print(Path.cwd())",
+                    "from pathlib import Path; "
+                    "print(Path.home()); "
+                    "print(Path.cwd()); "
+                    "print(next((Path.cwd() / '.harness/evidence/TASK-BUNDLE').iterdir()))",
                 )
             ]
         )
@@ -259,10 +267,144 @@ class VerifierBundleTests(unittest.TestCase):
         )
         self.assertNotIn(str(self.repository.resolve()), contents)
         self.assertNotIn(str(Path.home().resolve()), contents)
-        self.assertNotIn(sys.executable, contents)
         self.assertNotIn(environment_name, contents)
         self.assertNotIn(environment_value, contents)
-        self.assertIn("<ABSOLUTE_PATH>", contents)
+        self.assertIn("<HOME>", contents)
+        self.assertIn("./.harness/evidence/TASK-BUNDLE/", contents)
+        self.assertNotIn("<ABSOLUTE_PATH>", contents)
+
+    def test_preserves_nonlocal_path_literals_in_json_diff_and_check_logs(self) -> None:
+        paths = (
+            "/api/v1/users",
+            "/usr/bin/env python3",
+            "https://example.com/api",
+            "/app/config",
+            r"C:\Program Files\Example",
+            r"\\server\share\file",
+        )
+        payload = "\n".join(paths) + "\n"
+        program = (
+            "import sys; "
+            f"payload={payload!r}; "
+            "sys.stdout.write(payload); "
+            "sys.stderr.write(payload)"
+        )
+        self._create_task(
+            checks=[self._python_check("path-literals", program)],
+            objective=payload,
+        )
+        self._write("src/example.txt", payload)
+        run = verify_task("TASK-BUNDLE", cwd=self.repository)
+        original_diff = (run.evidence_path / "diff.patch").read_bytes()
+        original_checks = json.loads(
+            (run.evidence_path / "checks.json").read_text(encoding="utf-8")
+        )
+        original_stdout_path = run.evidence_path / original_checks["checks"][0]["stdout_path"]
+        original_stderr_path = run.evidence_path / original_checks["checks"][0]["stderr_path"]
+        original_stdout = original_stdout_path.read_bytes()
+        original_stderr = original_stderr_path.read_bytes()
+
+        bundle = self._bundle(run.run_id)
+
+        task = json.loads((bundle.bundle_path / "task.json").read_text(encoding="utf-8"))
+        diff_patch = (bundle.bundle_path / "diff.patch").read_text(encoding="utf-8")
+        checks = json.loads(
+            (bundle.bundle_path / "checks.json").read_text(encoding="utf-8")
+        )
+        stdout = (
+            bundle.bundle_path / checks["checks"][0]["stdout_path"]
+        ).read_text(encoding="utf-8")
+        stderr = (
+            bundle.bundle_path / checks["checks"][0]["stderr_path"]
+        ).read_text(encoding="utf-8")
+
+        self.assertEqual(task["objective"], payload)
+        self.assertEqual(checks["checks"][0]["argv"][2], program)
+        self.assertEqual(stdout, payload)
+        self.assertEqual(stderr, payload)
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertIn(path, diff_patch)
+        self.assertNotIn("<ABSOLUTE_PATH>", diff_patch)
+        self.assertNotIn("<ABSOLUTE_PATH>", stdout)
+        self.assertNotIn("<ABSOLUTE_PATH>", stderr)
+        self.assertEqual((run.evidence_path / "diff.patch").read_bytes(), original_diff)
+        self.assertEqual(original_stdout_path.read_bytes(), original_stdout)
+        self.assertEqual(original_stderr_path.read_bytes(), original_stderr)
+
+    def test_preserves_arbitrary_non_utf8_check_output_bytes(self) -> None:
+        stdout = b"stdout-before-\xff\x00-after\n"
+        stderr = b"stderr-before-\xfe\x80-after\n"
+        program = (
+            "import os; "
+            f"os.write(1, {stdout!r}); "
+            f"os.write(2, {stderr!r})"
+        )
+        self._create_task(checks=[self._python_check("raw-bytes", program)])
+        run = self._run()
+        evidence_checks = json.loads(
+            (run.evidence_path / "checks.json").read_text(encoding="utf-8")
+        )
+        evidence_stdout = run.evidence_path / evidence_checks["checks"][0]["stdout_path"]
+        evidence_stderr = run.evidence_path / evidence_checks["checks"][0]["stderr_path"]
+
+        bundle = self._bundle(run.run_id)
+        checks = json.loads(
+            (bundle.bundle_path / "checks.json").read_text(encoding="utf-8")
+        )
+        check = checks["checks"][0]
+
+        self.assertEqual(
+            (bundle.bundle_path / check["stdout_path"]).read_bytes(),
+            stdout,
+        )
+        self.assertEqual(
+            (bundle.bundle_path / check["stderr_path"]).read_bytes(),
+            stderr,
+        )
+        self.assertEqual(evidence_stdout.read_bytes(), stdout)
+        self.assertEqual(evidence_stderr.read_bytes(), stderr)
+
+    def test_redacts_structured_keys_values_and_known_root_spellings(self) -> None:
+        sanitized = _sanitize_value(
+            {str(PROJECT_ROOT): str(Path.home())},
+            _path_replacements(PROJECT_ROOT),
+        )
+        self.assertEqual(sanitized, {".": "<HOME>"})
+
+        for root, replacement in ((PROJECT_ROOT, "."), (Path.home(), "<HOME>")):
+            for spelling in _path_spellings(root):
+                with self.subTest(root=root, spelling=spelling):
+                    separator = "\\" if "\\" in spelling else "/"
+                    self.assertEqual(
+                        _sanitize_text(
+                            f'"{spelling}{separator}child{separator}file.txt"',
+                            _path_replacements(PROJECT_ROOT),
+                        ),
+                        f'"{replacement}{separator}child{separator}file.txt"',
+                    )
+                    self.assertEqual(
+                        _sanitize_text(
+                            f'"{spelling}"',
+                            _path_replacements(PROJECT_ROOT),
+                        ),
+                        f'"{replacement}"',
+                    )
+
+        alias_root = Path("/var/folders/harness-c0/repository")
+        spellings = _path_spellings(alias_root)
+        self.assertIn("/var/folders/harness-c0/repository", spellings)
+        self.assertIn("/private/var/folders/harness-c0/repository", spellings)
+        for spelling in spellings:
+            with self.subTest(alias_spelling=spelling):
+                separator = "\\" if "\\" in spelling else "/"
+                self.assertEqual(
+                    _sanitize_text(
+                        f"{spelling}{separator}artifact.log",
+                        _path_replacements(alias_root),
+                    ),
+                    f".{separator}artifact.log",
+                )
 
     def test_does_not_include_gitignored_worktree_files(self) -> None:
         self._create_task()
@@ -339,6 +481,29 @@ class VerifierBundleTests(unittest.TestCase):
         ):
             with self.assertRaises(BundleEvidenceError):
                 self._bundle(run.run_id)
+
+    def test_removes_partial_output_when_bundle_write_fails(self) -> None:
+        self._create_task()
+        run = self._run()
+        destination = self.root / "atomic-bundle"
+        original_write_bytes = Path.write_bytes
+
+        def fail_on_diff(path: Path, contents: bytes) -> int:
+            if path.name == "diff.patch":
+                raise OSError("simulated bundle write failure")
+            return original_write_bytes(path, contents)
+
+        with mock.patch.object(Path, "write_bytes", autospec=True, side_effect=fail_on_diff):
+            with self.assertRaisesRegex(OSError, "simulated bundle write failure"):
+                create_verification_bundle(
+                    "TASK-BUNDLE",
+                    run.run_id,
+                    destination,
+                    cwd=self.repository,
+                )
+
+        self.assertFalse(destination.exists())
+        self.assertEqual(list(self.root.glob(".atomic-bundle.*")), [])
 
     def test_cli_exports_requested_task_run(self) -> None:
         self._create_task()

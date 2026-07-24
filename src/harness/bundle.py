@@ -36,13 +36,6 @@ from .task import TaskError
 
 
 BUNDLE_SCHEMA_VERSION = 1
-_POSIX_ABSOLUTE_PATH = re.compile(
-    r"(?<![A-Za-z0-9_.-])/(?:[^\s\x00\"'<>|/]+(?:/[^\s\x00\"'<>|/]+)*)"
-)
-_WINDOWS_ABSOLUTE_PATH = re.compile(
-    r"(?i)(?<![A-Z0-9_])[A-Z]:[\\/][^\s\x00\"'<>|]*"
-)
-_UNC_PATH = re.compile(r"(?<!\\)\\\\[^\s\\/\x00\"'<>|]+(?:\\[^\s\x00\"'<>|]+)+")
 
 
 class BundleError(TaskError):
@@ -114,8 +107,6 @@ def create_verification_bundle(
         source_after_checks=validated_run.source_after_checks,
         prompt=prompt,
     )
-    _assert_payloads_are_portable(payloads)
-
     temporary_path = _create_temporary_output_directory(output_path)
     try:
         for relative_path, contents in payloads.items():
@@ -206,12 +197,17 @@ def _bundle_payloads(
     source_after_checks: SourceSnapshot | None,
     prompt: str,
 ) -> dict[str, bytes]:
+    replacements = _path_replacements(repository)
     payloads = {
-        "task.json": _pretty_json_bytes(_sanitize_value(task, repository)),
-        "changed-files.json": _pretty_json_bytes(_sanitize_value(changed_files, repository)),
-        "checks.json": _pretty_json_bytes(_sanitize_value(checks_document, repository)),
-        "verification.json": _pretty_json_bytes(_sanitize_value(verification, repository)),
-        "diff.patch": _sanitize_bytes(diff_patch, repository),
+        "task.json": _pretty_json_bytes(_sanitize_value(task, replacements)),
+        "changed-files.json": _pretty_json_bytes(
+            _sanitize_value(changed_files, replacements)
+        ),
+        "checks.json": _pretty_json_bytes(_sanitize_value(checks_document, replacements)),
+        "verification.json": _pretty_json_bytes(
+            _sanitize_value(verification, replacements)
+        ),
+        "diff.patch": _sanitize_bytes(diff_patch, replacements),
         "verifier.md": prompt.encode("utf-8"),
     }
     if source_before_checks is not None and source_after_checks is not None:
@@ -223,9 +219,16 @@ def _bundle_payloads(
         )
     for relative_path in log_paths:
         payloads[relative_path.as_posix()] = _sanitize_bytes(
-            _read_validated_log_bytes(evidence_path, relative_path), repository
+            _read_validated_log_bytes(evidence_path, relative_path),
+            replacements,
         )
-    return dict(sorted(payloads.items()))
+    payloads = dict(sorted(payloads.items()))
+    for path, contents in payloads.items():
+        if _sanitize_bytes(contents, replacements) != contents:
+            raise BundleEvidenceError(
+                f"Bundle payload '{path}' still contains a known local path."
+            )
+    return payloads
 
 
 def _build_manifest(
@@ -305,36 +308,40 @@ def _create_temporary_output_directory(output_path: Path) -> Path:
         raise BundleInputError("Could not create the bundle output directory.") from error
 
 
-def _sanitize_value(value: object, repository: Path) -> object:
+def _sanitize_value(value: object, replacements: tuple[tuple[str, str], ...]) -> object:
     if isinstance(value, str):
-        return _sanitize_text(value, repository)
+        return _sanitize_text(value, replacements)
     if isinstance(value, Mapping):
         return {
-            _sanitize_text(str(key), repository): _sanitize_value(item, repository)
+            _sanitize_text(str(key), replacements): _sanitize_value(item, replacements)
             for key, item in value.items()
         }
     if isinstance(value, list):
-        return [_sanitize_value(item, repository) for item in value]
+        return [_sanitize_value(item, replacements) for item in value]
     return value
 
 
-def _sanitize_bytes(contents: bytes, repository: Path) -> bytes:
-    return _sanitize_text(contents.decode("utf-8", "replace"), repository).encode("utf-8")
+def _sanitize_bytes(contents: bytes, replacements: tuple[tuple[str, str], ...]) -> bytes:
+    result = contents
+    for spelling, replacement in replacements:
+        pattern = rb"(?<![A-Za-z0-9_.-])" + re.escape(os.fsencode(spelling)) + rb"(?![A-Za-z0-9_.-])"
+        result = re.sub(pattern, replacement.encode("ascii"), result)
+    return result
 
 
-def _sanitize_text(value: str, repository: Path) -> str:
-    roots = ((repository, "."), (Path.home(), "<HOME>"))
+def _sanitize_text(value: str, replacements: tuple[tuple[str, str], ...]) -> str:
     result = value
-    for root, replacement in sorted(roots, key=lambda item: len(str(item[0])), reverse=True):
-        for spelling in sorted(_path_spellings(root), key=len, reverse=True):
-            result = re.sub(
-                r"(?<![A-Za-z0-9_.-])" + re.escape(spelling) + r"(?=$|[\\/])",
-                replacement,
-                result,
-            )
-    result = _UNC_PATH.sub("<ABSOLUTE_PATH>", result)
-    result = _WINDOWS_ABSOLUTE_PATH.sub("<ABSOLUTE_PATH>", result)
-    return _POSIX_ABSOLUTE_PATH.sub("<ABSOLUTE_PATH>", result)
+    for spelling, replacement in replacements:
+        pattern = r"(?<![\w.-])" + re.escape(spelling) + r"(?![\w.-])"
+        result = re.sub(pattern, replacement, result)
+    return result
+
+
+def _path_replacements(repository: Path) -> tuple[tuple[str, str], ...]:
+    roots = ((repository, "."), (Path.home(), "<HOME>"))
+    replacements = ((spelling, replacement) for root, replacement in roots
+                    for spelling in _path_spellings(root))
+    return tuple(sorted(replacements, key=lambda item: len(item[0]), reverse=True))
 
 
 def _path_spellings(path: Path) -> set[str]:
@@ -346,16 +353,6 @@ def _path_spellings(path: Path) -> set[str]:
             spellings.add("/private" + spelling)
         spellings.add(spelling.replace("/", "\\"))
     return spellings
-
-
-def _assert_payloads_are_portable(payloads: Mapping[str, bytes]) -> None:
-    home = str(Path.home().resolve())
-    for path, contents in payloads.items():
-        text = contents.decode("utf-8", "replace")
-        if home in text or _UNC_PATH.search(text) or _WINDOWS_ABSOLUTE_PATH.search(text) or _POSIX_ABSOLUTE_PATH.search(text):
-            raise BundleEvidenceError(
-                f"Bundle payload '{path}' still contains an absolute path."
-            )
 
 
 def _canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
