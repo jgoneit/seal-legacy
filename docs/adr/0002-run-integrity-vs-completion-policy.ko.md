@@ -56,3 +56,9 @@ mechanical Evidence manifest와 digest를 추가해 파일 수정·누락을 탐
 - mechanical failure를 즉시 corrupt Evidence로 취급하는 방식
 - validator에서 Git diff를 재생성하거나 check를 재실행하는 방식
 - validator에 source snapshot, external verifier adapter, automatic repair를 함께 추가하는 방식
+
+## R1b amendment
+
+[ADR 0005](0005-verify-complete-source-binding.ko.md)는 `validate_run()`을 stored
+Evidence로 제한한 채 versioned persisted S0/S1 validation으로 이 경계를 확장한다.
+Current-source S2 collection은 별도의 completion-time policy 단계로 유지한다.

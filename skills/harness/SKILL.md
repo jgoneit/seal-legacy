@@ -30,12 +30,20 @@ Before every Core operation, run:
 harness --version
 ~~~
 
-Read the version from the command output. Support only Core versions >=0.1.0,<0.2.0. If the CLI is missing, do not install it automatically. Explain the missing-command error and provide this command for the user to run:
+Read the version from the command output. Support the legacy Core profile
+`>=0.1.0,<0.2.0.dev0` and the source-bound Core profile
+`>=0.2.0.dev0,<0.3.0`. If the CLI is missing, do not install it automatically.
+Explain the missing-command error and provide this command for the user to run:
 
 ~~~bash
 python3 -m pip install \
   "git+https://github.com/jgoneit/harness.git@v0.1.1"
 ~~~
+
+State that this fallback installs the latest published v0.1.1 release and uses
+the legacy behavior profile: it does not store S0/S1 Source Snapshot Evidence
+or bind completion to current source. `0.2.0.dev0` is current-main development
+state, not a published release.
 
 If the version cannot be parsed or is unsupported, show the actual output and stop before the requested Core operation.
 
@@ -99,6 +107,12 @@ harness verify <TASK_ID>
 
 Parse successful stdout as JSON and report only the documented run_id and evidence_path fields. Do not calculate, reinterpret, or add a mechanical result, digest, or completion claim.
 
+For the source-bound Core profile, do not pass `--base-ref`; the option has been
+removed and invalid CLI input returns exit 2. Core uses only the baseline saved
+in the Task. Core records the pre-check S0 and post-check S1 Snapshots itself.
+Do not read or compare those artifacts in the Skill, and do not treat
+successful Evidence recording as a completion claim.
+
 ## Prepare a verifier bundle
 
 Run:
@@ -110,6 +124,11 @@ harness verifier bundle <TASK_ID> \
 ~~~
 
 State clearly that generating a bundle is not reviewer execution, Verdict creation, or completion. Do not inspect Core files to construct or modify a bundle yourself.
+
+For a source-bound v2 Run, the bundle includes historical S0 and S1 Snapshot
+Evidence. Bundle creation does not collect the current S2 Snapshot, compare
+current source, rerun checks, or decide completion. Legacy v1 Runs remain
+bundleable.
 
 ## Record or show a Manual Verdict
 
@@ -144,7 +163,19 @@ Run completion only when the user explicitly requests it:
 harness complete <TASK_ID> --run-id <RUN_ID>
 ~~~
 
-On failure, report the Core exit code and stderr. Do not roll back source, alter Evidence, repair automatically, verify automatically, or retry completion automatically. State the Core v0.1.1 limitation: completion evaluates saved Run Evidence and does not bind it to the current source state.
+On failure, report the Core exit code and stderr. Do not roll back source, alter
+Evidence, repair automatically, verify automatically, or retry completion
+automatically.
+
+Apply the installed Core profile when explaining completion:
+
+- Legacy `0.1.x` completion evaluates saved Run Evidence without current-source
+  binding.
+- Source-bound `0.2.x` completion validates persisted Evidence, then Core
+  collects current S2 and compares it with the post-check S1. A legacy v1 Run,
+  source changed during checks, or current-source mismatch is refused with exit
+  9. The Skill must report the Core result without collecting Snapshots,
+  changing source, generating a replacement Run, or retrying.
 
 ## Never add control-plane behavior
 

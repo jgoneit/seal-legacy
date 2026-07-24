@@ -32,16 +32,18 @@ policy이므로 source identity에는 Task Scope 밖 product change도 포함한
   상태가 결과에 섞이지 않게 한다.
 - current Git ignore rule은 untracked path를 제외한다. canonical Harness metadata
   predicate는 Task, Evidence, runs, lessons, config metadata를 제외한다. Scope 밖
-  product file은 포함한다.
+  product file은 포함한다. Metadata-only unmerged index path도 제외하지만,
+  unmerged product path는 계속 fail-closed한다.
 - Entry는 repository-relative Git path byte 순서로 정렬한다. present entry는
   normalized mode, raw-byte size, SHA-256을 기록하고 deleted entry는 mode, size,
   hash를 null로 기록한다. Rename은 old path deletion과 new path presence로
   표현한다. Directory는 entry가 아니라 container이며 지원하는 descendant
   source node만 참여한다.
 - regular file은 `100644` 또는 `100755` mode를 사용하고 bounded chunk로 hash한다.
-  Symlink는 `120000` mode를 사용한다. Absolute, external, broken,
-  repository-relative target 모두 target을 따라가지 않고 link-target byte를
-  hash한다.
+  POSIX에서 `100755`는 Git과 동일하게 owner-execute bit가 있을 때만 사용하며,
+  group 또는 other execute bit는 Snapshot identity를 바꾸지 않는다. Symlink는
+  `120000` mode를 사용한다. Absolute, external, broken, repository-relative
+  target 모두 target을 따라가지 않고 link-target byte를 hash한다.
 - Gitlink/submodule, FIFO, socket, device와 기타 unsupported source node는
   `SourceSnapshotError`로 실패한다. Nested path를 읽을 때 static parent
   symlink를 따라가지 않는다.
@@ -79,3 +81,9 @@ cryptographic provenance 또는 external trust anchor가 아니다.
 - Snapshot에 source file body 전체를 저장하는 방식
 - 범용 repository, provider, signing, CI 또는 remote-attestation layer를 추가하는 방식
 - R1a에서 verify, Evidence, `validate_run()`, bundle 또는 completion을 연결하는 방식
+
+## R1b amendment
+
+[ADR 0005](0005-verify-complete-source-binding.ko.md)는 이 canonical collector를
+변경 없이 S0, S1, S2로 연결하고 stored verification contract를 versioning하며,
+Run 단위 `--base-ref` override를 제거한다.

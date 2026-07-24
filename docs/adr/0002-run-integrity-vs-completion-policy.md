@@ -34,3 +34,10 @@ This decision does not make the local filesystem immutable storage. ADR 0003 sub
 - Treat mechanical failure immediately as corrupt Evidence
 - Regenerate Git diffs or rerun checks in the validator
 - Add source snapshots, an external verifier adapter, and automatic repair to the validator at the same time
+
+## R1b amendment
+
+[ADR 0005](0005-verify-complete-source-binding.md) extends this boundary with
+versioned persisted S0/S1 validation while keeping `validate_run()` limited to
+stored Evidence. Current-source S2 collection remains a separate completion-time
+policy step.

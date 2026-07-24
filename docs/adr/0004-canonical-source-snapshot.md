@@ -34,16 +34,18 @@ changes outside the Task Scope.
   not leak into the result.
 - Current Git ignore rules exclude untracked paths. The canonical Harness
   metadata predicate excludes Task, Evidence, runs, lessons, and config
-  metadata. Product files outside Scope remain included.
+  metadata, including metadata-only unmerged index paths. Product files outside
+  Scope remain included, and an unmerged product path still fails closed.
 - Entries are ordered by repository-relative Git path bytes. A present entry
   records normalized mode, raw-byte size, and SHA-256; a deleted entry records
   null mode, size, and hash. Renames are represented as deletion of the old path
   and presence of the new path. Directories are containers rather than entries;
   only their supported descendant source nodes participate.
 - Regular files use mode `100644` or `100755` and are hashed in bounded chunks.
-  Symlinks use mode `120000`; Harness hashes the link-target bytes without
-  following the target, including absolute, external, broken, or
-  repository-relative targets.
+  On POSIX, `100755` follows Git by requiring the owner-execute bit; group or
+  other execute bits do not change Snapshot identity. Symlinks use mode
+  `120000`; Harness hashes the link-target bytes without following the target,
+  including absolute, external, broken, or repository-relative targets.
 - Gitlinks/submodules, FIFOs, sockets, devices, and other unsupported source
   nodes fail with `SourceSnapshotError`. Static parent symlinks are not followed
   while reading nested paths.
@@ -81,3 +83,9 @@ cryptographic provenance, or external trust anchor.
 - Store complete source file bodies in the Snapshot
 - Add a generic repository, provider, signing, CI, or remote-attestation layer
 - Integrate verify, Evidence, `validate_run()`, bundle, or completion in R1a
+
+## R1b amendment
+
+[ADR 0005](0005-verify-complete-source-binding.md) integrates this unchanged
+canonical collector as S0, S1, and S2, versions the stored verification
+contract, and removes the Run-level `--base-ref` override.

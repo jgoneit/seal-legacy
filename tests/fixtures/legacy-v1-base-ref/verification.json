@@ -1,0 +1,22 @@
+{
+  "baseline": "2222222222222222222222222222222222222222",
+  "changed_files": [],
+  "duration": 0.0,
+  "evidence_files": [
+    "changed-files.json",
+    "checks.json",
+    "checks/000-legacy-check.stderr",
+    "checks/000-legacy-check.stdout",
+    "diff.patch",
+    "task.json",
+    "verification.json"
+  ],
+  "mechanical_result": "pass",
+  "required_checks_pass": true,
+  "run_id": "legacy-base-ref-run",
+  "schema_version": 1,
+  "scope_pass": true,
+  "scope_violations": [],
+  "task_id": "TASK-LEGACY-BASE-REF",
+  "timestamp": "2026-07-23T00:00:00Z"
+}

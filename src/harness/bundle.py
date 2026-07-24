@@ -25,8 +25,13 @@ from ._run_artifact_io import (
     RunArtifactReadError as _RunArtifactReadError,
     read_run_artifact_bytes as _read_run_artifact_bytes,
 )
+from ._source_binding_documents import (
+    SOURCE_AFTER_CHECKS_FILENAME,
+    SOURCE_BEFORE_CHECKS_FILENAME,
+)
 from .exit_codes import ExitCode
 from .run_validator import RunIdentityError, RunValidationError, ValidatedRun, validate_run
+from .source_snapshot import SourceSnapshot
 from .task import TaskError
 
 
@@ -105,6 +110,8 @@ def create_verification_bundle(
         diff_patch=validated_run.diff_patch,
         log_paths=validated_run.log_paths,
         evidence_path=validated_run.evidence_path,
+        source_before_checks=validated_run.source_before_checks,
+        source_after_checks=validated_run.source_after_checks,
         prompt=prompt,
     )
     _assert_payloads_are_portable(payloads)
@@ -195,6 +202,8 @@ def _bundle_payloads(
     diff_patch: bytes,
     log_paths: tuple[PurePosixPath, ...],
     evidence_path: Path,
+    source_before_checks: SourceSnapshot | None,
+    source_after_checks: SourceSnapshot | None,
     prompt: str,
 ) -> dict[str, bytes]:
     payloads = {
@@ -205,6 +214,13 @@ def _bundle_payloads(
         "diff.patch": _sanitize_bytes(diff_patch, repository),
         "verifier.md": prompt.encode("utf-8"),
     }
+    if source_before_checks is not None and source_after_checks is not None:
+        payloads[SOURCE_BEFORE_CHECKS_FILENAME] = _pretty_json_bytes(
+            source_before_checks.to_document()
+        )
+        payloads[SOURCE_AFTER_CHECKS_FILENAME] = _pretty_json_bytes(
+            source_after_checks.to_document()
+        )
     for relative_path in log_paths:
         payloads[relative_path.as_posix()] = _sanitize_bytes(
             _read_validated_log_bytes(evidence_path, relative_path), repository

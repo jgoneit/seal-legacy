@@ -14,6 +14,7 @@ from pathlib import Path
 from ._path_policy import (
     HARNESS_METADATA_DIRECTORIES,
     HARNESS_METADATA_FILES,
+    git_path_sort_key as _path_sort_key,
     is_harness_metadata_path as _is_harness_metadata_path,
     path_is_within as _path_is_within,
 )
@@ -60,7 +61,7 @@ class FileChange:
 class ChangeCollection:
     """All collected changes plus product-only Scope classification."""
 
-    base_ref: str
+    baseline: str
     scope: tuple[str, ...]
     changes: tuple[FileChange, ...]
     metadata_changes: tuple[FileChange, ...]
@@ -117,6 +118,15 @@ class _BaselineTreeEntry:
 
 
 @dataclass(frozen=True)
+class _FinalTreeContext:
+    """Immutable repository and baseline data shared by bounded observations."""
+
+    repository: Path
+    baseline: str
+    baseline_entries: tuple[_BaselineTreeEntry, ...]
+
+
+@dataclass(frozen=True)
 class _IndexState:
     tracked_modes: tuple[tuple[str, str], ...]
     gitlink_paths: frozenset[str]
@@ -127,24 +137,22 @@ def collect_changes(
     task: Mapping[str, object],
     *,
     cwd: str | Path | None = None,
-    base_ref: str | None = None,
 ) -> ChangeCollection:
-    """Collect changes from a Task baseline (or explicit base ref) in memory.
+    """Collect changes from the saved Task baseline in memory.
 
     The Task mapping must contain ``baseline`` and ``scope`` fields from a
-    normalized Task snapshot.  ``base_ref`` takes precedence over ``baseline``
-    so that a future CLI ``--base-ref`` option can reuse this internal API.
+    normalized Task snapshot.
 
     The result preserves separate committed, staged, unstaged, and untracked
     layers.  It never runs Task checks or writes files.
     """
     repository = find_repository_root(cwd)
     scope = _task_scope(task)
-    resolved_base_ref = _resolve_task_base_ref(repository, task, base_ref)
+    baseline = _resolve_task_baseline(repository, task)
 
     changes: list[FileChange] = []
     for source in ("committed", "staged", "unstaged"):
-        for entry, is_binary in _tracked_changes(repository, source, resolved_base_ref):
+        for entry, is_binary in _tracked_changes(repository, source, baseline):
             changes.append(_to_file_change(entry, source, is_binary, scope))
 
     for path in _untracked_paths(repository):
@@ -168,7 +176,7 @@ def collect_changes(
     out_of_scope_changes = tuple(change for change in product_changes if not change.in_scope)
 
     return ChangeCollection(
-        base_ref=resolved_base_ref,
+        baseline=baseline,
         scope=scope,
         changes=tuple(changes),
         metadata_changes=metadata_changes,
@@ -178,25 +186,11 @@ def collect_changes(
     )
 
 
-def resolve_base_ref(
-    task: Mapping[str, object],
-    *,
-    cwd: str | Path | None = None,
-    base_ref: str | None = None,
-) -> str:
-    """Resolve the selected Task baseline without collecting any changes.
-
-    Verification uses this before launching Task checks so an invalid baseline
-    cannot cause checks to run before a Run can be recorded.
-    """
-    repository = find_repository_root(cwd)
-    return _resolve_task_base_ref(repository, task, base_ref)
-
-
 def _collect_final_tree_candidates(
     task: Mapping[str, object],
     *,
     cwd: str | Path | None = None,
+    context: _FinalTreeContext | None = None,
 ) -> _FinalTreeCandidateSet:
     """Collect candidate paths for a baseline-relative final working tree.
 
@@ -207,8 +201,9 @@ def _collect_final_tree_candidates(
     Working Tree nodes and uses the index only to distinguish tracked paths from
     ignored untracked paths.
     """
-    repository = find_repository_root(cwd)
-    baseline = _resolve_task_base_ref(repository, task, None)
+    resolved = context or _resolve_final_tree_context(task, cwd=cwd)
+    repository = resolved.repository
+    baseline = resolved.baseline
     output = _git_output(
         repository,
         "diff",
@@ -239,12 +234,17 @@ def _collect_final_tree_candidates(
 
     baseline_entries = {
         entry.path: entry
-        for entry in _baseline_tree_entries(repository, baseline)
+        for entry in resolved.baseline_entries
     }
     untracked_paths = frozenset(_untracked_paths(repository))
     index_state = _index_state(repository)
-    if index_state.unmerged_paths:
-        path = min(index_state.unmerged_paths, key=_path_sort_key)
+    product_unmerged_paths = frozenset(
+        path
+        for path in index_state.unmerged_paths
+        if not _is_harness_metadata_path(path)
+    )
+    if product_unmerged_paths:
+        path = min(product_unmerged_paths, key=_path_sort_key)
         raise GitDiffError(
             f"Unsupported final-tree Git status 'U' for '{path}'."
         )
@@ -297,6 +297,21 @@ def _collect_final_tree_candidates(
     )
 
 
+def _resolve_final_tree_context(
+    task: Mapping[str, object],
+    *,
+    cwd: str | Path | None = None,
+) -> _FinalTreeContext:
+    """Resolve immutable baseline data once for repeated Working Tree reads."""
+    repository = find_repository_root(cwd)
+    baseline = _resolve_task_baseline(repository, task)
+    return _FinalTreeContext(
+        repository=repository,
+        baseline=baseline,
+        baseline_entries=_baseline_tree_entries(repository, baseline),
+    )
+
+
 def find_repository_root(cwd: str | Path | None = None) -> Path:
     """Return the Git top-level directory for *cwd* or raise a clear error."""
     working_directory = Path.cwd() if cwd is None else Path(cwd)
@@ -319,11 +334,11 @@ def find_repository_root(cwd: str | Path | None = None) -> Path:
 def _tracked_changes(
     repository: Path,
     source: str,
-    base_ref: str,
+    baseline: str,
 ) -> list[tuple[_RawDiffEntry, bool]]:
-    raw = _git_output(repository, *_diff_arguments("--raw", source, base_ref, raw=True))
+    raw = _git_output(repository, *_diff_arguments("--raw", source, baseline, raw=True))
     binary_paths = _binary_paths(
-        _git_output(repository, *_diff_arguments("--numstat", source, base_ref, raw=False))
+        _git_output(repository, *_diff_arguments("--numstat", source, baseline, raw=False))
     )
     return [
         (entry, _entry_is_binary(entry, binary_paths))
@@ -334,7 +349,7 @@ def _tracked_changes(
 def _diff_arguments(
     format_option: str,
     source: str,
-    base_ref: str,
+    baseline: str,
     *,
     raw: bool,
 ) -> tuple[str, ...]:
@@ -350,7 +365,7 @@ def _diff_arguments(
         arguments.append("--no-abbrev")
 
     if source == "committed":
-        arguments.extend((base_ref, "HEAD"))
+        arguments.extend((baseline, "HEAD"))
     elif source == "staged":
         arguments.append("--cached")
     elif source != "unstaged":
@@ -635,13 +650,11 @@ def _task_baseline(task: Mapping[str, object]) -> str:
     return baseline
 
 
-def _resolve_task_base_ref(
+def _resolve_task_baseline(
     repository: Path,
     task: Mapping[str, object],
-    base_ref: str | None,
 ) -> str:
-    selected_ref = base_ref if base_ref is not None else _task_baseline(task)
-    return _resolve_commit(repository, selected_ref)
+    return _resolve_commit(repository, _task_baseline(task))
 
 
 def _task_scope(task: Mapping[str, object]) -> tuple[str, ...]:
@@ -675,7 +688,7 @@ def _resolve_commit(repository: Path, reference: str) -> str:
     )
     if result.returncode != 0 or not result.stdout.strip():
         raise GitDiffReferenceError(
-            f"Git change collection base ref '{reference}' does not resolve to a commit."
+            f"Task baseline '{reference}' does not resolve to a commit."
         )
     return _decode_ascii(result.stdout.strip(), "Git commit reference")
 
@@ -702,10 +715,6 @@ def _oid_or_none(value: bytes) -> str | None:
     return None if oid and set(oid) == {"0"} else oid
 
 
-def _path_sort_key(path: str) -> bytes:
-    return path.encode("utf-8", "surrogateescape")
-
-
 def _git_output(repository: Path, *arguments: str) -> bytes:
     result = _git_result(repository, *arguments)
     if result.returncode != 0:
@@ -713,10 +722,21 @@ def _git_output(repository: Path, *arguments: str) -> bytes:
     return result.stdout
 
 
+def _git_command(repository: Path, *arguments: str) -> list[str]:
+    """Build a repository-local Git command with replacement refs disabled."""
+    return [
+        "git",
+        "--no-replace-objects",
+        "-C",
+        str(repository),
+        *arguments,
+    ]
+
+
 def _git_result(repository: Path, *arguments: str) -> subprocess.CompletedProcess[bytes]:
     try:
         return subprocess.run(
-            ["git", "-C", str(repository), *arguments],
+            _git_command(repository, *arguments),
             check=False,
             capture_output=True,
         )

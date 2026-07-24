@@ -36,6 +36,15 @@ from ._run_artifact_io import (
     atomic_write_bytes,
     atomic_write_json,
 )
+from ._source_binding_documents import (
+    SOURCE_AFTER_CHECKS_FILENAME,
+    SOURCE_AFTER_CHECKS_SHA256_FIELD,
+    SOURCE_BEFORE_CHECKS_FILENAME,
+    SOURCE_BEFORE_CHECKS_SHA256_FIELD,
+    SOURCE_BOUND_EVIDENCE_VERSION,
+    SOURCE_SNAPSHOT_SCHEMA_VERSION_FIELD,
+    SOURCE_STABLE_DURING_CHECKS_FIELD,
+)
 from .checks import CheckExecutionError, run_checks
 from .gitdiff import (
     HARNESS_METADATA_DIRECTORIES,
@@ -44,20 +53,22 @@ from .gitdiff import (
     FileChange,
     GitDiffError,
     GitDiffTaskError,
+    _git_command,
     collect_changes,
     find_repository_root,
     is_harness_metadata_path,
-    resolve_base_ref,
 )
 from .run_manifest import RunManifestError, create_run_manifest
+from .source_snapshot import SourceSnapshotError, collect_source_snapshot
 from .task import show_task, validate_task_id
 
 
-VERIFICATION_SCHEMA_VERSION = 1
+RUN_DOCUMENT_SCHEMA_VERSION = 1
+VERIFICATION_SCHEMA_VERSION = SOURCE_BOUND_EVIDENCE_VERSION
 
 
 class EvidenceRepositoryError(EvidenceError):
-    """Raised when Git cannot create or collect verification evidence."""
+    """Raised when repository state cannot be collected or persisted safely."""
 
 
 @dataclass(frozen=True)
@@ -73,13 +84,12 @@ def verify_task(
     task_id: str,
     *,
     cwd: str | Path | None = None,
-    base_ref: str | None = None,
 ) -> VerificationRun:
     """Run a saved Task's checks and persist its mechanical evidence.
 
-    ``base_ref`` replaces the snapshot baseline for this one run.  Check
-    failures are evidence, not CLI errors: all checks run in Task Spec order
-    and the resulting mechanical pass/fail is written to ``verification.json``.
+    Check failures are evidence, not CLI errors: all checks run in Task Spec
+    order and the resulting mechanical pass/fail is written to
+    ``verification.json``.
     """
     validate_task_id(task_id)
     repository = find_repository_root(cwd)
@@ -87,9 +97,7 @@ def verify_task(
     started = time.monotonic()
 
     try:
-        # Preserve the existing post-check change collection semantics, while
-        # rejecting an unusable baseline before any Task check can run.
-        resolved_base_ref = resolve_base_ref(task, cwd=repository, base_ref=base_ref)
+        source_before_checks = collect_source_snapshot(task, cwd=repository)
         run_id, evidence_path = create_evidence_directory(repository, task_id)
         atomic_write_json(evidence_path / "task.json", task)
         checks = task.get("checks")
@@ -100,8 +108,18 @@ def verify_task(
             cwd=repository,
             evidence_directory=evidence_path,
         )
+        source_after_checks = collect_source_snapshot(task, cwd=repository)
+        source_stable_during_checks = source_before_checks == source_after_checks
+        atomic_write_json(
+            evidence_path / SOURCE_BEFORE_CHECKS_FILENAME,
+            source_before_checks.to_document(),
+        )
+        atomic_write_json(
+            evidence_path / SOURCE_AFTER_CHECKS_FILENAME,
+            source_after_checks.to_document(),
+        )
 
-        changes = collect_changes(task, cwd=repository, base_ref=resolved_base_ref)
+        changes = collect_changes(task, cwd=repository)
         changed_files = [_file_change_document(change) for change in changes.product_changes]
         scope_violations = [
             _file_change_document(change) for change in changes.out_of_scope_changes
@@ -113,7 +131,7 @@ def verify_task(
         write_diff_patch(evidence_path / "diff.patch", repository, changes)
         atomic_write_json(
             evidence_path / "checks.json",
-            {"schema_version": VERIFICATION_SCHEMA_VERSION, "checks": check_results},
+            {"schema_version": RUN_DOCUMENT_SCHEMA_VERSION, "checks": check_results},
         )
 
         required_checks_pass = all(
@@ -122,17 +140,31 @@ def verify_task(
             if bool(result["required"])
         )
         scope_pass = changes.scope_passed
-        mechanical_result = "pass" if scope_pass and required_checks_pass else "fail"
+        mechanical_result = (
+            "pass"
+            if scope_pass
+            and required_checks_pass
+            and source_stable_during_checks
+            else "fail"
+        )
         evidence_files = _evidence_file_list(check_results)
         verification = {
             "schema_version": VERIFICATION_SCHEMA_VERSION,
             "task_id": task_id,
             "run_id": run_id,
-            "baseline": changes.base_ref,
+            "baseline": changes.baseline,
             "changed_files": changed_files,
             "scope_pass": scope_pass,
             "scope_violations": scope_violations,
             "required_checks_pass": required_checks_pass,
+            SOURCE_SNAPSHOT_SCHEMA_VERSION_FIELD: (
+                source_before_checks.schema_version
+            ),
+            SOURCE_BEFORE_CHECKS_SHA256_FIELD: (
+                source_before_checks.snapshot_sha256
+            ),
+            SOURCE_AFTER_CHECKS_SHA256_FIELD: source_after_checks.snapshot_sha256,
+            SOURCE_STABLE_DURING_CHECKS_FIELD: source_stable_during_checks,
             "mechanical_result": mechanical_result,
             "evidence_files": evidence_files,
             "timestamp": _utc_timestamp(),
@@ -147,13 +179,19 @@ def verify_task(
                 evidence_files=tuple(PurePosixPath(path) for path in evidence_files),
             )
         except RunManifestError as error:
-            raise EvidenceError(
+            raise EvidenceRepositoryError(
                 f"Could not create run manifest for Evidence Run '{evidence_path}': {error}"
             ) from error
     except GitDiffTaskError as error:
         raise EvidenceError(str(error)) from error
     except GitDiffError as error:
         raise EvidenceRepositoryError(str(error)) from error
+    except SourceSnapshotError as error:
+        raise EvidenceRepositoryError(str(error)) from error
+    except OSError as error:
+        raise EvidenceRepositoryError(
+            f"Could not persist verification Evidence: {error}"
+        ) from error
     except CheckExecutionError as error:
         raise EvidenceError(str(error)) from error
 
@@ -205,18 +243,16 @@ def _write_diff_patch(
     changes: ChangeCollection,
 ) -> None:
     """Write committed, staged, unstaged, and untracked patches in order."""
-    prefix = [
-        "git",
-        "-C",
-        str(repository),
+    prefix = _git_command(
+        repository,
         "diff",
         "--binary",
         "--no-ext-diff",
         "--no-textconv",
-    ]
+    )
     pathspecs = ["--", ".", *_metadata_exclude_pathspecs()]
     commands: list[tuple[list[str], set[int]]] = [
-        ([*prefix, changes.base_ref, "HEAD", *pathspecs], {0}),
+        ([*prefix, changes.baseline, "HEAD", *pathspecs], {0}),
         ([*prefix, "--cached", *pathspecs], {0}),
         ([*prefix, *pathspecs], {0}),
     ]
@@ -296,8 +332,8 @@ def _metadata_exclude_pathspecs() -> tuple[str, ...]:
 
 def _changed_files_document(changes: ChangeCollection) -> dict[str, Any]:
     return {
-        "schema_version": VERIFICATION_SCHEMA_VERSION,
-        "baseline": changes.base_ref,
+        "schema_version": RUN_DOCUMENT_SCHEMA_VERSION,
+        "baseline": changes.baseline,
         "scope": list(changes.scope),
         "changes": [_file_change_document(change) for change in changes.changes],
     }
@@ -318,7 +354,14 @@ def _file_change_document(change: FileChange) -> dict[str, Any]:
 
 
 def _evidence_file_list(check_results: list[dict[str, Any]]) -> list[str]:
-    files = ["task.json", "changed-files.json", "diff.patch", "checks.json"]
+    files = [
+        "task.json",
+        SOURCE_BEFORE_CHECKS_FILENAME,
+        SOURCE_AFTER_CHECKS_FILENAME,
+        "changed-files.json",
+        "diff.patch",
+        "checks.json",
+    ]
     for result in check_results:
         files.extend((str(result["stdout_path"]), str(result["stderr_path"])))
     files.append("verification.json")

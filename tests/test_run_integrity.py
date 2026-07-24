@@ -31,6 +31,7 @@ from harness.run_validator import (
 )
 from harness.task import create_task
 from harness.verdict import VerdictEvidenceError, record_verdict
+from tests._evidence_fixtures import rewrite_failed_check_as_timeout
 
 
 class CanonicalRunIntegrityTests(unittest.TestCase):
@@ -216,12 +217,17 @@ class CanonicalRunIntegrityTests(unittest.TestCase):
             checks=[
                 self._check(
                     "timeout",
-                    "import time; time.sleep(30)",
+                    "import sys; sys.exit(24)",
                     timeout_seconds=1,
                 )
             ]
         )
         run = self._run()
+        rewrite_failed_check_as_timeout(
+            run.evidence_path,
+            task_id="TASK-RUN",
+            run_id=run.run_id,
+        )
 
         validated = validate_run("TASK-RUN", run.run_id, cwd=self.repository)
 

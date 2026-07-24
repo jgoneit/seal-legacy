@@ -20,6 +20,7 @@ from harness.evidence import verify_task
 from harness.exit_codes import ExitCode
 from harness.task import create_task
 from harness.verdict import record_verdict
+from tests._evidence_fixtures import rewrite_failed_check_as_timeout
 
 
 class CompleteCommandTests(unittest.TestCase):
@@ -175,6 +176,7 @@ class CompleteCommandTests(unittest.TestCase):
         self.assertEqual(int(ExitCode.TIMEOUT), 6)
         self.assertEqual(int(ExitCode.REQUIRED_VERIFIER_EVIDENCE_MISSING), 7)
         self.assertEqual(int(ExitCode.EVIDENCE_MISSING_OR_CORRUPT), 8)
+        self.assertEqual(int(ExitCode.SOURCE_BINDING_NOT_SATISFIED), 9)
 
     def test_complete_writes_completion_without_rerunning_checks(self) -> None:
         counter_path = self.root / "check-count.txt"
@@ -298,11 +300,16 @@ class CompleteCommandTests(unittest.TestCase):
         self._create_task(
             checks=[
                 self._python_check(
-                    "timeout", "import time; time.sleep(30)", timeout_seconds=1
+                    "timeout", "import sys; sys.exit(24)", timeout_seconds=1
                 )
             ]
         )
         run = verify_task("TASK-COMPLETE", cwd=self.repository)
+        rewrite_failed_check_as_timeout(
+            run.evidence_path,
+            task_id="TASK-COMPLETE",
+            run_id=run.run_id,
+        )
 
         result = self._complete("TASK-COMPLETE", run.run_id)
 
@@ -400,23 +407,18 @@ class CompleteCommandTests(unittest.TestCase):
         self.assertEqual(invalid.returncode, 2, invalid.stderr)
         self.assertEqual(omitted.returncode, 2, omitted.stderr)
 
-    @unittest.expectedFailure
     def test_complete_rejects_product_source_changes_after_verification(self) -> None:
-        """Remove expectedFailure when current-source binding is implemented."""
         self._create_task()
         run = verify_task("TASK-COMPLETE", cwd=self.repository)
         self._write("src/example.txt", "changed after verification\n")
 
         result = self._complete("TASK-COMPLETE", run.run_id)
 
-        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(result.returncode, 9, result.stderr)
         self.assertFalse((run.evidence_path / "completion.json").exists())
 
-    @unittest.expectedFailure
-    def test_verify_cannot_override_task_baseline_to_hide_product_changes(self) -> None:
-        """Remove expectedFailure when the Task baseline can no longer be bypassed."""
+    def test_verify_rejects_removed_base_ref_option(self) -> None:
         self._create_task()
-        task_baseline = self._git("rev-parse", "HEAD")
         self._write("docs/hidden.txt", "committed after the Task baseline\n")
         self._git("add", "docs/hidden.txt")
         self._git(
@@ -430,19 +432,13 @@ class CompleteCommandTests(unittest.TestCase):
             "post-baseline product change",
         )
 
-        result = self._run_cli(
-            "verify", "TASK-COMPLETE", "--base-ref", "HEAD"
-        )
-        if result.returncode != 0:
-            return
+        result = self._run_cli("verify", "TASK-COMPLETE", "--base-ref", "HEAD")
 
-        response = json.loads(result.stdout)
-        verification_path = Path(response["evidence_path"]) / "verification.json"
-        verification = json.loads(verification_path.read_text(encoding="utf-8"))
-        changed_paths = {change["path"] for change in verification["changed_files"]}
-        self.assertEqual(verification["baseline"], task_baseline)
-        self.assertIn("docs/hidden.txt", changed_paths)
-        self.assertFalse(verification["scope_pass"])
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertFalse(
+            (self.repository / ".harness" / "evidence" / "TASK-COMPLETE").exists()
+        )
 
     def test_non_repository_returns_git_repository_exit_code(self) -> None:
         non_repository = self.root / "not-a-repository"

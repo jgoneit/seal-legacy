@@ -53,3 +53,9 @@ source나 Evidence를 자동 복구·rollback하지 않는다.
 - manifest 자체의 self-hash 또는 signature를 이번 local contract에 추가하는 방식
 - manifest mismatch에서 자동 repair, source rollback, runtime hook·approval·monitoring을 추가하는 방식
 - current source snapshot binding을 같은 Phase에 함께 도입하는 방식
+
+## R1b amendment
+
+[ADR 0005](0005-verify-complete-source-binding.ko.md)는 verification v2 Run의
+raw-byte manifest 대상에 persisted Source Snapshot document 두 개를 추가한다.
+Manifest, Verdict, Completion document schema는 version 1을 유지한다.

@@ -119,6 +119,45 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
             cwd=self.repository,
         )
 
+    def _make_merge_conflicts(self, *relative_paths: str) -> None:
+        original_branch = self._git("branch", "--show-current")
+        self._git("switch", "-c", "conflicting")
+        for relative_path in relative_paths:
+            self._write(relative_path, f"other: {relative_path}\n")
+        self._git("add", "--", *relative_paths)
+        self._commit("conflicting branch")
+        self._git("switch", original_branch)
+        for relative_path in relative_paths:
+            self._write(relative_path, f"ours: {relative_path}\n")
+        self._git("add", "--", *relative_paths)
+        self._commit("current branch")
+        result = subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=Harness Test",
+                "-c",
+                "user.email=harness-test@example.invalid",
+                "merge",
+                "conflicting",
+            ],
+            cwd=self.repository,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        for relative_path in relative_paths:
+            self.assertTrue(
+                self._git_bytes(
+                    "ls-files",
+                    "--unmerged",
+                    "-z",
+                    "--",
+                    relative_path,
+                )
+            )
+
     @staticmethod
     def _entries(snapshot: SourceSnapshot) -> dict[str, SourceSnapshotEntry]:
         return {entry.path: entry for entry in snapshot.entries}
@@ -150,6 +189,21 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
         self.assertNotIn(str(self.repository), json.dumps(document))
         with self.assertRaises(FrozenInstanceError):
             snapshot.baseline = "different"  # type: ignore[misc]
+
+    def test_baseline_commit_identity_ignores_git_replace_refs(self) -> None:
+        self._write("src/base.txt", "replacement\n")
+        self._git("add", "src/base.txt")
+        self._commit("replacement target")
+        replacement_commit = self._git("rev-parse", "HEAD")
+        self._write("src/base.txt", "base\n")
+        self._git("replace", self.baseline, replacement_commit)
+
+        with_replace = self._snapshot()
+        self._git("replace", "-d", self.baseline)
+        without_replace = self._snapshot()
+
+        self.assertEqual(with_replace, without_replace)
+        self.assertEqual(with_replace.entries, ())
 
     def test_canonical_serialization_is_sorted_and_sensitive_to_every_field(self) -> None:
         entry = {
@@ -328,6 +382,55 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
 
         self.assertEqual(entry.state, "present")
         self.assertEqual(entry.mode, "100755")
+
+    @unittest.skipUnless(os.name == "posix", "executable mode requires POSIX")
+    def test_group_and_other_execute_bits_do_not_change_source_identity(self) -> None:
+        if self._git("config", "--bool", "core.filemode") == "false":
+            self.skipTest("Git is configured to ignore executable mode")
+        clean = self._snapshot()
+        path = self.repository / "src" / "script.sh"
+        original_mode = stat.S_IMODE(path.stat().st_mode)
+
+        for execute_bit in (stat.S_IXGRP, stat.S_IXOTH):
+            with self.subTest(execute_bit=execute_bit):
+                path.chmod((original_mode & ~0o111) | execute_bit)
+                try:
+                    if not path.stat().st_mode & execute_bit:
+                        self.skipTest("filesystem does not preserve executable mode")
+                    self.assertEqual(
+                        self._git_bytes(
+                            "diff",
+                            "--raw",
+                            "-z",
+                            self.baseline,
+                            "--",
+                            "src/script.sh",
+                        ),
+                        b"",
+                    )
+                    self.assertEqual(self._snapshot(), clean)
+                finally:
+                    path.chmod(original_mode)
+
+    @unittest.skipUnless(os.name == "posix", "executable mode requires POSIX")
+    def test_clearing_owner_execute_bit_records_nonexecutable_mode(self) -> None:
+        if self._git("config", "--bool", "core.filemode") == "false":
+            self.skipTest("Git is configured to ignore executable mode")
+        path = self.repository / "src" / "script.sh"
+        path.chmod(stat.S_IMODE(path.stat().st_mode) | 0o111)
+        if not path.stat().st_mode & stat.S_IXUSR:
+            self.skipTest("filesystem does not preserve executable mode")
+        self._git("add", "src/script.sh")
+        self._commit("executable baseline")
+        self.baseline = self._git("rev-parse", "HEAD")
+
+        path.chmod(
+            (stat.S_IMODE(path.stat().st_mode) | stat.S_IXGRP | stat.S_IXOTH)
+            & ~stat.S_IXUSR
+        )
+        entry = self._entries(self._snapshot())["src/script.sh"]
+
+        self.assertEqual(entry.mode, "100644")
 
     @unittest.skipUnless(os.name == "posix", "executable mode requires POSIX")
     def test_core_filemode_false_does_not_hide_executable_mode(self) -> None:
@@ -696,36 +799,46 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
             self._snapshot()
 
     def test_unmerged_worktree_fails_closed(self) -> None:
-        original_branch = self._git("branch", "--show-current")
-        self._git("switch", "-c", "other")
-        self._write("src/base.txt", "other\n")
-        self._git("add", "src/base.txt")
-        self._commit("other")
-        self._git("switch", original_branch)
-        self._write("src/base.txt", "ours\n")
-        self._git("add", "src/base.txt")
-        self._commit("ours")
-        result = subprocess.run(
-            [
-                "git",
-                "-c",
-                "user.name=Harness Test",
-                "-c",
-                "user.email=harness-test@example.invalid",
-                "merge",
-                "other",
-            ],
-            cwd=self.repository,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertTrue(
-            self._git_bytes("ls-files", "--unmerged", "-z", "--", "src/base.txt")
-        )
+        self._make_merge_conflicts("src/base.txt")
 
-        with self.assertRaisesRegex(SourceSnapshotError, "status 'U'"):
+        with self.assertRaisesRegex(
+            SourceSnapshotError,
+            "status 'U' for 'src/base.txt'",
+        ):
+            self._snapshot()
+
+    def test_metadata_only_merge_conflicts_do_not_change_source_identity(self) -> None:
+        metadata_paths = (
+            ".harness/config.json",
+            ".harness/tasks/TASK-X.json",
+        )
+        for relative_path in metadata_paths:
+            self._write(relative_path, f"baseline: {relative_path}\n")
+        self._git("add", "--", *metadata_paths)
+        self._commit("tracked metadata")
+        self.baseline = self._git("rev-parse", "HEAD")
+        clean = self._snapshot()
+
+        self._make_merge_conflicts(*metadata_paths)
+
+        self.assertEqual(self._snapshot(), clean)
+
+    def test_metadata_conflict_does_not_hide_product_lookalike_conflict(self) -> None:
+        paths = (
+            ".harness/config.json",
+            ".harness/tasks-extra/product.txt",
+        )
+        for relative_path in paths:
+            self._write(relative_path, f"baseline: {relative_path}\n")
+        self._git("add", "--", *paths)
+        self._commit("tracked metadata and lookalike")
+        self.baseline = self._git("rev-parse", "HEAD")
+        self._make_merge_conflicts(*paths)
+
+        with self.assertRaisesRegex(
+            SourceSnapshotError,
+            "status 'U' for '.harness/tasks-extra/product.txt'",
+        ):
             self._snapshot()
 
     def test_staged_deleted_path_recreated_as_ignored_remains_deleted(self) -> None:

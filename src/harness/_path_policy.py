@@ -1,4 +1,4 @@
-"""Pure internal path-boundary policy shared across Core trust domains."""
+"""Pure internal Git path policy shared across Core trust domains."""
 
 from __future__ import annotations
 
@@ -14,6 +14,11 @@ HARNESS_METADATA_FILES = frozenset(
         ".harness/config.json",
     }
 )
+
+
+def git_path_sort_key(path: str) -> bytes:
+    """Return Git's byte-oriented ordering key for one decoded path."""
+    return path.encode("utf-8", "surrogateescape")
 
 
 def path_is_within(path: str, boundary: str) -> bool:
