@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Protocol
 
-from ._source_binding_documents import SOURCE_BOUND_EVIDENCE_VERSION
 from .source_snapshot import (
     SourceSnapshot,
     SourceSnapshotError,
@@ -34,11 +33,10 @@ class _ValidatedRunForSourceBinding(Protocol):
     """The narrow immutable Run view required by complete-time binding."""
 
     repository: Path
-    evidence_version: int
     task: Mapping[str, object]
-    source_before_checks: SourceSnapshot | None
-    source_after_checks: SourceSnapshot | None
-    source_stable_during_checks: bool | None
+    source_before_checks: SourceSnapshot
+    source_after_checks: SourceSnapshot
+    source_stable_during_checks: bool
 
 
 def evaluate_completion_source_binding(
@@ -50,22 +48,8 @@ def evaluate_completion_source_binding(
     intentionally collects only S2; it neither reads persisted artifacts nor
     reruns checks.
     """
-    if validated_run.evidence_version != SOURCE_BOUND_EVIDENCE_VERSION:
-        raise SourceBindingNotSatisfiedError(
-            "Evidence Run does not support current-source binding; "
-            "create a new verification Run."
-        )
-
     source_before_checks = validated_run.source_before_checks
     source_after_checks = validated_run.source_after_checks
-    if (
-        source_before_checks is None
-        or source_after_checks is None
-        or validated_run.source_stable_during_checks is None
-    ):
-        raise SourceBindingNotSatisfiedError(
-            "Evidence Run does not contain validated Source Binding data."
-        )
 
     try:
         current_source = collect_source_snapshot(

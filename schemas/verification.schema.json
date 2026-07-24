@@ -1,181 +1,99 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Outcome Harness Verification Evidence",
-  "oneOf": [
-    {
-      "title": "Legacy verification Evidence v1",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "schema_version",
-        "task_id",
-        "run_id",
-        "baseline",
-        "changed_files",
-        "scope_pass",
-        "scope_violations",
-        "required_checks_pass",
-        "mechanical_result",
-        "evidence_files",
-        "timestamp",
-        "duration"
-      ],
-      "properties": {
-        "schema_version": {
-          "type": "integer",
-          "const": 1
-        },
-        "task_id": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-        },
-        "run_id": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-        },
-        "baseline": {
-          "type": "string",
-          "minLength": 1
-        },
-        "changed_files": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/fileChange"
-          }
-        },
-        "scope_pass": {
-          "type": "boolean"
-        },
-        "scope_violations": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/fileChange"
-          }
-        },
-        "required_checks_pass": {
-          "type": "boolean"
-        },
-        "mechanical_result": {
-          "enum": [
-            "pass",
-            "fail"
-          ]
-        },
-        "evidence_files": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "timestamp": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "duration": {
-          "type": "number",
-          "minimum": 0
-        }
+  "title": "Source-bound verification Evidence v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "run_id",
+    "baseline",
+    "changed_files",
+    "scope_pass",
+    "scope_violations",
+    "required_checks_pass",
+    "source_snapshot_schema_version",
+    "source_before_checks_sha256",
+    "source_after_checks_sha256",
+    "source_stable_during_checks",
+    "mechanical_result",
+    "evidence_files",
+    "timestamp",
+    "duration"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "baseline": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "changed_files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fileChange"
       }
     },
-    {
-      "title": "Source-bound verification Evidence v2",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "schema_version",
-        "task_id",
-        "run_id",
-        "baseline",
-        "changed_files",
-        "scope_pass",
-        "scope_violations",
-        "required_checks_pass",
-        "source_snapshot_schema_version",
-        "source_before_checks_sha256",
-        "source_after_checks_sha256",
-        "source_stable_during_checks",
-        "mechanical_result",
-        "evidence_files",
-        "timestamp",
-        "duration"
-      ],
-      "properties": {
-        "schema_version": {
-          "type": "integer",
-          "const": 2
-        },
-        "task_id": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-        },
-        "run_id": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-        },
-        "baseline": {
-          "type": "string",
-          "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
-        },
-        "changed_files": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/fileChange"
-          }
-        },
-        "scope_pass": {
-          "type": "boolean"
-        },
-        "scope_violations": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/fileChange"
-          }
-        },
-        "required_checks_pass": {
-          "type": "boolean"
-        },
-        "source_snapshot_schema_version": {
-          "type": "integer",
-          "const": 1
-        },
-        "source_before_checks_sha256": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "source_after_checks_sha256": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "source_stable_during_checks": {
-          "type": "boolean"
-        },
-        "mechanical_result": {
-          "enum": [
-            "pass",
-            "fail"
-          ]
-        },
-        "evidence_files": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "timestamp": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "duration": {
-          "type": "number",
-          "minimum": 0
-        }
+    "scope_pass": {
+      "type": "boolean"
+    },
+    "scope_violations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fileChange"
       }
+    },
+    "required_checks_pass": {
+      "type": "boolean"
+    },
+    "source_snapshot_schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "source_before_checks_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_after_checks_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_stable_during_checks": {
+      "type": "boolean"
+    },
+    "mechanical_result": {
+      "enum": [
+        "pass",
+        "fail"
+      ]
+    },
+    "evidence_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration": {
+      "type": "number",
+      "minimum": 0
     }
-  ],
+  },
   "$defs": {
     "fileChange": {
       "type": "object",
