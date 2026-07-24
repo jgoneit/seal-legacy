@@ -367,7 +367,7 @@ class RunManifestTests(unittest.TestCase):
         with self.assertRaises(RunValidationError):
             validate_run("TASK-MANIFEST", run.run_id, cwd=self.repository)
 
-    def test_missing_manifest_is_an_explicit_incomplete_legacy_run(self) -> None:
+    def test_missing_manifest_is_explicitly_incomplete_evidence(self) -> None:
         run = self._valid_run()
         self._manifest_path(run.evidence_path).unlink()
 

@@ -604,19 +604,13 @@ class VerificationEvidenceTests(unittest.TestCase):
         schema = json.loads(
             (PROJECT_ROOT / "schemas" / "verification.schema.json").read_text(encoding="utf-8")
         )
-        v1_schema, v2_schema = schema["oneOf"]
 
-        self.assertEqual(set(run.verification), set(v2_schema["required"]))
-        for branch in (v1_schema, v2_schema):
-            self.assertEqual(
-                set(branch["properties"]),
-                set(branch["required"]),
-            )
-            self.assertFalse(branch["additionalProperties"])
-        self.assertEqual(v1_schema["properties"]["schema_version"]["const"], 1)
-        self.assertEqual(v2_schema["properties"]["schema_version"]["const"], 2)
+        self.assertEqual(set(run.verification), set(schema["required"]))
+        self.assertEqual(set(schema["properties"]), set(schema["required"]))
+        self.assertFalse(schema["additionalProperties"])
+        self.assertEqual(schema["properties"]["schema_version"]["const"], 2)
         self.assertEqual(
-            v2_schema["properties"]["mechanical_result"]["enum"],
+            schema["properties"]["mechanical_result"]["enum"],
             ["pass", "fail"],
         )
 
@@ -681,31 +675,35 @@ class VerificationSchemaParityTests(unittest.TestCase):
             errors = list(validator.iter_errors(run.verification))
             self.assertEqual(errors, [])
 
-    def test_checked_in_legacy_v1_verification_matches_schema(self) -> None:
+    def test_v1_style_verification_is_rejected(self) -> None:
         schema = json.loads(
             (PROJECT_ROOT / "schemas" / "verification.schema.json").read_text(
                 encoding="utf-8"
             )
         )
-        legacy = json.loads(
-            (
-                PROJECT_ROOT
-                / "tests"
-                / "fixtures"
-                / "legacy-v1-base-ref"
-                / "verification.json"
-            ).read_text(encoding="utf-8")
-        )
+        v1_style = {
+            "schema_version": 1,
+            "task_id": "TASK-V1",
+            "run_id": "run-v1",
+            "baseline": "0" * 40,
+            "changed_files": [],
+            "scope_pass": True,
+            "scope_violations": [],
+            "required_checks_pass": True,
+            "mechanical_result": "pass",
+            "evidence_files": [
+                "task.json",
+                "changed-files.json",
+                "diff.patch",
+                "checks.json",
+                "verification.json",
+            ],
+            "timestamp": "2026-07-25T00:00:00Z",
+            "duration": 0,
+        }
         validator = Draft202012Validator(
             schema,
             format_checker=FormatChecker(),
         )
 
-        self.assertEqual(list(validator.iter_errors(legacy)), [])
-        mixed = {
-            **legacy,
-            "source_snapshot_schema_version": 1,
-        }
-        extra = {**legacy, "unexpected": True}
-        self.assertNotEqual(list(validator.iter_errors(mixed)), [])
-        self.assertNotEqual(list(validator.iter_errors(extra)), [])
+        self.assertNotEqual(list(validator.iter_errors(v1_style)), [])
