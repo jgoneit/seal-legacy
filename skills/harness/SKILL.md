@@ -29,7 +29,7 @@ Before every Core operation, run:
 harness --version
 ~~~
 
-Support Core `>=0.2.0.dev0,<0.3.0`. If the command is missing, do not install it
+Support Core `>=0.2.0,<0.3.0`. If the command is missing, do not install it
 automatically. Direct the user to the repository README Installation section
 and stop the requested Core operation. If the version is unparseable or
 unsupported, show the actual output and stop.

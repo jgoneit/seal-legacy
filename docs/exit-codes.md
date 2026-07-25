@@ -1,7 +1,7 @@
 # Harness exit codes
 
-The exit codes below describe unreleased current Core `0.2.0.dev0` and are part
-of its public CLI contract. Existing meanings are stable.
+The exit codes below describe Core `0.2.0` and are part of its public CLI
+contract. Existing meanings are stable.
 
 | Code | Meaning | Typical condition |
 | ---: | --- | --- |

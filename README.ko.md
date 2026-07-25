@@ -8,7 +8,7 @@ Language: [English](README.md) | 한국어
 Harness는 Task snapshot, product 변경, check 결과, source identity를 검토 가능한
 Evidence Run으로 저장하는 실험적 로컬 CLI입니다.
 
-현재 main은 release되지 않은 `0.2.0.dev0`입니다. Source-bound verification
+최신 Experimental release는 `v0.2.0`입니다. Source-bound verification
 Evidence v2만 지원하며, 과거 v0.1.x Evidence를 in-place upgrade하지 않습니다.
 자세한 내용은 [v0.2 verification Evidence migration](docs/migration-v0.2.md)을
 참고하세요.
@@ -53,19 +53,30 @@ harness verify: S0 → checks → S1
 최소 기본 흐름은 `verify`가 Run을 저장하면 끝납니다. Bundle export, Verdict
 작업, completion 평가는 명시적으로 요청할 때만 수행합니다.
 
+### Profile
+
+- **Basic mechanical-only profile:** `verifier.required`를 `false`로
+  설정합니다. Source binding, Scope, timeout, required-check gate가 통과하면
+  Manual Verdict 없이 `complete`가 성공할 수 있습니다.
+- **Reviewed profile:** `verifier.required`를 `true`로 설정합니다.
+  `complete`에는 별도로 준비된 blocker 없는 `pass` Manual Verdict도
+  필요합니다.
+
+Harness는 reviewer를 선택하거나 실행하지 않습니다. Bundle export는 검토를
+위한 historical Evidence만 준비합니다.
+
 ## 설치
 
-이 development contract에는 최종 v0.2 release artifact가 없습니다. 현재
-checkout을 개발용으로 설치합니다.
+`v0.2.0` tag를 설치합니다.
 
 ```bash
-git clone https://github.com/jgoneit/harness.git
-cd harness
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -e ".[test,release]"
+python3 -m pip install \
+  "git+https://github.com/jgoneit/harness.git@v0.2.0"
 harness --version
 ```
+
+Release artifact 이름은 `outcome_harness-0.2.0-py3-none-any.whl`과
+`outcome_harness-0.2.0.tar.gz`입니다.
 
 요구사항:
 
@@ -216,18 +227,32 @@ version은 기존 값을 유지합니다.
 모순은 Evidence error(exit 8)입니다. Exit 9는 structurally valid v2 Run에서
 S0와 S1 또는 S1과 S2가 달라 source binding이 실패한 경우에만 사용합니다.
 
+## v0.1.x compatibility
+
+Harness v0.2.0은 v0.1.x verification Run을 읽지 않습니다. 해당 Evidence는
+대응하는 v0.1.x tag의 CLI로 읽어야 합니다. In-place migration은 없으며,
+source-bound completion claim에는 v0.2.0으로 새 Evidence v2 Run을 생성해야
+합니다.
+
 ## Trust와 security 경계
 
 - Run Manifest는 mechanical file의 raw-byte size와 SHA-256으로 누락·변경을
-  탐지합니다. Signature, remote attestation, immutable storage는 아닙니다.
+  탐지합니다. Signature가 아니며, local user가 Evidence와 manifest를 함께
+  다시 쓰는 상황을 방어하지 않습니다.
 - Bundle export는 현재 repository root와 user home의 알려진 spelling을
   치환합니다. 그 밖의 POSIX, Windows, UNC, URL 형태 text와 임의의 check-output
   byte는 보존합니다. 일반적인 path 익명화나 secret redaction이 아닙니다.
 - Check log에는 민감한 값이 포함될 수 있으므로 외부 공유 전에 확인해야 합니다.
+- `complete`는 저장된 check 결과를 검증하며 check를 재실행하거나 secret을
+  redact하지 않습니다.
+- Source binding은 local bounded observation입니다. S2 수집 이후 또는
+  `complete` 반환 이후 filesystem을 잠그지 않습니다.
+- Manual Verdict 기록은 Verdict를 Task와 Run에 bind하지만 reviewer가 실제로
+  독립적이었음을 보장하지 않습니다.
+- Local Evidence는 immutable central audit store가 아니며, v0.2.0은 모든
+  특수 Git state 지원을 주장하지 않습니다.
 - Repository-local Codex credential policy는 별도 경계이며 Harness Core 기능이
   아닙니다.
-- Source binding은 bounded observation입니다. S2 수집 이후 filesystem을
-  잠그지 않습니다.
 
 ## 개발 검증
 
@@ -256,6 +281,7 @@ resource도 확인합니다.
 - [ADR 0003: Run Evidence Manifest](docs/adr/0003-run-evidence-manifest.md)
 - [ADR 0004: Canonical Source Snapshot](docs/adr/0004-canonical-source-snapshot.md)
 - [ADR 0005: Verify/Complete Source Binding](docs/adr/0005-verify-complete-source-binding.md)
+- [v0.2.0 Release Notes](docs/releases/v0.2.0.md)
 - [v0.1.0 Release Notes](docs/releases/v0.1.0.md)
 - [v0.1.1 Release Notes](docs/releases/v0.1.1.md)
 
