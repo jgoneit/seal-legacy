@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version",
         action="version",
-        version=f"%(prog)s {__version__}",
+        version=__version__,
     )
     commands = parser.add_subparsers(dest="command", required=True)
     task_parser = commands.add_parser("task", help="create or inspect Task Specs")

@@ -19,6 +19,7 @@ from harness import __version__
 PYPROJECT = REPOSITORY_ROOT / "pyproject.toml"
 SDIST_MANIFEST = REPOSITORY_ROOT / "MANIFEST.in"
 PLUGIN_MANIFEST = REPOSITORY_ROOT / ".codex-plugin" / "plugin.json"
+CI_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
 RELEASE_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
 SKILL = REPOSITORY_ROOT / "skills" / "harness" / "SKILL.md"
 README = REPOSITORY_ROOT / "README.md"
@@ -41,6 +42,7 @@ class ReleaseContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.pyproject = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
         cls.plugin_manifest = json.loads(PLUGIN_MANIFEST.read_text(encoding="utf-8"))
+        cls.ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
         cls.workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
         cls.skill = SKILL.read_text(encoding="utf-8")
         cls.readme = README.read_text(encoding="utf-8")
@@ -90,6 +92,23 @@ class ReleaseContractTests(unittest.TestCase):
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, self.workflow)
+
+    def test_clean_wheel_workflows_require_exact_cli_version(self) -> None:
+        expected_assertions = (
+            (
+                self.ci_workflow,
+                'test "$("$RUNNER_TEMP/clean-install/bin/harness" --version)" '
+                '= "0.2.0"',
+            ),
+            (
+                self.workflow,
+                'test "$("$RUNNER_TEMP/outcome-harness-clean/bin/harness" '
+                '--version)" = "0.2.0"',
+            ),
+        )
+        for workflow, assertion in expected_assertions:
+            with self.subTest(assertion=assertion):
+                self.assertIn(assertion, workflow)
 
     def test_sdist_manifest_excludes_repository_test_suite(self) -> None:
         self.assertTrue(SDIST_MANIFEST.is_file())
