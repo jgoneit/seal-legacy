@@ -31,7 +31,7 @@ jobs:
           python -m venv "$RUNNER_TEMP/outcome-harness-clean"
           "$RUNNER_TEMP/outcome-harness-clean/bin/python" -m pip install dist/outcome_harness-0.2.0-*.whl
           cd "$RUNNER_TEMP"
-          "$RUNNER_TEMP/outcome-harness-clean/bin/harness" --version
+          test "$("$RUNNER_TEMP/outcome-harness-clean/bin/harness" --version)" = "0.2.0"
           "$RUNNER_TEMP/outcome-harness-clean/bin/harness" --help
           "$RUNNER_TEMP/outcome-harness-clean/bin/python" -c "import harness; assert harness.__version__ == '0.2.0'"
           "$RUNNER_TEMP/outcome-harness-clean/bin/python" -c "from harness.run_validator import validate_run; from harness.verdict_validator import validate_verdict; assert callable(validate_run); assert callable(validate_verdict)"

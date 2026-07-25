@@ -51,7 +51,10 @@ class CommandLineTests(unittest.TestCase):
         self.assert_command_succeeds("--help")
 
     def test_harness_version(self) -> None:
-        self.assert_command_succeeds("--version")
+        result = self._run_command("--version")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "0.2.0\n")
+        self.assertEqual(result.stderr, "")
 
     def test_python_module_help(self) -> None:
         environment = os.environ.copy()
