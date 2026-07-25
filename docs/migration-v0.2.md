@@ -1,7 +1,7 @@
 # Migrating verification Evidence to v0.2
 
-This note describes the current `0.2.0.dev0` development contract. It does not
-announce a final v0.2 release.
+This note describes the verification Evidence compatibility boundary in
+Harness Core `0.2.0`.
 
 ## Verification Run contract
 

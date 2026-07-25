@@ -1,9 +1,9 @@
 # Harness Adapter CLI Contract
 
 This document defines the public contract for a thin adapter, including the
-Codex Plugin, when invoking the unreleased Harness Core `0.2.0.dev0` as a
-subprocess. An adapter must not import the Core Python package; it uses only the
-CLI and stdout JSON described below.
+Codex Plugin, when invoking Harness Core `0.2.0` as a subprocess. An adapter
+must not import the Core Python package; it uses only the CLI and stdout JSON
+described below.
 
 ## Public CLI
 
@@ -18,7 +18,7 @@ CLI and stdout JSON described below.
 | `harness verifier show` | `<TASK_ID> --run-id <RUN_ID>` |
 | `harness complete` | `<TASK_ID> --run-id <RUN_ID>` |
 
-Current main does not support `verify --base-ref`, a hidden alias, or an
+Core `0.2.0` does not support `verify --base-ref`, a hidden alias, or an
 environment fallback. Supplying `--base-ref` is invalid argparse input and
 returns exit 2. Verification always uses the full baseline commit saved in the
 Task snapshot. Task baseline revision and CI-specific base/head selection are
@@ -63,7 +63,7 @@ The existing meanings of these numbers are a stable contract. See [Exit codes](e
 ## Public read-only artifacts
 
 An adapter's default boundary is the CLI and JSON. It may use the following
-current-main read-only artifact surface only when it needs to display or archive
+v0.2.0 read-only artifact surface only when it needs to display or archive
 Evidence. An adapter must not create or modify these files.
 
 | Location | Documented purpose and fields |
@@ -102,7 +102,6 @@ An adapter must not depend on any of the following:
 
 This separation keeps Core's responsibility for deterministic local Evidence
 distinct from an adapter's UI, model, network, credential, and retry policies.
-Harness Core `0.2.0.dev0` does not call model APIs or external verifier CLIs.
-No final `0.2.0` release artifact is published by this development contract.
+Harness Core `0.2.0` does not call model APIs or external verifier CLIs.
 See [Migrating verification Evidence to v0.2](migration-v0.2.md) for the
 historical Evidence boundary.

@@ -8,8 +8,9 @@ Language: English | [한국어](README.ko.md)
 Harness is an experimental local CLI that saves a Task snapshot, product
 changes, check results, and source identity as a reviewable Evidence Run.
 
-Current main is unreleased `0.2.0.dev0`. It supports source-bound verification
-Evidence v2 only. Historical v0.1.x Evidence is not upgraded in place; see
+The latest Experimental release is `v0.2.0`. It supports source-bound
+verification Evidence v2 only. Historical v0.1.x Evidence is not upgraded in
+place; see
 [Migrating verification Evidence to v0.2](docs/migration-v0.2.md).
 
 ## What Harness does
@@ -53,19 +54,30 @@ The minimum default flow ends when `verify` saves the Run. Bundle export,
 Verdict operations, and completion evaluation occur only when explicitly
 requested.
 
+### Profiles
+
+- **Basic mechanical-only profile:** set `verifier.required` to `false`.
+  `complete` can succeed without a Manual Verdict when source binding, Scope,
+  timeout, and required-check gates pass.
+- **Reviewed profile:** set `verifier.required` to `true`. `complete` also
+  requires a separately prepared `pass` Manual Verdict with no blockers.
+
+Harness never selects or runs the reviewer. Bundle export only prepares
+historical Evidence for review.
+
 ## Installation
 
-No final v0.2 release artifact is published by this development contract.
-Install the current checkout for development:
+Install the `v0.2.0` tag:
 
 ```bash
-git clone https://github.com/jgoneit/harness.git
-cd harness
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -e ".[test,release]"
+python3 -m pip install \
+  "git+https://github.com/jgoneit/harness.git@v0.2.0"
 harness --version
 ```
+
+The release artifact names are
+`outcome_harness-0.2.0-py3-none-any.whl` and
+`outcome_harness-0.2.0.tar.gz`.
 
 Requirements:
 
@@ -217,20 +229,32 @@ Unsupported verification versions, missing files, tampering, or contradictory
 stored data are Evidence errors (exit 8). Exit 9 is reserved for a valid v2 Run
 whose source binding fails because S0 differs from S1 or S1 differs from S2.
 
+## v0.1.x compatibility
+
+Harness v0.2.0 does not read v0.1.x verification Runs. Use the CLI from the
+corresponding v0.1.x tag to read that Evidence. There is no in-place migration;
+create a new Evidence v2 Run with v0.2.0 for a source-bound completion claim.
+
 ## Trust and security boundaries
 
 - The Run Manifest detects missing or modified mechanical files by raw-byte
-  size and SHA-256. It is not a signature, remote attestation, or immutable
-  storage.
+  size and SHA-256. It is not a signature or a defense against a local user who
+  rewrites both Evidence and the manifest.
 - Bundle export replaces known spellings of the current repository root and
   user home. Other POSIX, Windows, UNC, URL-like text and arbitrary check-output
   bytes are preserved. This is not general path anonymization or secret
   redaction.
 - Check logs may contain sensitive values. Inspect a bundle before sharing it.
+- `complete` validates saved check results; it does not rerun checks or redact
+  secrets.
+- Source binding is a local bounded observation. Harness does not lock the
+  filesystem after S2 is collected or after `complete` returns.
+- Recording a Manual Verdict binds it to a Task and Run; it does not establish
+  that the reviewer was actually independent.
+- Local Evidence is not an immutable central audit store, and v0.2.0 does not
+  claim support for every special Git state.
 - Repository-local Codex credential policy is documented separately; it is not
   a Harness Core feature.
-- Source binding is a bounded observation. Harness does not lock the filesystem
-  after S2 is collected.
 
 ## Development verification
 
@@ -259,6 +283,7 @@ public imports, and packaged contract resources.
 - [ADR 0003: Run Evidence Manifest](docs/adr/0003-run-evidence-manifest.md)
 - [ADR 0004: Canonical Source Snapshot](docs/adr/0004-canonical-source-snapshot.md)
 - [ADR 0005: Verify/Complete Source Binding](docs/adr/0005-verify-complete-source-binding.md)
+- [v0.2.0 Release Notes](docs/releases/v0.2.0.md)
 - [v0.1.0 Release Notes](docs/releases/v0.1.0.md)
 - [v0.1.1 Release Notes](docs/releases/v0.1.1.md)
 

@@ -1,7 +1,7 @@
 # Harness architecture
 
-This document describes the unreleased `0.2.0.dev0` Core. Current Core supports
-source-bound verification Evidence v2 only. See
+This document describes the `0.2.0` Core, which supports source-bound
+verification Evidence v2 only. See
 [Migrating verification Evidence to v0.2](migration-v0.2.md) for historical
 v0.1.x Evidence.
 
@@ -69,8 +69,7 @@ Verdict operations, and completion evaluation happen only when explicitly
 requested.
 
 `verify` uses only the baseline saved in the Task snapshot. The former
-Run-level baseline override is not part of the v0.2 contract. A Task revision
-or CI-specific pull-request baseline would require a separate future contract.
+Run-level baseline override is not part of the v0.2 contract.
 
 ## Evidence v2
 

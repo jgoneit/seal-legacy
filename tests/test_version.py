@@ -15,5 +15,5 @@ from harness import __version__
 class VersionTests(unittest.TestCase):
     """Verify that the package exposes a version."""
 
-    def test_development_version_matches_v2_contract(self) -> None:
-        self.assertEqual(__version__, "0.2.0.dev0")
+    def test_release_version_matches_v2_contract(self) -> None:
+        self.assertEqual(__version__, "0.2.0")
