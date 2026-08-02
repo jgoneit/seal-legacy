@@ -69,7 +69,7 @@ Evidence. An adapter must not create or modify these files.
 | Location | Documented purpose and fields |
 | --- | --- |
 | `.harness/tasks/<TASK_ID>.json` | Task snapshot; the same Task JSON fields as `task create`/`task show` |
-| `<evidence_path>/verification.json` | Source-bound Run identity and mechanical outcome using verification schema version 2 |
+| `<evidence_path>/verification.json` | Source-bound Run identity and stored mechanical outcome using verification schema version 2; adapters may display `mechanical_result`, `scope_pass`, `required_checks_pass`, and `source_stable_during_checks` without recalculating them |
 | `<evidence_path>/source-before-checks.json` | Required pre-check S0 product-source Snapshot using Source Snapshot schema version 1 |
 | `<evidence_path>/source-after-checks.json` | Required post-check S1 product-source Snapshot using Source Snapshot schema version 1 |
 | `<evidence_path>/run-manifest.json` | mechanical file records and local consistency identifier; `task_id`, `run_id`, `files`, `evidence_sha256` |
@@ -89,6 +89,63 @@ as Evidence in the Run record above, but fields or internal representations not
 listed in this document are not part of the adapter compatibility contract.
 When portable review is needed, use `verifier bundle` instead of assembling
 files directly from the filesystem.
+
+## Managed adapter lifecycle
+
+An adapter may connect existing public commands into a managed,
+conversation-scoped workflow only after an explicit Harness invocation. This
+changes adapter UX, not Core command semantics or authority. Ordinary coding
+requests do not activate Core.
+
+Before the first Core write, the adapter may display a Task draft, a
+catalog-derived check preview, HEAD baseline semantics, and existing
+working-tree changes, then ask for one conversational confirmation. This is a
+preview, not Core normalization; only successful `task create` stdout supplies
+the authoritative saved checks. An omitted optional `timeout_seconds` remains
+omitted in the preview rather than being replaced with an adapter-invented
+default. The confirmation may cover Task creation, continuation of ordinary
+implementation, the first `verify` exactly once, and one conditional bundle
+export for a mechanically passing reviewed profile. It does not authorize
+`complete`, decide implementation permissions, or replace host and client
+approval prompts.
+
+After `task create`, the adapter must compare the saved stdout Task fields with
+the approved draft, the saved baseline with the displayed HEAD, and the saved
+normalized check fields with the approved preview. If any differs, it
+preserves the created Task but stops before implementation or verification and
+requires explicit adoption of the exact saved Task or a new Task draft. It
+must not overwrite the created Task or treat the earlier confirmation as
+approving the difference.
+
+The adapter must carry the exact `id` parsed from successful `task create`
+stdout and the exact `run_id` parsed from successful `verify` stdout only in
+that same conversation. It must not infer a latest Task or Run, scan for the
+newest Evidence directory, or persist its own lifecycle state. A later or new
+conversation requires explicit identities.
+
+A nonzero command result stops the covered sequence. Partial stdout is not a
+result. After successful Evidence recording, an adapter may relay only the
+documented stored outcome fields from `verification.json`; it must not
+recalculate or reinterpret the mechanical result. A nonzero `verify` result or
+a stored mechanical failure stops the managed flow without source repair,
+Evidence replacement, another Run, or automatic verification retry.
+
+For a reviewed profile, the adapter may export one bundle after a stored
+mechanical pass. It should select a fresh output directory outside the target
+repository so bundle output does not change product source. Bundle preparation
+does not run or select a reviewer. The implementation conversation must not
+create a Verdict and claim independence; a person or a clean context using
+only the bundle may supply Verdict JSON for an explicitly requested Core
+record operation. If the adapter materializes inline Verdict JSON, the input
+file must be outside the target repository. It must not move or delete a
+repository-local Verdict automatically because that would mutate product
+source again.
+
+Immediately before `complete`, the adapter must show the exact Task and Run
+identities and ask for a separate final confirmation. Core alone evaluates
+stored Evidence, any recorded Verdict, current S2, source binding, and
+completion policy. A failed completion attempt is reported without repair,
+reverification, retry, or rollback.
 
 ## Unsupported dependencies
 
