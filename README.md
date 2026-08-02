@@ -33,7 +33,7 @@ It records evidence that ordinary “tests passed” claims can omit:
 Harness does not intercept tools, restrict implementation choices, call a
 model, execute an external verifier, repair code, or provide immutable storage.
 
-## Workflow
+## Core CLI workflow
 
 ```text
 Task Spec
@@ -65,7 +65,83 @@ requested.
 Harness never selects or runs the reviewer. Bundle export only prepares
 historical Evidence for review.
 
+## Codex Plugin managed workflow
+
+The Core CLI above remains a set of explicit, independent operations. The
+Codex Plugin adds a conversation-scoped UX when the user explicitly invokes a
+managed request such as:
+
+```text
+$harness Add Swagger/OpenAPI and verify the Korean API descriptions.
+```
+
+The Plugin then:
+
+1. drafts the Task from the requested outcome and shows its Scope, a
+   catalog-derived check preview, HEAD baseline semantics, and existing
+   working-tree changes;
+2. asks for one confirmation covering Task creation, ordinary implementation,
+   and the first `verify` exactly once;
+3. creates the Task, reports Core's authoritative normalized checks from
+   successful stdout, binds the exact Task ID to the original canonical
+   repository root in the same conversation, and lets the coding Agent
+   implement normally; if the saved Task fields, baseline, or checks differ
+   from the approved draft and preview, it stops for explicit re-adoption first;
+4. runs the approved verification once, binds the exact Run ID and opaque
+   Evidence path to the same repository root, reports that Evidence identity,
+   and stops at a safe handoff; and
+5. resumes bundle, Verdict, or completion operations only after a new explicit
+   same-conversation request, without making the user copy the retained IDs,
+   with a separate final confirmation immediately before `complete`.
+
+Together, the initial `$harness` request and the user's affirmative reply to
+the displayed covered actions form the explicit request for the covered create
+and verify operations. They do not authorize bundle export, completion, or a
+replacement for normal Codex permission prompts.
+An unambiguous reply to the Plugin's own pending confirmation may resume the
+same workflow; unrelated approvals and ordinary coding requests do not
+activate Harness.
+
+If Task creation or verification fails, the managed flow stops. It does not
+repair source, replace Evidence, create another Run, or retry verification
+automatically. Successful `verify` stdout in Core `0.2.x` does not expose an
+integrity-validated mechanical summary, so the Plugin does not read raw
+`verification.json` to choose the next lifecycle step. Task and Run IDs are
+reused only from successful Core stdout and only with their original canonical
+repository root; the Plugin does not infer a “latest” Task or Run.
+
+Use the low-level Skills as recovery and advanced escape hatches:
+
+```text
+$harness:task      create or inspect one Task
+$harness:verify    record one verification Run
+$harness:bundle    export one exact Task and Run
+$harness:complete  evaluate one exact Task and Run after final confirmation
+```
+
+Each low-level Skill is explicit-only. If it needs a missing adoption, ID,
+path, or confirmation, repeat the same namespaced invocation in the follow-up;
+an untagged reply does not activate an escape hatch.
+
+If `$harness:bundle` omits an output path, the Plugin chooses a unique absolute
+path outside the confirmed target repository whose final directory does not
+exist, then passes it to Core's required `--output` argument.
+
+Bundle success means Core validated the stored Run's integrity for export. It
+does not mean the mechanical outcome passed or that the Run is eligible for
+completion.
+
+The implementation conversation may prepare a bundle, but it does not create
+an independent Verdict. Core remains the authority for stored Run integrity,
+Verdict validation, source binding, and completion.
+
+Keep separately supplied Verdict input outside the target repository. If the
+Plugin materializes inline Verdict JSON, it uses an external temporary file so
+the input itself does not change verified product source.
+
 ## Installation
+
+### Core CLI
 
 Install the `v0.2.0` tag:
 
@@ -74,6 +150,8 @@ python3 -m pip install \
   "git+https://github.com/jgoneit/harness.git@v0.2.0"
 harness --version
 ```
+
+This pip command installs Core only; it does not install the Codex Plugin.
 
 The release artifact names are
 `outcome_harness-0.2.0-py3-none-any.whl` and
@@ -86,6 +164,20 @@ Requirements:
 
 The Python distribution name is `outcome-harness`; the console command and
 Codex Plugin name are `harness`.
+
+### Codex Plugin
+
+The managed Plugin workflow documented here is present in the current
+repository checkout; it is not part of the historical `v0.2.0` tag. With a
+personal marketplace entry that points to this checkout and exposes a fresh
+cachebuster version, install or refresh it separately:
+
+```bash
+codex plugin add harness@personal
+```
+
+Codex caches Plugin contents. Start a new Codex task after installation or an
+update so the refreshed Skills and metadata are loaded.
 
 ## Quick start
 
@@ -161,26 +253,27 @@ recorded failed outcomes. `complete` applies completion policy.
 `verify --base-ref` is not supported. Verification uses only the full baseline
 saved in the Task snapshot.
 
-### Optional explicit operations
+### Advanced and recovery operations
 
 Export a portable review bundle:
 
 ```bash
 harness verifier bundle TASK-001 \
   --run-id <RUN_ID> \
-  --output ./bundle-TASK-001
+  --output <OUTPUT_DIR_OUTSIDE_REPOSITORY>
 ```
 
 The bundle contains validated historical S0/S1 Evidence. It does not rerun
 checks, execute a reviewer, collect current S2, create a Verdict, or complete
-the Task.
+the Task. Keeping the output outside the target repository avoids changing
+product source after verification.
 
 Record and show a separately prepared Manual Verdict:
 
 ```bash
 harness verifier record TASK-001 \
   --run-id <RUN_ID> \
-  --file verdict.json
+  --file <VERDICT_JSON_OUTSIDE_REPOSITORY>
 
 harness verifier show TASK-001 --run-id <RUN_ID>
 ```

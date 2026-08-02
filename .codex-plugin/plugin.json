@@ -1,7 +1,7 @@
 {
   "name": "harness",
   "version": "0.2.0",
-  "description": "Thin Codex adapter for evidence-based completion with Harness.",
+  "description": "Managed Codex workflow for evidence-based completion with Harness Core.",
   "author": {
     "name": "Jaegon Seo",
     "url": "https://github.com/jgoneit"
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Harness",
-    "shortDescription": "Evidence-based completion checks for coding agents",
-    "longDescription": "Create Harness Tasks, capture verification Evidence, prepare bounded verifier bundles, record Manual Verdicts, and evaluate completion through the vendor-neutral Core CLI.",
+    "shortDescription": "Managed evidence workflow for coding agents",
+    "longDescription": "Run a managed, conversation-scoped workflow that drafts a Harness Task, connects ordinary implementation to one approved verification, carries the exact Evidence identity to a safe handoff, and supports explicit bundle or completion follow-ups.",
     "developerName": "Jaegon Seo",
     "category": "Developer Tools",
     "capabilities": [
@@ -29,9 +29,9 @@
     ],
     "websiteURL": "https://github.com/jgoneit/harness",
     "defaultPrompt": [
-      "이 작업을 Harness Task로 정의해줘",
-      "현재 변경을 Harness로 검증해줘",
-      "이 Run의 verifier bundle을 준비해줘"
+      "$harness Swagger/OpenAPI\ub97c \ub3c4\uc785\ud558\uace0 \ud55c\uae00 API \uc124\uba85\uae4c\uc9c0 \uac80\uc99d\ud574\uc918",
+      "$harness:verify \uae30\uc874 Task\ub97c \ud55c \ubc88 \uac80\uc99d\ud558\uace0 Run ID\uc640 Evidence \uacbd\ub85c\ub97c \ubcf4\uc5ec\uc918",
+      "$harness:bundle \uc9c0\uc815\ud55c Task\uc640 Run\uc758 verifier bundle\uc744 \uc900\ube44\ud574\uc918"
     ]
   }
 }

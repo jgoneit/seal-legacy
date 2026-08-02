@@ -33,7 +33,7 @@ Harness는 tool을 가로채거나 구현 방식을 제한하지 않습니다. �
 verifier를 호출하지 않고, 코드를 자동 수리하지 않으며, immutable storage를
 제공하지 않습니다.
 
-## Workflow
+## Core CLI workflow
 
 ```text
 Task Spec
@@ -65,7 +65,81 @@ harness verify: S0 → checks → S1
 Harness는 reviewer를 선택하거나 실행하지 않습니다. Bundle export는 검토를
 위한 historical Evidence만 준비합니다.
 
+## Codex Plugin 관리형 workflow
+
+위 Core CLI는 계속 명시적이고 서로 독립적인 작업 집합입니다. Codex Plugin은
+사용자가 다음과 같이 관리형 요청을 명시적으로 호출했을 때만 같은 대화 안에서
+UX를 연결합니다.
+
+```text
+$harness Swagger/OpenAPI를 도입하고 한글 API 설명까지 검증해줘
+```
+
+Plugin은 다음 순서로 동작합니다.
+
+1. 요청한 결과로 Task 초안을 작성하고 Scope, catalog-derived check preview,
+   HEAD baseline 의미, 기존 working-tree 변경을 보여줍니다.
+2. Task 생성, 평소 방식의 구현, 최초 `verify` 정확히 1회를 포함하는 한 번의
+   확인을 요청합니다.
+3. Task를 생성하고 성공 stdout에서 Core가 정규화한 authoritative check와
+   정확한 Task ID를 최초 canonical repository root에 bind한 뒤 같은 대화에서
+   연결하고 Coding Agent가 평소 방식으로 구현하게 합니다. saved Task field,
+   baseline, check 중 하나라도 승인한 draft와 preview와 다르면 구현 전에
+   중단하고 정확한 saved Task를 다시 명시적으로 채택받습니다.
+4. 승인된 verification을 한 번 실행하고 정확한 Run ID와 opaque Evidence path를
+   같은 repository root에 bind한 뒤 그 Evidence identity를 보고하고 안전한
+   handoff 지점에서 중단합니다.
+5. Bundle, Verdict, completion은 같은 대화에서 새로 명시한 요청에서만 재개하고,
+   보존한 ID를 사용자가 다시 복사하게 하지 않으며, `complete` 직전에는 별도의
+   최종 확인을 요청합니다.
+
+최초 `$harness` 요청과 화면에 표시한 범위에 대한 사용자의 명확한 승인 답변이
+함께 포함된 create와 verify 작업에 대한 명시적 요청을 이룹니다. 이는 bundle
+export나 Completion을 승인하거나 일반 Codex permission prompt를 대신하지
+않습니다.
+Plugin이 직접 요청한 pending 확인에 대한
+명확한 답변은 같은 workflow를 재개할 수 있지만, 무관한 승인과 일반 coding
+요청에서는 Harness가 활성화되지 않습니다.
+
+Task 생성이나 verification이 실패하면 관리형 흐름은 중단합니다. Source를 자동
+수리하거나 Evidence를 교체하고 새 Run을 만들거나 verification을 재시도하지
+않습니다. Core `0.2.x`의 성공한 `verify` stdout은 integrity-validated mechanical
+summary를 노출하지 않으므로 Plugin은 raw `verification.json`을 읽어 다음 lifecycle
+단계를 선택하지 않습니다. Task ID와 Run ID는 성공한 Core stdout과 최초 canonical
+repository root를 함께 보존한 경우에만 재사용하며 “latest” Task나 Run을 추론하지
+않습니다.
+
+복구 및 고급 작업에는 저수준 Skill을 escape hatch로 사용합니다.
+
+```text
+$harness:task      Task 하나를 생성하거나 조회
+$harness:verify    verification Run 하나를 기록
+$harness:bundle    정확한 Task와 Run 하나를 export
+$harness:complete  최종 확인 후 정확한 Task와 Run 하나를 평가
+```
+
+각 저수준 Skill은 explicit-only입니다. Task 채택, ID, path, confirmation이
+부족해 후속 요청이 필요하면 같은 namespaced invocation을 다시 포함해야 하며,
+tag 없는 답변은 escape hatch를 활성화하지 않습니다.
+
+`$harness:bundle`에서 output path를 생략하면 Plugin이 confirmed target repository
+밖의 final directory가 존재하지 않는 unique absolute path를 선택하고, Core의 필수
+`--output` argument로 전달합니다.
+
+Bundle 성공은 Core가 export를 위해 저장 Run의 integrity를 검증했다는 뜻입니다.
+Mechanical outcome pass나 completion eligibility를 의미하지는 않습니다.
+
+구현 대화는 bundle까지 준비할 수 있지만 독립 Verdict를 만들지는 않습니다.
+Stored Run integrity, Verdict validation, source binding, completion의 권한은 계속
+Core에 있습니다.
+
+별도로 제공하는 Verdict input은 target repository 밖에 둡니다. Plugin이 inline
+Verdict JSON을 파일로 만들 때도 repository 밖의 temporary file을 사용해 input
+자체가 검증된 product source를 바꾸지 않게 합니다.
+
 ## 설치
+
+### Core CLI
 
 `v0.2.0` tag를 설치합니다.
 
@@ -74,6 +148,8 @@ python3 -m pip install \
   "git+https://github.com/jgoneit/harness.git@v0.2.0"
 harness --version
 ```
+
+이 pip command는 Core만 설치하며 Codex Plugin을 설치하지 않습니다.
 
 Release artifact 이름은 `outcome_harness-0.2.0-py3-none-any.whl`과
 `outcome_harness-0.2.0.tar.gz`입니다.
@@ -85,6 +161,20 @@ Release artifact 이름은 `outcome_harness-0.2.0-py3-none-any.whl`과
 
 Python distribution 이름은 `outcome-harness`, console command와 Codex Plugin
 이름은 `harness`입니다.
+
+### Codex Plugin
+
+여기서 설명하는 관리형 Plugin workflow는 current repository checkout에 있으며
+historical `v0.2.0` tag에는 포함되지 않습니다. 이 checkout을 가리키고 fresh
+cachebuster version을 노출하는 personal marketplace entry가 있다면 Plugin을
+별도로 설치하거나 갱신합니다.
+
+```bash
+codex plugin add harness@personal
+```
+
+Codex는 Plugin content를 cache합니다. 설치 또는 갱신 후 refreshed Skill과
+metadata를 읽도록 새 Codex task를 시작합니다.
 
 ## Quick start
 
@@ -160,25 +250,27 @@ Evidence를 안전하게 기록했다면 `verify`는 성공할 수 있습니다.
 `verify --base-ref`는 지원하지 않습니다. Verification은 saved Task snapshot의
 full baseline만 사용합니다.
 
-### 선택적인 명시적 작업
+### 고급 및 복구 작업
 
 Portable review bundle을 export합니다.
 
 ```bash
 harness verifier bundle TASK-001 \
   --run-id <RUN_ID> \
-  --output ./bundle-TASK-001
+  --output <OUTPUT_DIR_OUTSIDE_REPOSITORY>
 ```
 
 Bundle에는 검증된 historical S0/S1 Evidence가 포함됩니다. Check 재실행,
 reviewer 실행, current S2 수집, Verdict 생성, Task completion은 수행하지 않습니다.
+Output을 target repository 밖에 두면 verification 이후 product source가 바뀌는
+것을 피할 수 있습니다.
 
 별도로 준비한 Manual Verdict를 기록하고 조회합니다.
 
 ```bash
 harness verifier record TASK-001 \
   --run-id <RUN_ID> \
-  --file verdict.json
+  --file <VERDICT_JSON_OUTSIDE_REPOSITORY>
 
 harness verifier show TASK-001 --run-id <RUN_ID>
 ```

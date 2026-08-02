@@ -21,7 +21,10 @@ SDIST_MANIFEST = REPOSITORY_ROOT / "MANIFEST.in"
 PLUGIN_MANIFEST = REPOSITORY_ROOT / ".codex-plugin" / "plugin.json"
 CI_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
 RELEASE_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
-SKILL = REPOSITORY_ROOT / "skills" / "harness" / "SKILL.md"
+SKILL_NAMES = ("harness", "task", "verify", "bundle", "complete")
+SKILLS = tuple(
+    REPOSITORY_ROOT / "skills" / name / "SKILL.md" for name in SKILL_NAMES
+)
 README = REPOSITORY_ROOT / "README.md"
 KOREAN_README = REPOSITORY_ROOT / "README.ko.md"
 CURRENT_CONTRACT_DOCS = (
@@ -44,7 +47,9 @@ class ReleaseContractTests(unittest.TestCase):
         cls.plugin_manifest = json.loads(PLUGIN_MANIFEST.read_text(encoding="utf-8"))
         cls.ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
         cls.workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
-        cls.skill = SKILL.read_text(encoding="utf-8")
+        cls.skills = {
+            path.parent.name: path.read_text(encoding="utf-8") for path in SKILLS
+        }
         cls.readme = README.read_text(encoding="utf-8")
         cls.korean_readme = KOREAN_README.read_text(encoding="utf-8")
 
@@ -143,12 +148,17 @@ class ReleaseContractTests(unittest.TestCase):
             self.assertIn(install_ref, document)
             self.assertIn(wheel_name, document)
 
-    def test_skill_supports_the_final_v0_2_release_range(self) -> None:
-        self.assertIn("`>=0.2.0,<0.3.0`", self.skill)
-        self.assertNotIn(">=0.1.0", self.skill)
-        self.assertNotIn("v0.1.1", self.skill)
-        self.assertNotIn("git+https://", self.skill)
-        self.assertNotRegex(self.skill, r"(?m)^\s*(?:from|import)\s+harness")
+    def test_skills_support_the_final_v0_2_release_range(self) -> None:
+        for name, contents in self.skills.items():
+            with self.subTest(skill=name):
+                self.assertIn("`>=0.2.0,<0.3.0`", contents)
+                self.assertNotIn(">=0.1.0", contents)
+                self.assertNotIn("v0.1.1", contents)
+                self.assertNotIn("git+https://", contents)
+                self.assertNotRegex(
+                    contents,
+                    r"(?m)^\s*(?:from|import)\s+harness",
+                )
 
     def test_current_contract_docs_do_not_retain_development_version(self) -> None:
         development_version = f"{RELEASE_VERSION}.dev0"
