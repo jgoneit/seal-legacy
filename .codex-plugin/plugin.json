@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "Harness",
     "shortDescription": "Managed evidence workflow for coding agents",
-    "longDescription": "Run a managed, conversation-scoped workflow that drafts a Harness Task, connects ordinary implementation to one approved verification, reports saved Evidence, optionally prepares a bounded verifier bundle, and requests separate confirmation before Core evaluates completion.",
+    "longDescription": "Run a managed, conversation-scoped workflow that drafts a Harness Task, connects ordinary implementation to one approved verification, carries the exact Evidence identity to a safe handoff, and supports explicit bundle or completion follow-ups.",
     "developerName": "Jaegon Seo",
     "category": "Developer Tools",
     "capabilities": [
@@ -30,7 +30,7 @@
     "websiteURL": "https://github.com/jgoneit/harness",
     "defaultPrompt": [
       "$harness Swagger/OpenAPI\ub97c \ub3c4\uc785\ud558\uace0 \ud55c\uae00 API \uc124\uba85\uae4c\uc9c0 \uac80\uc99d\ud574\uc918",
-      "$harness:verify \uae30\uc874 Task\ub97c \ud55c \ubc88 \uac80\uc99d\ud558\uace0 Evidence \uacb0\uacfc\ub97c \ubcf4\uc5ec\uc918",
+      "$harness:verify \uae30\uc874 Task\ub97c \ud55c \ubc88 \uac80\uc99d\ud558\uace0 Run ID\uc640 Evidence \uacbd\ub85c\ub97c \ubcf4\uc5ec\uc918",
       "$harness:bundle \uc9c0\uc815\ud55c Task\uc640 Run\uc758 verifier bundle\uc744 \uc900\ube44\ud574\uc918"
     ]
   }

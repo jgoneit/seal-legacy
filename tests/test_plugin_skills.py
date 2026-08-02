@@ -65,6 +65,10 @@ class PluginSkillContractTests(unittest.TestCase):
             managed,
         )
         self.assertIn("Within an activation case above", managed)
+        self.assertIn(
+            "use the carried identity for a bundle, separately prepared Verdict, or completion",
+            managed,
+        )
 
         for name in EXPECTED_SKILLS[1:]:
             with self.subTest(explicit_follow_up=name):
@@ -86,8 +90,7 @@ class PluginSkillContractTests(unittest.TestCase):
             "Task creation, ordinary implementation, and the first `verify` exactly once",
             "first `verify` exactly once",
             "does not authorize `complete`",
-            "restate that adopting it covers ordinary implementation, the first `verify` exactly once, and the same conditional reviewed-bundle preparation",
-            "separate final confirmation immediately before `complete`",
+            "restate that adopting it covers ordinary implementation and the first `verify` exactly once",
             "same conversation",
             "successful `task create` stdout `id`",
             "successful `verify` stdout `run_id`",
@@ -102,26 +105,137 @@ class PluginSkillContractTests(unittest.TestCase):
         required_fragments = (
             "blocked or aborted",
             (
-                "Do not repair source, replace Evidence, create a replacement Run, "
-                "or retry verification"
+                "do not repair source, replace Evidence, create a replacement Run, "
+                "retry verification"
             ),
             "nonzero `verify`",
-            '`mechanical_result="fail"`',
             "Any nonzero Core command",
             "Do not consume partial stdout",
             "alternate output path",
             "outside the target repository",
-            "verification.json",
-            "mechanical_result",
-            "scope_pass",
-            "required_checks_pass",
-            "source_stable_during_checks",
+            "Do not read `<evidence_path>/verification.json`",
+            "does not expose an integrity-validated mechanical summary",
+            "Stop the managed flow",
             "implementation conversation",
             "clean-context",
         )
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, contents)
+
+    def test_verify_results_do_not_bypass_core_run_validation(self) -> None:
+        for name in ("harness", "verify"):
+            with self.subTest(skill=name):
+                contents = _normalized(_skill_text(name))
+                self.assertIn(
+                    "Do not read `<evidence_path>/verification.json`",
+                    contents,
+                )
+                self.assertIn(
+                    "public `verify` stdout does not expose an integrity-validated mechanical summary",
+                    contents,
+                )
+                self.assertIn("exact `run_id` and `evidence_path`", contents)
+
+        managed = _normalized(_skill_text("harness"))
+        self.assertIn(
+            "an explicit same-conversation request can reuse the retained repository, Task ID, and Run ID without copying them again",
+            managed,
+        )
+        self.assertIn(
+            "`verifier.required=true`; that setting and successful verification are not an explicit bundle request",
+            managed,
+        )
+
+        contract = _normalized(ADAPTER_CONTRACT.read_text(encoding="utf-8"))
+        self.assertIn(
+            "A direct artifact read is not a Core-validated Run result",
+            contract,
+        )
+        self.assertIn(
+            "must not drive lifecycle decisions or completion claims",
+            contract,
+        )
+
+    def test_managed_identity_is_bound_to_the_original_repository_root(self) -> None:
+        managed = _normalized(_skill_text("harness"))
+        required_fragments = (
+            "canonical repository root",
+            "Bind the exact Task ID",
+            "bind the returned Run ID and opaque Evidence path to that same root",
+            "resolve the selected repository root again",
+            "differs from the retained root",
+            "Do not reuse or search for those IDs in another repository",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, managed)
+
+        contract = _normalized(ADAPTER_CONTRACT.read_text(encoding="utf-8"))
+        self.assertIn(
+            "canonical repository root, Task ID, and, when available, Run ID",
+            contract,
+        )
+        self.assertIn("IDs alone are not portable across repositories", contract)
+
+        self.assertIn(
+            "original canonical repository root",
+            _normalized(README.read_text(encoding="utf-8")),
+        )
+        self.assertIn(
+            "최초 canonical repository root",
+            _normalized(KOREAN_README.read_text(encoding="utf-8")),
+        )
+
+    def test_bundle_escape_hatch_defaults_an_omitted_output_path(self) -> None:
+        bundle = _normalized(_skill_text("bundle"))
+        required_fragments = (
+            "If the exact Task ID, Run ID, or target repository is missing",
+            "An omitted output path is not missing input",
+            "choose a unique absolute output path outside the confirmed target repository",
+            "final directory does not already exist",
+            "pass it through Core's required `--output` argument",
+            "do not replace the supplied path silently",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, bundle)
+        self.assertNotIn("required path decision is missing", bundle)
+
+        contract = _normalized(ADAPTER_CONTRACT.read_text(encoding="utf-8"))
+        self.assertIn(
+            "When an adapter-level bundle request omits an output path",
+            contract,
+        )
+        self.assertIn("Core's required `--output` argument", contract)
+
+    def test_bundle_success_is_not_reported_as_mechanical_pass(self) -> None:
+        for name in ("harness", "bundle"):
+            with self.subTest(skill=name):
+                contents = _normalized(_skill_text(name))
+                self.assertIn("bundle success does not mean", contents.lower())
+                self.assertIn("mechanical pass", contents)
+                self.assertIn("completion eligibility", contents)
+
+        contract = _normalized(ADAPTER_CONTRACT.read_text(encoding="utf-8"))
+        self.assertIn(
+            "does not establish mechanical pass or completion eligibility",
+            contract,
+        )
+
+    def test_completion_prompt_does_not_infer_recorded_verdict_state(self) -> None:
+        managed = _normalized(_skill_text("harness"))
+        self.assertIn("saved Task's `verifier.required` setting", managed)
+        self.assertIn(
+            "Do not inspect or claim a recorded Verdict state unless the user separately requested `verifier show`",
+            managed,
+        )
+
+        contract = _normalized(ADAPTER_CONTRACT.read_text(encoding="utf-8"))
+        self.assertIn(
+            "must not claim a recorded Verdict state without a separately requested `verifier show`",
+            contract,
+        )
 
     def test_task_drafts_do_not_invent_optional_check_timeouts(self) -> None:
         for name in ("harness", "task"):

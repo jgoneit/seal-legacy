@@ -1,6 +1,6 @@
 ---
 name: harness
-description: Manage a Harness workflow for a coding outcome by drafting and adopting a Task, creating it, letting the coding Agent implement freely, running one pre-approved verification, reporting saved Evidence, optionally preparing a reviewed-profile bundle, and requesting final confirmation before completion. Use only for an explicit $harness end-to-end request or an unambiguous confirmation or resume reply in the same conversation after this Skill requested it; never start Harness during ordinary coding work.
+description: Manage a Harness workflow for a coding outcome by drafting and adopting a Task, creating it, letting the coding Agent implement freely, running one pre-approved verification, and carrying the exact Evidence identity for explicit later operations. Use only for an explicit $harness end-to-end request or an unambiguous confirmation or resume reply in the same conversation after this Skill requested it; never start Harness during ordinary coding work.
 ---
 
 # Harness managed workflow
@@ -14,12 +14,13 @@ implementation steps.
 
 Treat `$harness <work request>` as an explicit request for the managed workflow
 below. An unambiguous direct reply to this Skill's own first or final
-confirmation, drift re-adoption or new-Task choice, or request for a separately
-prepared Verdict may resume the same workflow in the same conversation. Do not
-treat an unrelated approval or ordinary coding request as activation. Within
-an activation case above, if the user requests only one operation on an
-existing Task or Run, perform that one operation and do not silently enter the
-managed workflow.
+confirmation, drift re-adoption or new-Task choice, or an explicit request to
+use the carried identity for a bundle, separately prepared Verdict, or
+completion may resume the same workflow in the same conversation. Do not treat
+an unrelated approval or ordinary coding request as activation. Within an
+activation case above, if the user requests only one operation on an existing
+Task or Run, perform that one operation and do not silently enter the managed
+workflow.
 
 Task Scope describes what the completion claim covers; it is not a write
 permission or tool gate. Normal host and client permission prompts remain
@@ -44,9 +45,14 @@ artifacts. Do not import Core internals or reproduce Task validation, check
 execution, Evidence generation, digest calculation, Run validation, Verdict
 validation, source binding, or completion policy.
 
-Confirm that the target Git repository and current HEAD exist. Before Task
-creation, confirm `.harness/checks.json` exists. Before an operation on an
-existing Task, run:
+Confirm that the target Git repository and current HEAD exist. Resolve and
+retain its canonical repository root before Task creation. Before every later
+Core operation, resolve the selected repository root again and compare it with
+the retained root. If it differs from the retained root, stop without running
+Core. Do not reuse or search for those IDs in another repository.
+
+Before Task creation, confirm `.harness/checks.json` exists. Before an operation
+on an existing Task, run:
 
 ~~~bash
 harness task show <TASK_ID>
@@ -84,9 +90,8 @@ draft cannot become product Evidence. Never pass `--force`.
 ## Ask for the first confirmation
 
 Ask for one conversational confirmation that covers Task creation, ordinary
-implementation, and the first `verify` exactly once, plus one conditional
-bundle export for a mechanically passing reviewed profile. Show the exact
-Task draft and the covered actions when asking.
+implementation, and the first `verify` exactly once. Show the exact Task draft
+and the covered actions when asking.
 
 This confirmation does not authorize `complete`. It is not an exact-word
 protocol, approval token, Plan hash, or substitute for host or client
@@ -117,14 +122,15 @@ verification. Require a new explicit adoption confirmation for that exact
 saved Task, or draft a new Task with a new ID; do not overwrite the created
 Task or treat the first confirmation as covering the difference.
 When asking for re-adoption, show the exact saved Task and checks, and restate
-that adopting it covers ordinary implementation, the first `verify` exactly
-once, and the same conditional reviewed-bundle preparation. Restate that it
-does not authorize `complete`, and continue only after confirmation.
+that adopting it covers ordinary implementation and the first `verify` exactly
+once. Restate that it does not authorize bundle export or `complete`, and
+continue only after confirmation.
 
-Keep the exact Task ID in the same conversation so the user does not need to
-copy it. Do not select a latest Task or Run, scan for the newest directory, or
-persist conversational lifecycle state. In a new conversation, require the
-exact Task and Run IDs instead of carrying them forward.
+Bind the exact Task ID to the retained canonical repository root in the same
+conversation so the user does not need to copy it. Do not select a latest Task
+or Run, scan for the newest directory, or persist conversational lifecycle
+state. In a new conversation, require the exact repository, Task ID, and Run ID
+instead of carrying them forward.
 
 ## Let the coding Agent implement
 
@@ -153,34 +159,45 @@ a partial Evidence directory or stdout exists. Do not consume partial stdout
 as a result.
 
 On exit 0, capture the exact successful `verify` stdout `run_id` and
-`evidence_path`. Treat the returned path as opaque and local to the same host
-and repository. Read only the documented `<evidence_path>/verification.json`
-for display, and relay its stored `mechanical_result`, `scope_pass`,
-`required_checks_pass`, and `source_stable_during_checks` fields without
-recalculating or reinterpreting them. Exit 0 means Evidence was recorded; it
-does not mean the mechanical outcome passed.
+`evidence_path`, and bind the returned Run ID and opaque Evidence path to that
+same root. Treat the path as local to the same host and repository. Report the
+exact `run_id` and `evidence_path` together with the Task ID, stderr, and exit
+code.
 
-Do not repair source, replace Evidence, create a replacement Run, or retry
-verification after either a nonzero `verify` result or
-`mechanical_result="fail"`. Report the exact Task ID, Run ID when available,
-Evidence path when available, stored result fields, stderr, and exit code, then
-stop the managed flow.
+Do not read `<evidence_path>/verification.json` to report an outcome or decide
+what to do next. Core `0.2.x` public `verify` stdout does not expose an
+integrity-validated mechanical summary, and a direct artifact read does not
+pass through Core's canonical stored-Run validator. Exit 0 means Evidence was
+recorded; it does not mean the mechanical outcome passed. Stop the managed
+flow after reporting the successful Evidence identity. A later bundle,
+Verdict, or completion operation requires a new explicit resume request.
+Tell the user that an explicit same-conversation request can reuse the retained
+repository, Task ID, and Run ID without copying them again. Do not prompt for
+or execute one of those later operations automatically. This stop applies even
+when the saved Task has `verifier.required=true`; that setting and successful
+verification are not an explicit bundle request.
 
-## Prepare reviewed Evidence when required
+After either a successful or nonzero `verify` result, do not repair source,
+replace Evidence, create a replacement Run, retry verification, prepare a
+bundle, or request completion automatically.
 
-For `verifier.required=true`, prepare a bundle only when the stored mechanical
-result passes. The first confirmation covers this one conditional export. Use
-a unique absolute output path outside the target repository whose final
-directory does not already exist:
+## Resume with reviewed Evidence only when requested
+
+Only after a new explicit resume request, prepare one bundle for the retained
+Task and Run. Do not treat `verifier.required=true`, the first confirmation, or
+successful verification as that request. Do not infer bundle eligibility from
+raw Evidence artifacts. Use a unique absolute output path outside the target
+repository whose final directory does not already exist:
 
 ~~~bash
 harness verifier bundle <TASK_ID> --run-id <RUN_ID> --output <OUTPUT_DIR>
 ~~~
 
-Report the exact IDs and bundle path. Bundle export validates and copies
-historical S0/S1 Evidence only; it does not run a reviewer, create a Verdict,
-collect S2, or complete the Task. Inspect logs before any external sharing and
-never send the bundle elsewhere without an explicit user request.
+Report the exact IDs and bundle path. Bundle export validates stored-Run
+integrity and copies historical S0/S1 Evidence. Bundle success does not mean a
+mechanical pass or completion eligibility. It does not run a reviewer, create
+a Verdict, collect S2, or complete the Task. Inspect logs before any external
+sharing and never send the bundle elsewhere without an explicit user request.
 
 The implementation conversation must not create a Verdict and claim it is
 independent. A person, the user, or a genuinely clean-context review using only
@@ -204,9 +221,10 @@ to a Task and Run; it does not prove reviewer independence.
 
 ## Ask for final completion confirmation
 
-For a mechanically passing basic profile, or a reviewed profile with an
-eligible recorded Verdict, show the exact Task ID, Run ID, stored mechanical
-summary, required Verdict state, and exact command. Ask for a separate final
+Only after an explicit resume request, show the retained canonical repository
+root, exact Task ID, exact Run ID, the saved Task's `verifier.required` setting,
+and exact command. Do not inspect or claim a recorded Verdict state unless the
+user separately requested `verifier show`. Ask for a separate final
 confirmation immediately before `complete`:
 
 ~~~bash

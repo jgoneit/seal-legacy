@@ -81,33 +81,34 @@ The Plugin then:
    catalog-derived check preview, HEAD baseline semantics, and existing
    working-tree changes;
 2. asks for one confirmation covering Task creation, ordinary implementation,
-   the first `verify` exactly once, and a conditional reviewed-profile bundle;
+   and the first `verify` exactly once;
 3. creates the Task, reports Core's authoritative normalized checks from
-   successful stdout, carries the exact Task ID in the same conversation, and
-   lets the coding Agent implement normally; if the saved Task fields, baseline,
-   or checks differ from the approved draft and preview, it stops for explicit
-   re-adoption first;
-4. runs the approved verification once, carries the exact Run ID, and reports
-   the stored `mechanical_result`, `scope_pass`, `required_checks_pass`, and
-   `source_stable_during_checks` fields;
-5. for a mechanically passing reviewed profile, exports a bundle to a new path
-   outside the target repository and waits for a Verdict from a person or a
-   clean context using only that bundle; and
-6. asks for a separate final confirmation immediately before `complete`.
+   successful stdout, binds the exact Task ID to the original canonical
+   repository root in the same conversation, and lets the coding Agent
+   implement normally; if the saved Task fields, baseline, or checks differ
+   from the approved draft and preview, it stops for explicit re-adoption first;
+4. runs the approved verification once, binds the exact Run ID and opaque
+   Evidence path to the same repository root, reports that Evidence identity,
+   and stops at a safe handoff; and
+5. resumes bundle, Verdict, or completion operations only after a new explicit
+   same-conversation request, without making the user copy the retained IDs,
+   with a separate final confirmation immediately before `complete`.
 
 Together, the initial `$harness` request and the user's affirmative reply to
-the displayed covered actions form the explicit request for the covered
-create, verify, and conditional bundle operations. They do not authorize
-completion or replace normal Codex permission prompts.
+the displayed covered actions form the explicit request for the covered create
+and verify operations. They do not authorize bundle export, completion, or a
+replacement for normal Codex permission prompts.
 An unambiguous reply to the Plugin's own pending confirmation may resume the
 same workflow; unrelated approvals and ordinary coding requests do not
 activate Harness.
 
-If Task creation, verification, or bundle export fails—or if saved mechanical
-Evidence records a failure—the managed flow stops. It does not repair source,
-replace Evidence, create another Run, or retry verification automatically.
-Task and Run IDs are reused only from successful Core stdout in the same
-conversation; the Plugin does not infer a “latest” Task or Run.
+If Task creation or verification fails, the managed flow stops. It does not
+repair source, replace Evidence, create another Run, or retry verification
+automatically. Successful `verify` stdout in Core `0.2.x` does not expose an
+integrity-validated mechanical summary, so the Plugin does not read raw
+`verification.json` to choose the next lifecycle step. Task and Run IDs are
+reused only from successful Core stdout and only with their original canonical
+repository root; the Plugin does not infer a “latest” Task or Run.
 
 Use the low-level Skills as recovery and advanced escape hatches:
 
@@ -121,6 +122,14 @@ $harness:complete  evaluate one exact Task and Run after final confirmation
 Each low-level Skill is explicit-only. If it needs a missing adoption, ID,
 path, or confirmation, repeat the same namespaced invocation in the follow-up;
 an untagged reply does not activate an escape hatch.
+
+If `$harness:bundle` omits an output path, the Plugin chooses a unique absolute
+path outside the confirmed target repository whose final directory does not
+exist, then passes it to Core's required `--output` argument.
+
+Bundle success means Core validated the stored Run's integrity for export. It
+does not mean the mechanical outcome passed or that the Run is eligible for
+completion.
 
 The implementation conversation may prepare a bundle, but it does not create
 an independent Verdict. Core remains the authority for stored Run integrity,
