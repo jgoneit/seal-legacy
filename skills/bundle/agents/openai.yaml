@@ -1,0 +1,6 @@
+interface:
+  display_name: "Harness Bundle"
+  short_description: "Prepare a verifier bundle"
+  default_prompt: "$harness:bundle 지정한 Task와 Run의 verifier bundle을 준비해줘"
+policy:
+  allow_implicit_invocation: false

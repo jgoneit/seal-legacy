@@ -1,4 +1,6 @@
 interface:
   display_name: "Harness"
-  short_description: "Evidence-based completion checks"
-  default_prompt: "$harness 이 작업을 Harness Task로 정의해줘"
+  short_description: "Managed evidence workflow"
+  default_prompt: "$harness 구현 요청을 Task로 정의하고 최초 검증까지 관리해줘"
+policy:
+  allow_implicit_invocation: true
