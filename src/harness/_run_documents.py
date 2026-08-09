@@ -9,8 +9,8 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from ._path_policy import (
+    change_is_within_scope as _change_is_within_scope,
     is_harness_metadata_path as _is_harness_metadata_path,
-    path_is_within as _path_is_within,
 )
 from ._run_artifact_io import (
     RunArtifactPathError,
@@ -708,7 +708,7 @@ def _validate_file_change(
     source = value.get("source")
     if not isinstance(source, str) or source not in _CHANGE_SOURCES:
         raise RunDocumentEvidenceError(f"{context}.source is invalid.")
-    _require_nonempty_string(value.get("status"), f"{context}.status")
+    status = _require_nonempty_string(value.get("status"), f"{context}.status")
     path = _safe_repository_relative_path(
         value.get("path"),
         f"{context}.path",
@@ -731,11 +731,11 @@ def _validate_file_change(
     for field in ("mode_changed", "is_binary", "in_scope"):
         _require_boolean(value.get(field), f"{context}.{field}")
 
-    paths = (path,) if previous_path is None else (path, previous_path)
-    expected_in_scope = any(
-        _path_is_within(path_value, boundary)
-        for path_value in paths
-        for boundary in scope
+    expected_in_scope = _change_is_within_scope(
+        status=status,
+        path=path,
+        previous_path=previous_path,
+        scope=scope,
     )
     if value["in_scope"] != expected_in_scope:
         raise RunDocumentEvidenceError(

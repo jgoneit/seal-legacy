@@ -14,9 +14,9 @@ from pathlib import Path
 from ._path_policy import (
     HARNESS_METADATA_DIRECTORIES,
     HARNESS_METADATA_FILES,
+    change_is_within_scope as _change_is_within_scope,
     git_path_sort_key as _path_sort_key,
     is_harness_metadata_path as _is_harness_metadata_path,
-    path_is_within as _path_is_within,
 )
 
 
@@ -166,7 +166,12 @@ def collect_changes(
                 new_mode=None,
                 mode_changed=False,
                 is_binary=_is_untracked_binary(repository, path),
-                in_scope=_paths_match_scope((path,), scope),
+                in_scope=_change_is_within_scope(
+                    status="untracked",
+                    path=_normalize_relative_path(path, "Git path"),
+                    previous_path=None,
+                    scope=scope,
+                ),
             )
         )
 
@@ -477,10 +482,10 @@ def _to_file_change(
         raise GitDiffError("Git diff record is missing both old and new paths.")
 
     previous_path = entry.old_path if entry.old_path != entry.new_path else None
-    paths = tuple(path for path in (entry.old_path, entry.new_path) if path is not None)
+    status = _status_name(entry.git_status)
     return FileChange(
         source=source,
-        status=_status_name(entry.git_status),
+        status=status,
         path=path,
         previous_path=previous_path,
         old_mode=entry.old_mode,
@@ -491,7 +496,16 @@ def _to_file_change(
             and entry.old_mode != entry.new_mode
         ),
         is_binary=is_binary,
-        in_scope=_paths_match_scope(paths, scope),
+        in_scope=_change_is_within_scope(
+            status=status,
+            path=_normalize_relative_path(path, "Git path"),
+            previous_path=(
+                None
+                if previous_path is None
+                else _normalize_relative_path(previous_path, "Git previous path")
+            ),
+            scope=scope,
+        ),
     )
 
 
@@ -632,15 +646,6 @@ def is_harness_metadata_path(path: str) -> bool:
     """Return whether *path* is a Harness metadata path, using path boundaries."""
     normalized = _normalize_relative_path(path, "Git path")
     return _is_harness_metadata_path(normalized)
-
-
-def _paths_match_scope(paths: tuple[str, ...], scope: tuple[str, ...]) -> bool:
-    return any(_path_matches_any_scope(path, scope) for path in paths)
-
-
-def _path_matches_any_scope(path: str, scope: tuple[str, ...]) -> bool:
-    normalized_path = _normalize_relative_path(path, "Git path")
-    return any(_path_is_within(normalized_path, boundary) for boundary in scope)
 
 
 def _task_baseline(task: Mapping[str, object]) -> str:
