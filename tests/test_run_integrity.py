@@ -251,6 +251,25 @@ class CanonicalRunIntegrityTests(unittest.TestCase):
             ["docs/outside.txt"],
         )
 
+    def test_validates_cross_boundary_rename_as_scope_violation(self) -> None:
+        self._create_task()
+        (self.repository / "docs").mkdir()
+        self._git("mv", "src/example.txt", "docs/example.txt")
+        run = self._run()
+
+        validated = validate_run("TASK-RUN", run.run_id, cwd=self.repository)
+
+        self.assertFalse(validated.scope_pass)
+        self.assertEqual(validated.mechanical_result, "fail")
+        self.assertEqual(
+            [change["path"] for change in validated.verification["scope_violations"]],
+            ["docs/example.txt"],
+        )
+        self.assertEqual(
+            validated.verification["scope_violations"][0]["previous_path"],
+            "src/example.txt",
+        )
+
     def test_validated_run_is_deeply_immutable_and_independent(self) -> None:
         run = self._valid_run()
         validated = validate_run("TASK-RUN", run.run_id, cwd=self.repository)

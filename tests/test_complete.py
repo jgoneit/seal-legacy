@@ -272,6 +272,17 @@ class CompleteCommandTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 4, result.stderr)
 
+    def test_cross_boundary_rename_rejects_completion(self) -> None:
+        self._create_task()
+        (self.repository / "docs").mkdir()
+        self._git("mv", "src/example.txt", "docs/example.txt")
+        run = verify_task("TASK-COMPLETE", cwd=self.repository)
+
+        result = self._complete("TASK-COMPLETE", run.run_id)
+
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertFalse((run.evidence_path / "completion.json").exists())
+
     def test_required_check_failure_rejects_completion(self) -> None:
         self._create_task(
             checks=[self._python_check("fail", "import sys; sys.exit(23)")]

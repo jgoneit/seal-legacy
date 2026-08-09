@@ -15,6 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from harness import gitdiff
+from harness._path_policy import change_is_within_scope
 from harness.gitdiff import GitDiffRepositoryError, collect_changes
 
 
@@ -137,6 +138,50 @@ class GitDiffIntegrationTests(unittest.TestCase):
         self.assertEqual(change.status, "renamed")
         self.assertEqual(change.previous_path, "src/foo/inside.txt")
         self.assertTrue(change.in_scope)
+
+    def test_rename_from_scope_is_out_of_scope(self) -> None:
+        self._git("mv", "src/foo/inside.txt", "docs/moved.txt")
+
+        collection = self._collect()
+
+        change = self._change(collection, path="docs/moved.txt", source="staged")
+        self.assertEqual(change.status, "renamed")
+        self.assertEqual(change.previous_path, "src/foo/inside.txt")
+        self.assertFalse(change.in_scope)
+        self.assertEqual(collection.out_of_scope_changes, (change,))
+        self.assertFalse(collection.scope_passed)
+
+    def test_rename_into_scope_is_out_of_scope(self) -> None:
+        self._git("mv", "docs/guide.md", "src/foo/guide.md")
+
+        collection = self._collect()
+
+        change = self._change(collection, path="src/foo/guide.md", source="staged")
+        self.assertEqual(change.status, "renamed")
+        self.assertEqual(change.previous_path, "docs/guide.md")
+        self.assertFalse(change.in_scope)
+        self.assertEqual(collection.out_of_scope_changes, (change,))
+        self.assertFalse(collection.scope_passed)
+
+    def test_copy_scope_uses_only_the_destination(self) -> None:
+        scope = ("src/foo",)
+
+        self.assertTrue(
+            change_is_within_scope(
+                status="copied",
+                path="src/foo/copied.txt",
+                previous_path="docs/guide.md",
+                scope=scope,
+            )
+        )
+        self.assertFalse(
+            change_is_within_scope(
+                status="copied",
+                path="docs/copied.txt",
+                previous_path="src/foo/inside.txt",
+                scope=scope,
+            )
+        )
 
     def test_detects_staged_deletion(self) -> None:
         self._git("rm", "docs/guide.md")
