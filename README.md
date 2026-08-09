@@ -68,12 +68,19 @@ historical Evidence for review.
 ## Codex Plugin managed workflow
 
 The Core CLI above remains a set of explicit, independent operations. The
-Codex Plugin adds a conversation-scoped UX when the user explicitly invokes a
-managed request such as:
+Codex Plugin adds a conversation-scoped UX for either a literal managed request
+or an executable coding outcome sent with the explicitly selected `@Harness`
+Plugin:
 
 ```text
 $harness Add Swagger/OpenAPI and verify the Korean API descriptions.
+
+@Harness selected: Add Swagger/OpenAPI and verify the Korean API descriptions.
 ```
+
+Plugin selection alone does not run Core. A selected discussion, explanation,
+planning, audit, review, or status request is answered without starting the
+managed lifecycle, and ordinary unselected coding work does not activate it.
 
 The Plugin then:
 
@@ -81,34 +88,43 @@ The Plugin then:
    catalog-derived check preview, HEAD baseline semantics, and existing
    working-tree changes;
 2. asks for one confirmation covering Task creation, ordinary implementation,
-   and the first `verify` exactly once;
+   and the first `verify` exactly once. For a reviewed profile, the displayed
+   coverage also includes exactly one local bundle export to a fresh absolute
+   directory outside the repository;
 3. creates the Task, reports Core's authoritative normalized checks from
    successful stdout, binds the exact Task ID to the original canonical
    repository root in the same conversation, and lets the coding Agent
    implement normally; if the saved Task fields, baseline, or checks differ
    from the approved draft and preview, it stops for explicit re-adoption first;
 4. runs the approved verification once, binds the exact Run ID and opaque
-   Evidence path to the same repository root, reports that Evidence identity,
-   and stops at a safe handoff; and
-5. resumes bundle, Verdict, or completion operations only after a new explicit
-   same-conversation request, without making the user copy the retained IDs,
-   with a separate final confirmation immediately before `complete`.
+   Evidence path to the same repository root, and reports that Evidence
+   identity. It then branches only on the adopted saved Task profile: a basic
+   profile shows the exact `complete` command and asks for final confirmation;
+   a reviewed profile exports the one approved local bundle and pauses for an
+   independently prepared Verdict; and
+5. records a separately supplied Verdict only on an explicit request, then asks
+   for final confirmation immediately before `complete`. The retained IDs do
+   not need to be copied again in the same conversation.
 
-Together, the initial `$harness` request and the user's affirmative reply to
-the displayed covered actions form the explicit request for the covered create
-and verify operations. They do not authorize bundle export, completion, or a
-replacement for normal Codex permission prompts.
+Together, the initial managed request and the user's affirmative reply to the
+displayed covered actions form the explicit request for Task creation,
+implementation, the first verification, and the reviewed profile's one local
+bundle when applicable. They do not authorize Verdict record/show, reviewer
+invocation, external sharing, `complete`, or a replacement for normal Codex
+permission prompts.
 An unambiguous reply to the Plugin's own pending confirmation may resume the
 same workflow; unrelated approvals and ordinary coding requests do not
 activate Harness.
 
-If Task creation or verification fails, the managed flow stops. It does not
-repair source, replace Evidence, create another Run, or retry verification
-automatically. Successful `verify` stdout in Core `0.2.x` does not expose an
-integrity-validated mechanical summary, so the Plugin does not read raw
-`verification.json` to choose the next lifecycle step. Task and Run IDs are
-reused only from successful Core stdout and only with their original canonical
-repository root; the Plugin does not infer a “latest” Task or Run.
+If Task creation, verification, bundle, Verdict recording, or completion fails,
+the managed flow stops. It does not repair source, replace Evidence, choose an
+alternate path, create another Run, or retry automatically. Successful `verify`
+stdout in Core `0.2.x` records Evidence but does not expose an
+integrity-validated mechanical summary. The Plugin does not read raw
+`verification.json`; profile routing uses only the adopted saved
+`verifier.required` field, and Core alone decides completion. Task and Run IDs
+are reused only from successful Core stdout and only with their original
+canonical repository root; the Plugin does not infer a “latest” Task or Run.
 
 Use the low-level Skills as recovery and advanced escape hatches:
 
@@ -131,9 +147,10 @@ Bundle success means Core validated the stored Run's integrity for export. It
 does not mean the mechanical outcome passed or that the Run is eligible for
 completion.
 
-The implementation conversation may prepare a bundle, but it does not create
-an independent Verdict. Core remains the authority for stored Run integrity,
-Verdict validation, source binding, and completion.
+The implementation conversation may prepare the one approved reviewed-profile
+bundle, but it does not create an independent Verdict. Core remains the
+authority for stored Run integrity, Verdict validation, source binding, and
+completion.
 
 Keep separately supplied Verdict input outside the target repository. If the
 Plugin materializes inline Verdict JSON, it uses an external temporary file so

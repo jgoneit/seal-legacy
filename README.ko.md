@@ -68,46 +68,55 @@ Harness는 reviewer를 선택하거나 실행하지 않습니다. Bundle export�
 ## Codex Plugin 관리형 workflow
 
 위 Core CLI는 계속 명시적이고 서로 독립적인 작업 집합입니다. Codex Plugin은
-사용자가 다음과 같이 관리형 요청을 명시적으로 호출했을 때만 같은 대화 안에서
-UX를 연결합니다.
+literal 관리형 요청이나, 선택한 `@Harness` Plugin에 실행 가능한 coding outcome을
+보낸 경우 같은 대화 안에서 UX를 연결합니다.
 
 ```text
 $harness Swagger/OpenAPI를 도입하고 한글 API 설명까지 검증해줘
+
+@Harness 선택: Swagger/OpenAPI를 도입하고 한글 API 설명까지 검증해줘
 ```
+
+Plugin 선택만으로 Core를 실행하지 않습니다. 선택한 상태에서도 토론, 설명, 계획,
+감사, 리뷰, 상태 확인 요청은 관리형 lifecycle을 시작하지 않고 답변하며, 선택하지
+않은 일반 coding 작업도 Harness를 활성화하지 않습니다.
 
 Plugin은 다음 순서로 동작합니다.
 
 1. 요청한 결과로 Task 초안을 작성하고 Scope, catalog-derived check preview,
    HEAD baseline 의미, 기존 working-tree 변경을 보여줍니다.
 2. Task 생성, 평소 방식의 구현, 최초 `verify` 정확히 1회를 포함하는 한 번의
-   확인을 요청합니다.
+   확인을 요청합니다. Reviewed profile이면 repository 밖의 fresh absolute
+   directory에 local bundle을 정확히 한 번 export하는 범위도 함께 표시합니다.
 3. Task를 생성하고 성공 stdout에서 Core가 정규화한 authoritative check와
    정확한 Task ID를 최초 canonical repository root에 bind한 뒤 같은 대화에서
    연결하고 Coding Agent가 평소 방식으로 구현하게 합니다. saved Task field,
    baseline, check 중 하나라도 승인한 draft와 preview와 다르면 구현 전에
    중단하고 정확한 saved Task를 다시 명시적으로 채택받습니다.
 4. 승인된 verification을 한 번 실행하고 정확한 Run ID와 opaque Evidence path를
-   같은 repository root에 bind한 뒤 그 Evidence identity를 보고하고 안전한
-   handoff 지점에서 중단합니다.
-5. Bundle, Verdict, completion은 같은 대화에서 새로 명시한 요청에서만 재개하고,
-   보존한 ID를 사용자가 다시 복사하게 하지 않으며, `complete` 직전에는 별도의
-   최종 확인을 요청합니다.
+   같은 repository root에 bind한 뒤 그 Evidence identity를 보고합니다. 그다음
+   adopted saved Task profile만 사용해 분기합니다. Basic profile은 정확한
+   `complete` command를 보여주고 최종 확인을 요청하며, reviewed profile은 승인된
+   local bundle을 한 번 export하고 독립적으로 준비된 Verdict를 기다립니다.
+5. 별도로 제공된 Verdict는 명시적 요청에서만 기록하고, `complete` 직전에는 별도의
+   최종 확인을 요청합니다. 같은 대화에서는 보존한 ID를 다시 복사할 필요가 없습니다.
 
-최초 `$harness` 요청과 화면에 표시한 범위에 대한 사용자의 명확한 승인 답변이
-함께 포함된 create와 verify 작업에 대한 명시적 요청을 이룹니다. 이는 bundle
-export나 Completion을 승인하거나 일반 Codex permission prompt를 대신하지
-않습니다.
+최초 관리형 요청과 화면에 표시한 범위에 대한 사용자의 명확한 승인 답변이 함께
+Task 생성, 구현, 최초 verification, 해당하는 reviewed profile의 local bundle 1회에
+대한 명시적 요청을 이룹니다. 이는 Verdict record/show, reviewer 실행, 외부 공유,
+`complete`를 승인하거나 일반 Codex permission prompt를 대신하지 않습니다.
 Plugin이 직접 요청한 pending 확인에 대한
 명확한 답변은 같은 workflow를 재개할 수 있지만, 무관한 승인과 일반 coding
 요청에서는 Harness가 활성화되지 않습니다.
 
-Task 생성이나 verification이 실패하면 관리형 흐름은 중단합니다. Source를 자동
-수리하거나 Evidence를 교체하고 새 Run을 만들거나 verification을 재시도하지
-않습니다. Core `0.2.x`의 성공한 `verify` stdout은 integrity-validated mechanical
-summary를 노출하지 않으므로 Plugin은 raw `verification.json`을 읽어 다음 lifecycle
-단계를 선택하지 않습니다. Task ID와 Run ID는 성공한 Core stdout과 최초 canonical
-repository root를 함께 보존한 경우에만 재사용하며 “latest” Task나 Run을 추론하지
-않습니다.
+Task 생성, verification, bundle, Verdict 기록, completion 중 하나가 실패하면 관리형
+흐름은 중단합니다. Source를 자동 수리하거나 Evidence를 교체하고 alternate path를
+선택하거나 새 Run을 만들거나 재시도하지 않습니다. Core `0.2.x`의 성공한 `verify`
+stdout은 Evidence가 저장됐음을 뜻하지만 integrity-validated mechanical summary를
+노출하지 않습니다. Plugin은 raw `verification.json`을 읽지 않고 adopted saved
+`verifier.required` field만 profile 분기에 사용하며 completion은 Core만 판정합니다.
+Task ID와 Run ID는 성공한 Core stdout과 최초 canonical repository root를 함께 보존한
+경우에만 재사용하며 “latest” Task나 Run을 추론하지 않습니다.
 
 복구 및 고급 작업에는 저수준 Skill을 escape hatch로 사용합니다.
 
@@ -129,9 +138,9 @@ tag 없는 답변은 escape hatch를 활성화하지 않습니다.
 Bundle 성공은 Core가 export를 위해 저장 Run의 integrity를 검증했다는 뜻입니다.
 Mechanical outcome pass나 completion eligibility를 의미하지는 않습니다.
 
-구현 대화는 bundle까지 준비할 수 있지만 독립 Verdict를 만들지는 않습니다.
-Stored Run integrity, Verdict validation, source binding, completion의 권한은 계속
-Core에 있습니다.
+구현 대화는 승인된 reviewed-profile bundle 1회까지 준비할 수 있지만 독립 Verdict를
+만들지는 않습니다. Stored Run integrity, Verdict validation, source binding,
+completion의 권한은 계속 Core에 있습니다.
 
 별도로 제공하는 Verdict input은 target repository 밖에 둡니다. Plugin이 inline
 Verdict JSON을 파일로 만들 때도 repository 밖의 temporary file을 사용해 input

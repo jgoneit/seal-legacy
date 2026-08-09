@@ -98,9 +98,12 @@ Verdict, and completion operations call the canonical stored-Run validator.
 ## Managed adapter lifecycle
 
 An adapter may connect existing public commands into a managed,
-conversation-scoped workflow only after an explicit Harness invocation. This
-changes adapter UX, not Core command semantics or authority. Ordinary coding
-requests do not activate Core.
+conversation-scoped workflow only after a literal Harness Skill invocation or
+an explicitly selected Harness Plugin paired with an executable coding
+outcome. Plugin selection alone, Harness discussion, explanation, planning,
+audit, review, status requests, and ordinary unselected coding requests do not
+activate Core. This changes adapter UX, not Core command semantics or
+authority.
 
 Before the first Core write, the adapter may display a Task draft, a
 catalog-derived check preview, HEAD baseline semantics, and existing
@@ -109,9 +112,13 @@ preview, not Core normalization; only successful `task create` stdout supplies
 the authoritative saved checks. An omitted optional `timeout_seconds` remains
 omitted in the preview rather than being replaced with an adapter-invented
 default. The confirmation may cover Task creation, continuation of ordinary
-implementation, and the first `verify` exactly once. It does not authorize a
-bundle, `complete`, implementation permissions, or replacement of host and
-client approval prompts.
+implementation, and the first `verify` exactly once. When the displayed Task
+uses the reviewed profile, it may also cover exactly one local bundle export to
+a fresh absolute directory outside the target repository, if and only if the
+adopted saved Task retains `verifier.required=true`. It does not authorize
+Verdict record/show, reviewer invocation, external sharing, `complete`,
+implementation permissions, or replacement of host and client approval
+prompts.
 
 After `task create`, the adapter must compare the saved stdout Task fields with
 the approved draft, the saved baseline with the displayed HEAD, and the saved
@@ -135,32 +142,38 @@ A nonzero command result stops the covered sequence. Partial stdout is not a
 result. After successful Evidence recording, Core `0.2.x` public `verify`
 stdout supplies only `run_id` and `evidence_path`; it does not expose an
 integrity-validated mechanical summary. The adapter reports that exact identity
-and stops the managed sequence. It must not read raw Evidence to decide whether
-to bundle or request completion. A later operation requires a new explicit
-request. The adapter does not repair source, replace Evidence, create another
-Run, or retry verification automatically.
+and must not read raw Evidence to choose the next operation. It branches only
+on the adopted saved `verifier.required` profile.
 
-For a separately requested reviewed-profile bundle, the adapter selects a fresh
-output directory outside the target repository so bundle output does not
-change product source. When an adapter-level bundle request omits an output
-path, the adapter selects that fresh external directory and passes it through
-Core's required `--output` argument. Bundle preparation validates the stored
+For `verifier.required=false`, the basic profile proceeds directly to final
+confirmation without creating a bundle. The adapter shows the exact completion
+command but does not execute it. For `verifier.required=true`, the reviewed
+profile exports exactly one approved local bundle to a fresh absolute output
+directory outside the target repository and then pauses for a separately
+prepared Verdict. When an adapter-level bundle request omits an output path,
+the adapter selects the same kind of fresh external directory and passes it
+through Core's required `--output` argument; for an existing Run, that bundle
+still requires an explicit request. Bundle preparation validates the stored
 Run's integrity, but a successful export does not establish mechanical pass or
-completion eligibility. It does not run or select a reviewer. The
-implementation conversation must not create a Verdict and claim independence;
-a person or a clean context using only the bundle may supply Verdict JSON for
-an explicitly requested Core record operation. If the adapter materializes
-inline Verdict JSON, the input file must be outside the target repository. It
-must not move or delete a repository-local Verdict automatically because that
-would mutate product source again.
+completion eligibility. It does not run or select a reviewer.
 
-Only after a separate completion request, and immediately before `complete`,
-the adapter must show the exact repository, Task, and Run identities and ask
-for final confirmation. It may show the saved Task's `verifier.required`
-setting, but it must not claim a recorded Verdict state without a separately
-requested `verifier show`. Core alone evaluates stored Evidence, any recorded
-Verdict, current S2, source binding, and completion policy. A failed completion
-attempt is reported without repair, reverification, retry, or rollback.
+The implementation conversation must not create a Verdict and claim
+independence. A person or a clean context using only the bundle may supply
+Verdict JSON for an explicitly requested Core record operation. If the adapter
+materializes inline Verdict JSON, the input file must be outside the target
+repository. It must not move or delete a repository-local Verdict automatically
+because that would mutate product source again. After a separately supplied
+Verdict is successfully recorded, the adapter may proceed to final confirmation
+without requiring the user to copy the retained identities again.
+
+Immediately before `complete`, the adapter must show the exact repository,
+Task, and Run identities and ask for final confirmation. The initial managed
+confirmation never authorizes `complete`. The adapter may show the saved Task's
+`verifier.required` setting, but it must not claim a recorded Verdict state
+without a separately requested `verifier show`. Core alone evaluates stored
+Evidence, any recorded Verdict, current S2, source binding, and completion
+policy. A nonzero operation stops without repair, alternate path selection,
+replacement Evidence, another Run, reverification, retry, or rollback.
 
 ## Unsupported dependencies
 
