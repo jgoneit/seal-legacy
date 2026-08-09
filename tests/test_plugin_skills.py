@@ -61,9 +61,15 @@ class PluginSkillContractTests(unittest.TestCase):
         )
         managed = _normalized(_skill_text("harness"))
         self.assertIn(
-            "Do not treat an unrelated approval or ordinary coding request as activation",
+            "explicitly selected `@Harness` Plugin",
             managed,
         )
+        self.assertIn("Plugin selection alone", managed)
+        self.assertIn(
+            "discussion, explanation, planning, audit, review, or status request",
+            managed,
+        )
+        self.assertIn("ordinary unselected coding request", managed)
         self.assertIn("Within an activation case above", managed)
         self.assertIn(
             "use the carried identity for a bundle, separately prepared Verdict, or completion",
@@ -86,9 +92,13 @@ class PluginSkillContractTests(unittest.TestCase):
         contents = _normalized(_skill_text("harness"))
         required_fragments = (
             "`$harness <work request>`",
+            "explicitly selected `@Harness` Plugin",
             "one conversational confirmation",
             "Task creation, ordinary implementation, and the first `verify` exactly once",
             "first `verify` exactly once",
+            "exactly one local bundle export",
+            "if and only if the adopted saved Task has `verifier.required=true`",
+            "fresh absolute output directory outside the target repository",
             "does not authorize `complete`",
             "restate that adopting it covers ordinary implementation and the first `verify` exactly once",
             "same conversation",
@@ -115,7 +125,7 @@ class PluginSkillContractTests(unittest.TestCase):
             "outside the target repository",
             "Do not read `<evidence_path>/verification.json`",
             "does not expose an integrity-validated mechanical summary",
-            "Stop the managed flow",
+            "Branch only on the adopted saved Task's `verifier.required` field",
             "implementation conversation",
             "clean-context",
         )
@@ -139,11 +149,7 @@ class PluginSkillContractTests(unittest.TestCase):
 
         managed = _normalized(_skill_text("harness"))
         self.assertIn(
-            "an explicit same-conversation request can reuse the retained repository, Task ID, and Run ID without copying them again",
-            managed,
-        )
-        self.assertIn(
-            "`verifier.required=true`; that setting and successful verification are not an explicit bundle request",
+            "do not inspect raw Evidence to choose the branch",
             managed,
         )
 
@@ -156,6 +162,25 @@ class PluginSkillContractTests(unittest.TestCase):
             "must not drive lifecycle decisions or completion claims",
             contract,
         )
+
+    def test_managed_profile_handoff_preserves_final_confirmation(self) -> None:
+        managed = _normalized(_skill_text("harness"))
+        required_fragments = (
+            "When `verifier.required=false`, do not create a bundle",
+            "continue immediately to the final completion confirmation",
+            "When `verifier.required=true`, create exactly one approved local bundle",
+            "Pause for a separately prepared Verdict",
+            "Never run `complete` without the separate final confirmation",
+            "Bundle success does not mean a mechanical pass or completion eligibility",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, managed)
+
+        contract = _normalized(ADAPTER_CONTRACT.read_text(encoding="utf-8"))
+        self.assertIn("saved `verifier.required` profile", contract)
+        self.assertIn("basic profile proceeds directly to final confirmation", contract)
+        self.assertIn("reviewed profile exports exactly one approved local bundle", contract)
 
     def test_managed_identity_is_bound_to_the_original_repository_root(self) -> None:
         managed = _normalized(_skill_text("harness"))
@@ -325,6 +350,7 @@ class PluginSkillContractTests(unittest.TestCase):
         prompts = interface["defaultPrompt"]
         self.assertLessEqual(len(prompts), 3)
         self.assertTrue(any(prompt.startswith("$harness ") for prompt in prompts))
+        self.assertTrue(any(not prompt.startswith("$harness") for prompt in prompts))
 
     def test_public_docs_separate_core_and_plugin_workflows(self) -> None:
         expected = (
@@ -358,6 +384,14 @@ class PluginSkillContractTests(unittest.TestCase):
         )
         self.assertIn(
             "화면에 표시한 범위에 대한 사용자의 명확한 승인 답변",
+            _normalized(KOREAN_README.read_text(encoding="utf-8")),
+        )
+        self.assertIn(
+            "selected `@Harness` Plugin",
+            _normalized(README.read_text(encoding="utf-8")),
+        )
+        self.assertIn(
+            "선택한 `@Harness` Plugin",
             _normalized(KOREAN_README.read_text(encoding="utf-8")),
         )
 
