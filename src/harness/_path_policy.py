@@ -33,6 +33,25 @@ def path_is_within(path: str, boundary: str) -> bool:
     )
 
 
+def change_is_within_scope(
+    *,
+    status: str,
+    path: str,
+    previous_path: str | None,
+    scope: tuple[str, ...],
+) -> bool:
+    """Classify one normalized change against normalized Scope boundaries."""
+    affected_paths = (
+        (path, previous_path)
+        if status == "renamed" and previous_path is not None
+        else (path,)
+    )
+    return all(
+        any(path_is_within(affected_path, boundary) for boundary in scope)
+        for affected_path in affected_paths
+    )
+
+
 def is_harness_metadata_path(path: str) -> bool:
     """Classify one normalized repository path as Harness-owned metadata."""
     if path in HARNESS_METADATA_FILES:
