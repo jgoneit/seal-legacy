@@ -77,9 +77,10 @@ $harness Swagger/OpenAPI를 도입하고 한글 API 설명까지 검증해줘
 @Harness 선택: Swagger/OpenAPI를 도입하고 한글 API 설명까지 검증해줘
 ```
 
-Plugin 선택만으로 Core를 실행하지 않습니다. 선택한 상태에서도 토론, 설명, 계획,
-감사, 리뷰, 상태 확인 요청은 관리형 lifecycle을 시작하지 않고 답변하며, 선택하지
-않은 일반 coding 작업도 Harness를 활성화하지 않습니다.
+두 진입 방식 모두 실행 가능한 coding outcome이 있어야 합니다. 진입 방식과
+무관하게 Plugin 선택만 한 경우와 토론, 설명, 계획, 감사, 리뷰, 상태 확인 요청은
+Core를 시작하지 않고 답변합니다. 선택하지 않은 일반 coding 작업도 Harness를
+활성화하지 않습니다.
 
 Plugin은 다음 순서로 동작합니다.
 

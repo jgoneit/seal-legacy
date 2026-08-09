@@ -12,11 +12,11 @@ implementation steps.
 
 ## Activation
 
-Treat `$harness <work request>` or an explicitly selected `@Harness` Plugin
-paired with an executable end-to-end coding outcome as an explicit request for
-the managed workflow below. Plugin selection alone is not authorization to run
-Core. A Harness discussion, explanation, planning, audit, review, or status
-request does not activate Core, even when the Plugin is selected. An
+Start the managed workflow only when `$harness` or an explicitly selected
+`@Harness` Plugin is paired with an executable end-to-end coding outcome. The
+invocation form never overrides that outcome requirement: Plugin selection
+alone and Harness discussion, explanation, planning, audit, review, or status
+requests do not activate Core. An
 unambiguous direct reply to this Skill's own first or final confirmation, drift
 re-adoption or new-Task choice, or an explicit request to use the carried
 identity for a bundle, separately prepared Verdict, or completion may resume

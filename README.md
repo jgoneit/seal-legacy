@@ -78,9 +78,10 @@ $harness Add Swagger/OpenAPI and verify the Korean API descriptions.
 @Harness selected: Add Swagger/OpenAPI and verify the Korean API descriptions.
 ```
 
-Plugin selection alone does not run Core. A selected discussion, explanation,
-planning, audit, review, or status request is answered without starting the
-managed lifecycle, and ordinary unselected coding work does not activate it.
+Both entry forms require an executable coding outcome. Regardless of entry
+form, Plugin selection alone and discussion, explanation, planning, audit,
+review, or status requests are answered without starting Core. Ordinary
+unselected coding work does not activate it either.
 
 The Plugin then:
 

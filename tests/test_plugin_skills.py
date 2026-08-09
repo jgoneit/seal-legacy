@@ -61,12 +61,16 @@ class PluginSkillContractTests(unittest.TestCase):
         )
         managed = _normalized(_skill_text("harness"))
         self.assertIn(
-            "explicitly selected `@Harness` Plugin",
+            "Start the managed workflow only when `$harness` or an explicitly selected `@Harness` Plugin is paired with an executable end-to-end coding outcome",
+            managed,
+        )
+        self.assertIn(
+            "The invocation form never overrides that outcome requirement",
             managed,
         )
         self.assertIn("Plugin selection alone", managed)
         self.assertIn(
-            "discussion, explanation, planning, audit, review, or status request",
+            "discussion, explanation, planning, audit, review, or status requests do not activate Core",
             managed,
         )
         self.assertIn("ordinary unselected coding request", managed)
@@ -91,7 +95,7 @@ class PluginSkillContractTests(unittest.TestCase):
     def test_managed_skill_defines_one_approved_initial_verification(self) -> None:
         contents = _normalized(_skill_text("harness"))
         required_fragments = (
-            "`$harness <work request>`",
+            "`$harness`",
             "explicitly selected `@Harness` Plugin",
             "one conversational confirmation",
             "Task creation, ordinary implementation, and the first `verify` exactly once",
@@ -391,7 +395,15 @@ class PluginSkillContractTests(unittest.TestCase):
             _normalized(README.read_text(encoding="utf-8")),
         )
         self.assertIn(
+            "Both entry forms require an executable coding outcome",
+            _normalized(README.read_text(encoding="utf-8")),
+        )
+        self.assertIn(
             "선택한 `@Harness` Plugin",
+            _normalized(KOREAN_README.read_text(encoding="utf-8")),
+        )
+        self.assertIn(
+            "두 진입 방식 모두 실행 가능한 coding outcome이 있어야 합니다",
             _normalized(KOREAN_README.read_text(encoding="utf-8")),
         )
 
