@@ -1,4 +1,4 @@
-"""Static consistency checks for the v0.2.0 release surface."""
+"""Static consistency checks for the v0.2.1 release surface."""
 
 from __future__ import annotations
 
@@ -14,11 +14,13 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 
 from harness import __version__
+from harness.checks import DEFAULT_CHECK_TIMEOUT_SECONDS
 
 
 PYPROJECT = REPOSITORY_ROOT / "pyproject.toml"
 SDIST_MANIFEST = REPOSITORY_ROOT / "MANIFEST.in"
 PLUGIN_MANIFEST = REPOSITORY_ROOT / ".codex-plugin" / "plugin.json"
+CHECK_CATALOG = REPOSITORY_ROOT / ".harness" / "checks.json"
 CI_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
 RELEASE_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
 SKILL_NAMES = ("harness", "task", "verify", "bundle", "complete")
@@ -35,7 +37,7 @@ CURRENT_CONTRACT_DOCS = (
     REPOSITORY_ROOT / "docs" / "exit-codes.md",
     REPOSITORY_ROOT / "docs" / "migration-v0.2.md",
 )
-RELEASE_VERSION = "0.2.0"
+RELEASE_VERSION = "0.2.1"
 
 
 class ReleaseContractTests(unittest.TestCase):
@@ -45,6 +47,7 @@ class ReleaseContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.pyproject = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
         cls.plugin_manifest = json.loads(PLUGIN_MANIFEST.read_text(encoding="utf-8"))
+        cls.check_catalog = json.loads(CHECK_CATALOG.read_text(encoding="utf-8"))
         cls.ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
         cls.workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
         cls.skills = {
@@ -98,17 +101,29 @@ class ReleaseContractTests(unittest.TestCase):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, self.workflow)
 
+    def test_self_host_unit_test_timeout_matches_core_default(self) -> None:
+        unit_test_checks = [
+            check
+            for check in self.check_catalog["checks"]
+            if check["name"] == "unit-test"
+        ]
+        self.assertEqual(len(unit_test_checks), 1)
+        self.assertEqual(
+            unit_test_checks[0]["timeout_seconds"],
+            DEFAULT_CHECK_TIMEOUT_SECONDS,
+        )
+
     def test_clean_wheel_workflows_require_exact_cli_version(self) -> None:
         expected_assertions = (
             (
                 self.ci_workflow,
                 'test "$("$RUNNER_TEMP/clean-install/bin/harness" --version)" '
-                '= "0.2.0"',
+                '= "0.2.1"',
             ),
             (
                 self.workflow,
                 'test "$("$RUNNER_TEMP/outcome-harness-clean/bin/harness" '
-                '--version)" = "0.2.0"',
+                '--version)" = "0.2.1"',
             ),
         )
         for workflow, assertion in expected_assertions:

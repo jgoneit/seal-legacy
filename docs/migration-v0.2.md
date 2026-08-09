@@ -1,7 +1,7 @@
 # Migrating verification Evidence to v0.2
 
 This note describes the verification Evidence compatibility boundary in
-Harness Core `0.2.0`.
+Harness Core `0.2.x`.
 
 ## Verification Run contract
 

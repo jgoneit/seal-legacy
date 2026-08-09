@@ -1,6 +1,6 @@
 # Harness architecture
 
-This document describes the `0.2.0` Core, which supports source-bound
+This document describes the `0.2.x` Core, which supports source-bound
 verification Evidence v2 only. See
 [Migrating verification Evidence to v0.2](migration-v0.2.md) for historical
 v0.1.x Evidence.

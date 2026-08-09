@@ -8,7 +8,7 @@ Language: English | [한국어](README.ko.md)
 Harness is an experimental local CLI that saves a Task snapshot, product
 changes, check results, and source identity as a reviewable Evidence Run.
 
-The latest Experimental release is `v0.2.0`. It supports source-bound
+The latest Experimental release is `v0.2.1`. It supports source-bound
 verification Evidence v2 only. Historical v0.1.x Evidence is not upgraded in
 place; see
 [Migrating verification Evidence to v0.2](docs/migration-v0.2.md).
@@ -143,19 +143,19 @@ the input itself does not change verified product source.
 
 ### Core CLI
 
-Install the `v0.2.0` tag:
+Install the `v0.2.1` tag:
 
 ```bash
 python3 -m pip install \
-  "git+https://github.com/jgoneit/harness.git@v0.2.0"
+  "git+https://github.com/jgoneit/harness.git@v0.2.1"
 harness --version
 ```
 
 This pip command installs Core only; it does not install the Codex Plugin.
 
 The release artifact names are
-`outcome_harness-0.2.0-py3-none-any.whl` and
-`outcome_harness-0.2.0.tar.gz`.
+`outcome_harness-0.2.1-py3-none-any.whl` and
+`outcome_harness-0.2.1.tar.gz`.
 
 Requirements:
 
@@ -167,10 +167,9 @@ Codex Plugin name are `harness`.
 
 ### Codex Plugin
 
-The managed Plugin workflow documented here is present in the current
-repository checkout; it is not part of the historical `v0.2.0` tag. With a
-personal marketplace entry that points to this checkout and exposes a fresh
-cachebuster version, install or refresh it separately:
+The managed Plugin workflow documented here is part of `v0.2.1`. A personal
+marketplace entry that points to this checkout still installs or refreshes the
+Plugin separately from the Core package:
 
 ```bash
 codex plugin add harness@personal
@@ -324,9 +323,10 @@ whose source binding fails because S0 differs from S1 or S1 differs from S2.
 
 ## v0.1.x compatibility
 
-Harness v0.2.0 does not read v0.1.x verification Runs. Use the CLI from the
+Harness v0.2.x does not read v0.1.x verification Runs. Use the CLI from the
 corresponding v0.1.x tag to read that Evidence. There is no in-place migration;
-create a new Evidence v2 Run with v0.2.0 for a source-bound completion claim.
+create a new Evidence v2 Run with a v0.2.x CLI for a source-bound completion
+claim.
 
 ## Trust and security boundaries
 
@@ -344,7 +344,7 @@ create a new Evidence v2 Run with v0.2.0 for a source-bound completion claim.
   filesystem after S2 is collected or after `complete` returns.
 - Recording a Manual Verdict binds it to a Task and Run; it does not establish
   that the reviewer was actually independent.
-- Local Evidence is not an immutable central audit store, and v0.2.0 does not
+- Local Evidence is not an immutable central audit store, and v0.2.x does not
   claim support for every special Git state.
 - Repository-local Codex credential policy is documented separately; it is not
   a Harness Core feature.
@@ -376,6 +376,7 @@ public imports, and packaged contract resources.
 - [ADR 0003: Run Evidence Manifest](docs/adr/0003-run-evidence-manifest.md)
 - [ADR 0004: Canonical Source Snapshot](docs/adr/0004-canonical-source-snapshot.md)
 - [ADR 0005: Verify/Complete Source Binding](docs/adr/0005-verify-complete-source-binding.md)
+- [v0.2.1 Release Notes](docs/releases/v0.2.1.md)
 - [v0.2.0 Release Notes](docs/releases/v0.2.0.md)
 - [v0.1.0 Release Notes](docs/releases/v0.1.0.md)
 - [v0.1.1 Release Notes](docs/releases/v0.1.1.md)

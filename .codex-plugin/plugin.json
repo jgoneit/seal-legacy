@@ -1,6 +1,6 @@
 {
   "name": "harness",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Managed Codex workflow for evidence-based completion with Harness Core.",
   "author": {
     "name": "Jaegon Seo",
