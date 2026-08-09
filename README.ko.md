@@ -8,7 +8,7 @@ Language: [English](README.md) | 한국어
 Harness는 Task snapshot, product 변경, check 결과, source identity를 검토 가능한
 Evidence Run으로 저장하는 실험적 로컬 CLI입니다.
 
-최신 Experimental release는 `v0.2.0`입니다. Source-bound verification
+최신 Experimental release는 `v0.2.1`입니다. Source-bound verification
 Evidence v2만 지원하며, 과거 v0.1.x Evidence를 in-place upgrade하지 않습니다.
 자세한 내용은 [v0.2 verification Evidence migration](docs/migration-v0.2.md)을
 참고하세요.
@@ -141,18 +141,18 @@ Verdict JSON을 파일로 만들 때도 repository 밖의 temporary file을 사�
 
 ### Core CLI
 
-`v0.2.0` tag를 설치합니다.
+`v0.2.1` tag를 설치합니다.
 
 ```bash
 python3 -m pip install \
-  "git+https://github.com/jgoneit/harness.git@v0.2.0"
+  "git+https://github.com/jgoneit/harness.git@v0.2.1"
 harness --version
 ```
 
 이 pip command는 Core만 설치하며 Codex Plugin을 설치하지 않습니다.
 
-Release artifact 이름은 `outcome_harness-0.2.0-py3-none-any.whl`과
-`outcome_harness-0.2.0.tar.gz`입니다.
+Release artifact 이름은 `outcome_harness-0.2.1-py3-none-any.whl`과
+`outcome_harness-0.2.1.tar.gz`입니다.
 
 요구사항:
 
@@ -164,10 +164,9 @@ Python distribution 이름은 `outcome-harness`, console command와 Codex Plugin
 
 ### Codex Plugin
 
-여기서 설명하는 관리형 Plugin workflow는 current repository checkout에 있으며
-historical `v0.2.0` tag에는 포함되지 않습니다. 이 checkout을 가리키고 fresh
-cachebuster version을 노출하는 personal marketplace entry가 있다면 Plugin을
-별도로 설치하거나 갱신합니다.
+여기서 설명하는 관리형 Plugin workflow는 `v0.2.1`에 포함됩니다. 이 checkout을
+가리키는 personal marketplace entry에서는 Core package와 별도로 Plugin을
+설치하거나 갱신합니다.
 
 ```bash
 codex plugin add harness@personal
@@ -321,9 +320,9 @@ S0와 S1 또는 S1과 S2가 달라 source binding이 실패한 경우에만 사�
 
 ## v0.1.x compatibility
 
-Harness v0.2.0은 v0.1.x verification Run을 읽지 않습니다. 해당 Evidence는
+Harness v0.2.x는 v0.1.x verification Run을 읽지 않습니다. 해당 Evidence는
 대응하는 v0.1.x tag의 CLI로 읽어야 합니다. In-place migration은 없으며,
-source-bound completion claim에는 v0.2.0으로 새 Evidence v2 Run을 생성해야
+source-bound completion claim에는 v0.2.x CLI로 새 Evidence v2 Run을 생성해야
 합니다.
 
 ## Trust와 security 경계
@@ -341,7 +340,7 @@ source-bound completion claim에는 v0.2.0으로 새 Evidence v2 Run을 생성�
   `complete` 반환 이후 filesystem을 잠그지 않습니다.
 - Manual Verdict 기록은 Verdict를 Task와 Run에 bind하지만 reviewer가 실제로
   독립적이었음을 보장하지 않습니다.
-- Local Evidence는 immutable central audit store가 아니며, v0.2.0은 모든
+- Local Evidence는 immutable central audit store가 아니며, v0.2.x는 모든
   특수 Git state 지원을 주장하지 않습니다.
 - Repository-local Codex credential policy는 별도 경계이며 Harness Core 기능이
   아닙니다.
@@ -373,6 +372,7 @@ resource도 확인합니다.
 - [ADR 0003: Run Evidence Manifest](docs/adr/0003-run-evidence-manifest.md)
 - [ADR 0004: Canonical Source Snapshot](docs/adr/0004-canonical-source-snapshot.md)
 - [ADR 0005: Verify/Complete Source Binding](docs/adr/0005-verify-complete-source-binding.md)
+- [v0.2.1 Release Notes](docs/releases/v0.2.1.md)
 - [v0.2.0 Release Notes](docs/releases/v0.2.0.md)
 - [v0.1.0 Release Notes](docs/releases/v0.1.0.md)
 - [v0.1.1 Release Notes](docs/releases/v0.1.1.md)

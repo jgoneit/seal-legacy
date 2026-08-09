@@ -3,7 +3,7 @@ name: release
 on:
   push:
     tags:
-      - "v0.2.0"
+      - "v0.2.1"
 
 permissions:
   contents: write
@@ -29,21 +29,21 @@ jobs:
       - name: Smoke-test the installed wheel
         run: |
           python -m venv "$RUNNER_TEMP/outcome-harness-clean"
-          "$RUNNER_TEMP/outcome-harness-clean/bin/python" -m pip install dist/outcome_harness-0.2.0-*.whl
+          "$RUNNER_TEMP/outcome-harness-clean/bin/python" -m pip install dist/outcome_harness-0.2.1-*.whl
           cd "$RUNNER_TEMP"
-          test "$("$RUNNER_TEMP/outcome-harness-clean/bin/harness" --version)" = "0.2.0"
+          test "$("$RUNNER_TEMP/outcome-harness-clean/bin/harness" --version)" = "0.2.1"
           "$RUNNER_TEMP/outcome-harness-clean/bin/harness" --help
-          "$RUNNER_TEMP/outcome-harness-clean/bin/python" -c "import harness; assert harness.__version__ == '0.2.0'"
+          "$RUNNER_TEMP/outcome-harness-clean/bin/python" -c "import harness; assert harness.__version__ == '0.2.1'"
           "$RUNNER_TEMP/outcome-harness-clean/bin/python" -c "from harness.run_validator import validate_run; from harness.verdict_validator import validate_verdict; assert callable(validate_run); assert callable(validate_verdict)"
           "$RUNNER_TEMP/outcome-harness-clean/bin/python" -c "from importlib.resources import files; resources = files('harness').joinpath('resources'); assert resources.joinpath('verdict.schema.json').is_file(); assert resources.joinpath('verifier.md').is_file()"
           "$RUNNER_TEMP/outcome-harness-clean/bin/python" "$GITHUB_WORKSPACE/scripts/smoke_installed_cli.py" "$RUNNER_TEMP/outcome-harness-clean/bin/harness"
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Harness v0.2.0 (Experimental)
-          body_path: docs/releases/v0.2.0.md
+          name: Harness v0.2.1 (Experimental)
+          body_path: docs/releases/v0.2.1.md
           generate_release_notes: true
           files: |
-            dist/outcome_harness-0.2.0-py3-none-any.whl
-            dist/outcome_harness-0.2.0.tar.gz
+            dist/outcome_harness-0.2.1-py3-none-any.whl
+            dist/outcome_harness-0.2.1.tar.gz
           fail_on_unmatched_files: true

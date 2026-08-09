@@ -1,6 +1,6 @@
 # Harness exit codes
 
-The exit codes below describe Core `0.2.0` and are part of its public CLI
+The exit codes below describe Core `0.2.x` and are part of its public CLI
 contract. Existing meanings are stable.
 
 | Code | Meaning | Typical condition |

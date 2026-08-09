@@ -53,7 +53,7 @@ class CommandLineTests(unittest.TestCase):
     def test_harness_version(self) -> None:
         result = self._run_command("--version")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "0.2.0\n")
+        self.assertEqual(result.stdout, "0.2.1\n")
         self.assertEqual(result.stderr, "")
 
     def test_python_module_help(self) -> None:
