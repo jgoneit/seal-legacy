@@ -1,6 +1,6 @@
 ---
 name: harness
-description: Manage a Harness workflow for a coding outcome by drafting and adopting a Task, creating it, letting the coding Agent implement freely, running one pre-approved verification, and carrying the exact Evidence identity for explicit later operations. Use only for an explicit $harness end-to-end request or an unambiguous confirmation or resume reply in the same conversation after this Skill requested it; never start Harness during ordinary coding work.
+description: Manage a Harness workflow for a coding outcome by drafting and adopting a Task, creating it, letting the coding Agent implement freely, running one pre-approved verification, preparing one conditional reviewed-profile bundle, and carrying the exact Evidence identity to a separately confirmed completion evaluation. Use only for an explicit $harness end-to-end request, an explicitly selected @Harness Plugin paired with an executable coding outcome, or an unambiguous confirmation or resume reply in the same conversation after this Skill requested it; never start Core for ordinary coding, discussion, planning, audit, review, or status requests.
 ---
 
 # Harness managed workflow
@@ -12,15 +12,18 @@ implementation steps.
 
 ## Activation
 
-Treat `$harness <work request>` as an explicit request for the managed workflow
-below. An unambiguous direct reply to this Skill's own first or final
-confirmation, drift re-adoption or new-Task choice, or an explicit request to
-use the carried identity for a bundle, separately prepared Verdict, or
-completion may resume the same workflow in the same conversation. Do not treat
-an unrelated approval or ordinary coding request as activation. Within an
-activation case above, if the user requests only one operation on an existing
-Task or Run, perform that one operation and do not silently enter the managed
-workflow.
+Start the managed workflow only when `$harness` or an explicitly selected
+`@Harness` Plugin is paired with an executable end-to-end coding outcome. The
+invocation form never overrides that outcome requirement: Plugin selection
+alone and Harness discussion, explanation, planning, audit, review, or status
+requests do not activate Core. An
+unambiguous direct reply to this Skill's own first or final confirmation, drift
+re-adoption or new-Task choice, or an explicit request to use the carried
+identity for a bundle, separately prepared Verdict, or completion may resume
+the same workflow in the same conversation. Do not treat an unrelated approval
+or ordinary unselected coding request as activation. Within an activation case
+above, if the user requests only one operation on an existing Task or Run,
+perform that one operation and do not silently enter the managed workflow.
 
 Task Scope describes what the completion claim covers; it is not a write
 permission or tool gate. Normal host and client permission prompts remain
@@ -91,12 +94,17 @@ draft cannot become product Evidence. Never pass `--force`.
 
 Ask for one conversational confirmation that covers Task creation, ordinary
 implementation, and the first `verify` exactly once. Show the exact Task draft
-and the covered actions when asking.
+and the covered actions when asking. If the draft uses the reviewed profile,
+also show that the same confirmation covers exactly one local bundle export
+after successful Evidence recording, using a fresh absolute output directory
+outside the target repository. That conditional export is covered if and only
+if the adopted saved Task has `verifier.required=true`.
 
-This confirmation does not authorize `complete`. It is not an exact-word
-protocol, approval token, Plan hash, or substitute for host or client
-permission prompts. If the user declines or materially changes the Task,
-revise the draft and ask again before any Core write.
+This confirmation does not authorize Verdict record/show, reviewer invocation,
+external sharing, or `complete`. It is not an exact-word protocol, approval
+token, Plan hash, or substitute for host or client permission prompts. If the
+user declines or materially changes the Task, revise the draft and ask again
+before any Core write.
 
 ## Create and carry the Task identity
 
@@ -123,8 +131,11 @@ saved Task, or draft a new Task with a new ID; do not overwrite the created
 Task or treat the first confirmation as covering the difference.
 When asking for re-adoption, show the exact saved Task and checks, and restate
 that adopting it covers ordinary implementation and the first `verify` exactly
-once. Restate that it does not authorize bundle export or `complete`, and
-continue only after confirmation.
+once. If the exact saved Task has `verifier.required=true`, restate that it also
+covers exactly one local bundle export to a fresh absolute directory outside
+the target repository. Restate that it does not authorize Verdict record/show,
+reviewer invocation, external sharing, or `complete`, and continue only after
+confirmation.
 
 Bind the exact Task ID to the retained canonical repository root in the same
 conversation so the user does not need to copy it. Do not select a latest Task
@@ -168,36 +179,42 @@ Do not read `<evidence_path>/verification.json` to report an outcome or decide
 what to do next. Core `0.2.x` public `verify` stdout does not expose an
 integrity-validated mechanical summary, and a direct artifact read does not
 pass through Core's canonical stored-Run validator. Exit 0 means Evidence was
-recorded; it does not mean the mechanical outcome passed. Stop the managed
-flow after reporting the successful Evidence identity. A later bundle,
-Verdict, or completion operation requires a new explicit resume request.
-Tell the user that an explicit same-conversation request can reuse the retained
-repository, Task ID, and Run ID without copying them again. Do not prompt for
-or execute one of those later operations automatically. This stop applies even
-when the saved Task has `verifier.required=true`; that setting and successful
-verification are not an explicit bundle request.
+recorded; it does not mean the mechanical outcome passed. Branch only on the
+adopted saved Task's `verifier.required` field; do not inspect raw Evidence to
+choose the branch.
 
-After either a successful or nonzero `verify` result, do not repair source,
-replace Evidence, create a replacement Run, retry verification, prepare a
-bundle, or request completion automatically.
+When `verifier.required=false`, do not create a bundle. Continue immediately to
+the final completion confirmation below, show the exact command, and ask for
+that confirmation without running it.
 
-## Resume with reviewed Evidence only when requested
-
-Only after a new explicit resume request, prepare one bundle for the retained
-Task and Run. Do not treat `verifier.required=true`, the first confirmation, or
-successful verification as that request. Do not infer bundle eligibility from
-raw Evidence artifacts. Use a unique absolute output path outside the target
-repository whose final directory does not already exist:
+When `verifier.required=true`, create exactly one approved local bundle after
+repeating preflight. Select a unique absolute output path outside the target
+repository whose final directory does not already exist, then run:
 
 ~~~bash
 harness verifier bundle <TASK_ID> --run-id <RUN_ID> --output <OUTPUT_DIR>
 ~~~
 
-Report the exact IDs and bundle path. Bundle export validates stored-Run
-integrity and copies historical S0/S1 Evidence. Bundle success does not mean a
-mechanical pass or completion eligibility. It does not run a reviewer, create
-a Verdict, collect S2, or complete the Task. Inspect logs before any external
-sharing and never send the bundle elsewhere without an explicit user request.
+Report the exact IDs, Evidence path, and bundle path. Bundle success does not
+mean a mechanical pass or completion eligibility. It validates stored-Run
+integrity and copies historical S0/S1 Evidence; it does not run a reviewer,
+create a Verdict, collect S2, or complete the Task. Inspect logs before any
+external sharing and never send the bundle elsewhere without an explicit user
+request. Pause for a separately prepared Verdict.
+
+After a successful managed `verify` or conditional bundle, do not repair
+source, replace Evidence, create a replacement Run, retry verification, or
+prepare another bundle. A nonzero `verify` or bundle follows the global
+fail-stop rule and never proceeds to another operation.
+
+## Prepare reviewed Evidence
+
+For a newly created managed Task, the previous section creates the reviewed
+profile's one bundle only when the first confirmation covered it. Do not create
+a second bundle. For an existing Task or Run, or an explicit single-operation
+request, prepare one bundle only after a new explicit request. Do not infer
+bundle eligibility from raw Evidence artifacts. Use the same fresh external
+output-path rule and Core command shown above.
 
 The implementation conversation must not create a Verdict and claim it is
 independent. A person, the user, or a genuinely clean-context review using only
@@ -217,15 +234,21 @@ explain that creating or changing it after verification can change S2. Do not
 move or delete a repository-local Verdict automatically.
 
 Do not overwrite an existing Verdict silently. Core binds a recorded Verdict
-to a Task and Run; it does not prove reviewer independence.
+to a Task and Run; it does not prove reviewer independence. After a separately
+supplied Verdict is successfully recorded for the retained managed identity,
+continue immediately to the final completion confirmation. Run `verifier show`
+only when explicitly requested.
 
 ## Ask for final completion confirmation
 
-Only after an explicit resume request, show the retained canonical repository
-root, exact Task ID, exact Run ID, the saved Task's `verifier.required` setting,
-and exact command. Do not inspect or claim a recorded Verdict state unless the
-user separately requested `verifier show`. Ask for a separate final
-confirmation immediately before `complete`:
+Enter this section after successful managed verification for a basic profile,
+after a separately supplied Verdict is successfully recorded for a reviewed
+profile, or after an explicit completion request for an existing identity.
+Show the retained canonical repository root, exact Task ID, exact Run ID, the
+saved Task's `verifier.required` setting, and exact command. Do not inspect or
+claim a recorded Verdict state unless the user separately requested
+`verifier show`. Ask for a separate final confirmation immediately before
+`complete`:
 
 ~~~bash
 harness complete <TASK_ID> --run-id <RUN_ID>
@@ -233,8 +256,9 @@ harness complete <TASK_ID> --run-id <RUN_ID>
 
 The initial confirmation does not authorize `complete`. Final confirmation
 authorizes only this one evaluation; Core, not the confirmation, decides
-completion. Repeat preflight, run the exact command once, and report Core
-stdout, stderr, and exit code.
+completion. Never run `complete` without the separate final confirmation.
+Repeat preflight, run the exact command once, and report Core stdout, stderr,
+and exit code.
 
 On failure, do not alter source or Evidence, create another Run, reverify,
 retry completion, or roll back. Report the refusal and stop.

@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "Harness",
     "shortDescription": "Managed evidence workflow for coding agents",
-    "longDescription": "Run a managed, conversation-scoped workflow that drafts a Harness Task, connects ordinary implementation to one approved verification, carries the exact Evidence identity to a safe handoff, and supports explicit bundle or completion follow-ups.",
+    "longDescription": "Run a managed, conversation-scoped workflow that drafts a Harness Task, connects ordinary implementation to one approved verification, prepares one local bundle for a reviewed profile, carries the exact Evidence identity, and asks separately before completion.",
     "developerName": "Jaegon Seo",
     "category": "Developer Tools",
     "capabilities": [
@@ -30,8 +30,8 @@
     "websiteURL": "https://github.com/jgoneit/harness",
     "defaultPrompt": [
       "$harness Swagger/OpenAPI\ub97c \ub3c4\uc785\ud558\uace0 \ud55c\uae00 API \uc124\uba85\uae4c\uc9c0 \uac80\uc99d\ud574\uc918",
-      "$harness:verify \uae30\uc874 Task\ub97c \ud55c \ubc88 \uac80\uc99d\ud558\uace0 Run ID\uc640 Evidence \uacbd\ub85c\ub97c \ubcf4\uc5ec\uc918",
-      "$harness:bundle \uc9c0\uc815\ud55c Task\uc640 Run\uc758 verifier bundle\uc744 \uc900\ube44\ud574\uc918"
+      "\uc774 \uc800\uc7a5\uc18c\uc5d0 Swagger/OpenAPI\ub97c \ub3c4\uc785\ud558\uace0 \ud55c\uae00 API \uc124\uba85\uae4c\uc9c0 \uad00\ub9ac\ud615\uc73c\ub85c \uac80\uc99d\ud574\uc918",
+      "$harness:verify \uae30\uc874 Task\ub97c \ud55c \ubc88 \uac80\uc99d\ud558\uace0 Run ID\uc640 Evidence \uacbd\ub85c\ub97c \ubcf4\uc5ec\uc918"
     ]
   }
 }
