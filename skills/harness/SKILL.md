@@ -29,6 +29,47 @@ Task Scope describes what the completion claim covers; it is not a write
 permission or tool gate. Normal host and client permission prompts remain
 separate from this conversational workflow.
 
+## User-facing presentation
+
+Lead with a compact status summary before the contract detail. For a Harness
+discussion, explanation, plan, audit, review, or status request that does not
+activate Core, state `Mode: Analysis only` and that Core was not started. For an
+activated coding outcome, state `Mode: Managed execution` and show the current
+status, canonical repository, saved profile when known, and next action. Run
+the read-only version, repository, HEAD, and check-catalog preflight before
+drafting the Task so setup failures do not lead to an adoption prompt.
+
+Before the first confirmation, summarize the outcome, Scope, HEAD baseline,
+check names, profile, and existing working-tree changes. Then separate the
+approval boundary under these exact labels:
+
+- `Included in this confirmation`: Task creation, ordinary implementation, the
+  first `verify` exactly once, and the reviewed profile's one conditional local
+  bundle when applicable;
+- `Not included in this confirmation`: Verdict record/show, reviewer
+  invocation, external sharing, and `complete`; and
+- `Local records`: the Task snapshot and any later Evidence or bundle paths
+  that the covered operations may create.
+
+Show the full Task JSON and catalog-derived check preview after the compact
+summary and before asking for adoption. Progressive disclosure must not omit or
+weaken any exact draft, argv, timeout, baseline, or dirty-tree disclosure that
+this Skill requires. These display labels are presentation only and are not
+persisted lifecycle state, Core results, approvals, or additional authority.
+
+If `harness --version` is missing, unparseable, or unsupported, lead with
+`Status: Core unavailable`, state that the Plugin and Core are installed
+separately, report the actual command result, point to the README Installation
+section, and name the original managed request as the request to repeat after
+compatible Core is available. Do not imply that a Task draft, Task, or Run was
+created.
+
+After `verify` exits zero, lead with `Status: Evidence recorded`. This must not
+be described as verification passed; immediately state that Evidence recording
+does not mean that checks passed or that completion is eligible. After a bundle
+export, describe it as a review handoff export, not a review result. Describe
+completion only from the exact `complete` result as accepted or refused.
+
 ## Core boundary and preflight
 
 Before every Core operation, run:
@@ -238,6 +279,38 @@ to a Task and Run; it does not prove reviewer independence. After a separately
 supplied Verdict is successfully recorded for the retained managed identity,
 continue immediately to the final completion confirmation. Run `verifier show`
 only when explicitly requested.
+
+## Report failures and handoffs
+
+For every blocked, aborted, or nonzero Core stop, lead with a compact failure
+summary before the raw stdout and stderr:
+
+- `Status: Harness stopped`;
+- `Failure stage`: the operation that did not complete;
+- `Core result`: the exact command, exit code, and whether stdout or stderr was
+  empty when a Core command ran, or `not run` plus the reason when none ran;
+- `Preserved identity`: only the canonical repository, Task ID, Run ID, and
+  opaque paths obtained from earlier successful Core stdout;
+- `Not run`: every covered later operation that was not executed; and
+- `Next explicit request`: the next safe user decision, or a statement that no
+  retry is authorized within this managed sequence.
+
+Do not put partial stdout, a partial Evidence directory, an inferred latest ID,
+or a proposed replacement Run in `Preserved identity`. The summary must not
+imply that a retry, repair, or replacement operation is authorized.
+
+When a valid carried identity exists at a pause or successful handoff, add a
+copyable `Resume capsule` containing the canonical repository root, exact Task
+ID, exact Run ID when available, opaque Evidence path when available, saved
+profile, bundle path when available, and the exact resume request permitted by
+the current lifecycle boundary. This capsule is presentation only; it does not
+persist state or activate another operation.
+
+For a reviewed-profile bundle handoff, label the state `Status: Review handoff
+ready`, include `Awaiting a separately prepared Verdict`, identify the bundle
+export as containing historical S0/S1 Evidence, and provide the exact resume
+request for recording that separately supplied Verdict. Do not select a
+reviewer, send the bundle, or claim review independence.
 
 ## Ask for final completion confirmation
 
