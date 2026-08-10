@@ -13,6 +13,7 @@ SKILLS_ROOT = REPOSITORY_ROOT / "skills"
 PLUGIN_MANIFEST = REPOSITORY_ROOT / ".codex-plugin" / "plugin.json"
 ADAPTER_CONTRACT = REPOSITORY_ROOT / "docs" / "adapter-contract.md"
 UI_SMOKE = REPOSITORY_ROOT / "docs" / "harness-ui-smoke.md"
+TASK_SCHEMA = REPOSITORY_ROOT / "schemas" / "task.schema.json"
 README = REPOSITORY_ROOT / "README.md"
 KOREAN_README = REPOSITORY_ROOT / "README.ko.md"
 EXPECTED_SKILLS = ("harness", "task", "verify", "bundle", "complete")
@@ -114,6 +115,49 @@ class PluginSkillContractTests(unittest.TestCase):
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, contents)
+
+    def test_task_drafts_use_the_public_task_type_enum(self) -> None:
+        schema = json.loads(TASK_SCHEMA.read_text(encoding="utf-8"))
+        task_types = schema["properties"]["type"]["enum"]
+        self.assertIsInstance(task_types, list)
+        self.assertGreater(len(task_types), 1)
+        self.assertIn("docs", task_types)
+
+        documents = {
+            "managed skill": _normalized(_skill_text("harness")),
+            "task skill": _normalized(_skill_text("task")),
+            "adapter contract": _normalized(
+                ADAPTER_CONTRACT.read_text(encoding="utf-8")
+            ),
+        }
+        for document_name, contents in documents.items():
+            with self.subTest(document=document_name):
+                enum_guidance = re.search(
+                    r"Set `type` to exactly one public Task Schema value: "
+                    r"(?P<types>.*?)\. Use `docs`",
+                    contents,
+                )
+                self.assertIsNotNone(enum_guidance)
+                assert enum_guidance is not None
+                documented_types = re.findall(
+                    r"`([^`]+)`",
+                    enum_guidance.group("types"),
+                )
+                self.assertEqual(set(documented_types), set(task_types))
+                self.assertEqual(len(documented_types), len(task_types))
+                self.assertIn(
+                    "Use `docs` when the outcome changes documentation only.",
+                    contents,
+                )
+                self.assertIn(
+                    "Do not invent another label such as `implementation`, "
+                    "`maintenance`, or `chore`.",
+                    contents,
+                )
+                self.assertIn(
+                    "This draft guidance does not replace Core validation.",
+                    contents,
+                )
 
     def test_managed_skill_preserves_failure_and_review_boundaries(self) -> None:
         contents = _normalized(_skill_text("harness"))

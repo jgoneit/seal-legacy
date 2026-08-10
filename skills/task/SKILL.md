@@ -18,12 +18,16 @@ import Core or reproduce its validation.
 
 For creation, confirm `.harness/checks.json` exists. Draft only
 `schema_version`, `id`, `type`, `objective`, `scope`, `checks`, `risk`, and
-`verifier.required`. Show the draft plus a catalog-derived check preview with
-`argv` and `required`, and show `timeout_seconds` when present. Label the checks
-as a preview rather than Core normalization. When omitted, mark the timeout as
-omitted and let Core apply its behavior; do not infer a numeric default. Also
-show the HEAD baseline semantics and existing dirty changes. Task Scope is a
-completion-claim boundary, not a write permission.
+`verifier.required`. Set `type` to exactly one public Task Schema value:
+`bugfix`, `feature`, `refactor`, `test`, `docs`, or `config-infra`. Use `docs`
+when the outcome changes documentation only. Do not invent another label such
+as `implementation`, `maintenance`, or `chore`. This draft guidance does not
+replace Core validation. Show the draft plus a catalog-derived check preview
+with `argv` and `required`, and show `timeout_seconds` when present. Label the
+checks as a preview rather than Core normalization. When omitted, mark the
+timeout as omitted and let Core apply its behavior; do not infer a numeric
+default. Also show the HEAD baseline semantics and existing dirty changes. Task
+Scope is a completion-claim boundary, not a write permission.
 
 After explicit adoption, write the temporary input outside the target
 repository and run once without `--force`:

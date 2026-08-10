@@ -128,7 +128,11 @@ Before the first Core write, the adapter may display a Task draft, a
 catalog-derived check preview, HEAD baseline semantics, and existing
 working-tree changes, then ask for one conversational confirmation. This is a
 preview, not Core normalization; only successful `task create` stdout supplies
-the authoritative saved checks. An omitted optional `timeout_seconds` remains
+the authoritative saved checks. Set `type` to exactly one public Task Schema
+value: `bugfix`, `feature`, `refactor`, `test`, `docs`, or `config-infra`. Use
+`docs` when the outcome changes documentation only. Do not invent another
+label such as `implementation`, `maintenance`, or `chore`. This draft guidance
+does not replace Core validation. An omitted optional `timeout_seconds` remains
 omitted in the preview rather than being replaced with an adapter-invented
 default. The confirmation may cover Task creation, continuation of ordinary
 implementation, and the first `verify` exactly once. When the displayed Task

@@ -113,7 +113,11 @@ select an alternate output path or identity, or chain the next operation.
 
 Collect only `schema_version`, `id`, `type`, `objective`, `scope`, `checks`,
 `risk`, and `verifier.required`. Describe the intended outcome, not the
-implementation process. Show all of the following before asking for adoption:
+implementation process. Set `type` to exactly one public Task Schema value:
+`bugfix`, `feature`, `refactor`, `test`, `docs`, or `config-infra`. Use `docs`
+when the outcome changes documentation only. Do not invent another label such
+as `implementation`, `maintenance`, or `chore`. This draft guidance does not
+replace Core validation. Show all of the following before asking for adoption:
 
 - the draft Task JSON;
 - a catalog-derived check preview with `argv` and `required`, plus
