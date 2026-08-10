@@ -12,6 +12,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SKILLS_ROOT = REPOSITORY_ROOT / "skills"
 PLUGIN_MANIFEST = REPOSITORY_ROOT / ".codex-plugin" / "plugin.json"
 ADAPTER_CONTRACT = REPOSITORY_ROOT / "docs" / "adapter-contract.md"
+UI_SMOKE = REPOSITORY_ROOT / "docs" / "harness-ui-smoke.md"
 README = REPOSITORY_ROOT / "README.md"
 KOREAN_README = REPOSITORY_ROOT / "README.ko.md"
 EXPECTED_SKILLS = ("harness", "task", "verify", "bundle", "complete")
@@ -185,6 +186,72 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("saved `verifier.required` profile", contract)
         self.assertIn("basic profile proceeds directly to final confirmation", contract)
         self.assertIn("reviewed profile exports exactly one approved local bundle", contract)
+
+    def test_managed_skill_leads_with_compact_user_facing_status(self) -> None:
+        managed = _normalized(_skill_text("harness"))
+        required_fragments = (
+            "## User-facing presentation",
+            "Mode: Analysis only",
+            "Mode: Managed execution",
+            "Status: Core unavailable",
+            "Included in this confirmation",
+            "Not included in this confirmation",
+            "Local records",
+            "Status: Evidence recorded",
+            "must not be described as verification passed",
+            "presentation only and are not persisted lifecycle state",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, managed)
+
+        contract = _normalized(ADAPTER_CONTRACT.read_text(encoding="utf-8"))
+        for fragment in (
+            "compact presentation summary",
+            "Included in this confirmation",
+            "Not included in this confirmation",
+            "Evidence recorded",
+            "not persisted adapter state",
+        ):
+            with self.subTest(contract_fragment=fragment):
+                self.assertIn(fragment, contract)
+
+        public_labels = (
+            "Mode: Analysis only",
+            "Status: Core unavailable",
+            "Status: Evidence recorded",
+            "Status: Harness stopped",
+            "Status: Review handoff ready",
+            "Included in this confirmation",
+            "Not included in this confirmation",
+            "Local records",
+        )
+        for document in (README, KOREAN_README):
+            contents = _normalized(document.read_text(encoding="utf-8"))
+            for label in public_labels:
+                with self.subTest(document=document.name, public_label=label):
+                    self.assertIn(label, contents)
+
+    def test_managed_failures_and_review_handoffs_include_resume_capsules(self) -> None:
+        managed = _normalized(_skill_text("harness"))
+        required_fragments = (
+            "## Report failures and handoffs",
+            "Status: Harness stopped",
+            "Failure stage",
+            "Preserved identity",
+            "Not run",
+            "Next explicit request",
+            "Resume capsule",
+            "Awaiting a separately prepared Verdict",
+            "exact resume request",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, managed)
+
+        contract = _normalized(ADAPTER_CONTRACT.read_text(encoding="utf-8"))
+        self.assertIn("failure or handoff capsule", contract)
+        self.assertIn("must not imply that a retry is authorized", contract)
 
     def test_managed_identity_is_bound_to_the_original_repository_root(self) -> None:
         managed = _normalized(_skill_text("harness"))
@@ -406,6 +473,117 @@ class PluginSkillContractTests(unittest.TestCase):
             "두 진입 방식 모두 실행 가능한 coding outcome이 있어야 합니다",
             _normalized(KOREAN_README.read_text(encoding="utf-8")),
         )
+
+    def test_ui_smoke_contract_covers_selected_plugin_routing_and_handoffs(self) -> None:
+        self.assertTrue(UI_SMOKE.is_file())
+        contents = UI_SMOKE.read_text(encoding="utf-8")
+        normalized = _normalized(contents)
+        required_fragments = (
+            "Repository tests do not prove selected-plugin routing",
+            "fresh Codex task",
+            "not evidence of selected-plugin routing",
+            "UI-01 Discussion-only selected Plugin",
+            "UI-02 Managed request with Core unavailable",
+            "UI-03 Basic profile happy path",
+            "UI-04 Reviewed profile handoff",
+            "UI-05 Dirty working tree disclosure",
+            "UI-06 Task adoption baseline drift",
+            "UI-07 Nonzero Core stop",
+            "UI-08 Final completion confirmation",
+            "UI-09 Ordinary unselected coding stays inactive",
+            "Observed result",
+            "Pass criteria",
+            "pass, fail, blocked, or not run",
+            "canonical protocol intentionally contains no claimed Observed result",
+            "Do not mark a scenario passed without fresh UI execution",
+            "does not install Core",
+            "no bundle is created",
+            "does not run a reviewer",
+            "regular-file setup is not removed or repaired",
+            "does not run before a separate unambiguous final confirmation",
+            "Any `fail`, `blocked`, or `not run` result keeps the release gate open",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, normalized)
+
+        scenario_ids = re.findall(r"(?m)^## (UI-\d{2}) ", contents)
+        self.assertEqual(
+            scenario_ids,
+            [f"UI-{index:02d}" for index in range(1, 10)],
+        )
+
+        def scenario(heading: str) -> str:
+            match = re.search(
+                rf"(?ms)^## {re.escape(heading)}\n(?P<body>.*?)(?=^## |\Z)",
+                contents,
+            )
+            self.assertIsNotNone(match, heading)
+            assert match is not None
+            return _normalized(match.group("body"))
+
+        discussion = scenario("UI-01 Discussion-only selected Plugin")
+        self.assertIn("exact label `Mode: Analysis only`", discussion)
+        self.assertNotIn("equivalent unambiguous", discussion)
+
+        unavailable = scenario("UI-02 Managed request with Core unavailable")
+        self.assertIn("`Status: Core unavailable`", unavailable)
+        self.assertIn("actual failed preflight", unavailable)
+        self.assertIn("does not install Core", unavailable)
+
+        basic = scenario("UI-03 Basic profile happy path")
+        self.assertIn("`Included in this confirmation`", basic)
+        self.assertIn("exactly one `verify`", basic)
+        self.assertIn("`Status: Evidence recorded`", basic)
+        self.assertIn("no bundle is created", basic)
+
+        reviewed = scenario("UI-04 Reviewed profile handoff")
+        self.assertIn("one conditional local bundle", reviewed)
+        self.assertIn("exactly one `verify` and one fresh external bundle", reviewed)
+        self.assertIn("`Status: Review handoff ready`", reviewed)
+        self.assertIn("does not run a reviewer", reviewed)
+
+        dirty = scenario("UI-05 Dirty working tree disclosure")
+        self.assertIn("staged, unstaged, and untracked", dirty)
+        self.assertIn("Stop at the first adoption prompt", dirty)
+        self.assertIn("no existing change is stashed, reset, committed, deleted", dirty)
+
+        drift = scenario("UI-06 Task adoption baseline drift")
+        self.assertIn("create an empty commit", drift)
+        self.assertIn("exact saved baseline versus displayed HEAD difference", drift)
+        self.assertIn("implementation and verification do not start", drift)
+
+        nonzero = scenario("UI-07 Nonzero Core stop")
+        self.assertIn("shared Basic prompt", nonzero)
+        self.assertIn("supported managed end-to-end activation", nonzero)
+        self.assertIn("successful `task create` stdout", nonzero)
+        self.assertIn("exactly one covered `verify`", nonzero)
+        self.assertIn("regular-file setup is not removed or repaired", nonzero)
+
+        completion = scenario("UI-08 Final completion confirmation")
+        self.assertIn("exact `complete` command", completion)
+        self.assertIn("does not run before a separate unambiguous final confirmation", completion)
+        self.assertIn("accepted or refused by Core", completion)
+
+        ordinary = scenario("UI-09 Ordinary unselected coding stays inactive")
+        self.assertIn("without selecting `@Harness` or any Harness Skill", ordinary)
+        self.assertIn(
+            'Append the exact line "Ordinary coding smoke fixture" to README.md only.',
+            ordinary,
+        )
+        self.assertIn("tests routing rather than missing setup", ordinary)
+        self.assertIn("no Harness mode or status summary appears", ordinary)
+        self.assertIn("including `Mode: Analysis only`", ordinary)
+        self.assertIn("no Harness-specific lifecycle language", ordinary)
+        self.assertIn("no Harness Core command runs", ordinary)
+
+        release = scenario("Release interpretation")
+        self.assertIn("All nine required scenarios", release)
+        self.assertIn("fresh Observed result of `pass`", release)
+        self.assertIn("creating the `v0.2.1` release tag", release)
+
+        self.assertIn("Harness Codex UI smoke", README.read_text(encoding="utf-8"))
+        self.assertIn("Harness Codex UI smoke", KOREAN_README.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
