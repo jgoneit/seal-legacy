@@ -137,8 +137,15 @@ repository, then submit the Basic prompt. Stop at the first adoption prompt.
 
 Pass criteria:
 
+- the response follows the Skill's exact first-adoption block order: `Mode`
+  and `Status`, compact summary including the dirty categories, `Included in
+  this confirmation`, `Not included in this confirmation`, `Local records`,
+  full Task JSON, check preview, then one adoption question;
 - the compact summary names the dirty categories and the exact Task baseline as
   current HEAD;
+- `Included in this confirmation`, `Not included in this confirmation`, and
+  `Local records` appear after the dirty-tree disclosure and before the full
+  Task JSON and check preview;
 - the full draft and check preview remain available after the summary;
 - no existing change is stashed, reset, committed, deleted, or silently added
   to Scope.

@@ -39,9 +39,24 @@ status, canonical repository, saved profile when known, and next action. Run
 the read-only version, repository, HEAD, and check-catalog preflight before
 drafting the Task so setup failures do not lead to an adoption prompt.
 
-Before the first confirmation, summarize the outcome, Scope, HEAD baseline,
-check names, profile, and existing working-tree changes. Then separate the
-approval boundary under these exact labels:
+For every first-adoption response, render these blocks in this exact
+top-to-bottom order. Do not interleave them or move a later block ahead of an
+earlier block:
+
+1. `Mode: Managed execution` and the current `Status`;
+2. a compact summary containing the canonical repository, outcome, Scope, HEAD
+   baseline, check names, profile, next action, and existing working-tree state
+   grouped as staged, unstaged, and untracked, or `Working tree: clean`;
+3. `Included in this confirmation`;
+4. `Not included in this confirmation`;
+5. `Local records`;
+6. `Task draft:` followed by the full Task JSON;
+7. the catalog-derived check preview; and
+8. one adoption question.
+
+The Task JSON and check preview must not appear before the dirty-tree
+disclosure or any of the three approval-boundary labels. The three approval
+labels mean:
 
 - `Included in this confirmation`: Task creation, ordinary implementation, the
   first `verify` exactly once, and the reviewed profile's one conditional local
@@ -51,11 +66,10 @@ approval boundary under these exact labels:
 - `Local records`: the Task snapshot and any later Evidence or bundle paths
   that the covered operations may create.
 
-Show the full Task JSON and catalog-derived check preview after the compact
-summary and before asking for adoption. Progressive disclosure must not omit or
-weaken any exact draft, argv, timeout, baseline, or dirty-tree disclosure that
-this Skill requires. These display labels are presentation only and are not
-persisted lifecycle state, Core results, approvals, or additional authority.
+Progressive disclosure must not omit or weaken any exact draft, argv, timeout,
+baseline, or dirty-tree disclosure that this Skill requires. These display
+labels are presentation only and are not persisted lifecycle state, Core
+results, approvals, or additional authority.
 
 If `harness --version` is missing, unparseable, or unsupported, lead with
 `Status: Core unavailable`, state that the Plugin and Core are installed

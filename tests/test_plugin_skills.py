@@ -276,6 +276,32 @@ class PluginSkillContractTests(unittest.TestCase):
                 with self.subTest(document=document.name, public_label=label):
                     self.assertIn(label, contents)
 
+    def test_first_adoption_presentation_has_one_explicit_block_order(self) -> None:
+        contents = _skill_text("harness")
+        start = contents.index("For every first-adoption response")
+        end = contents.index("The three approval", start)
+        section = _normalized(contents[start:end])
+        ordered_fragments = (
+            "`Mode: Managed execution`",
+            "a compact summary containing",
+            "existing working-tree state",
+            "staged, unstaged, and untracked",
+            "`Included in this confirmation`",
+            "`Not included in this confirmation`",
+            "`Local records`",
+            "`Task draft:`",
+            "catalog-derived check preview",
+            "one adoption question",
+        )
+        positions = [section.index(fragment) for fragment in ordered_fragments]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn("Do not interleave them", section)
+        self.assertIn(
+            "The Task JSON and check preview must not appear before the "
+            "dirty-tree disclosure or any of the three approval-boundary labels.",
+            section,
+        )
+
     def test_managed_failures_and_review_handoffs_include_resume_capsules(self) -> None:
         managed = _normalized(_skill_text("harness"))
         required_fragments = (
@@ -588,8 +614,17 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("does not run a reviewer", reviewed)
 
         dirty = scenario("UI-05 Dirty working tree disclosure")
+        self.assertIn(
+            "follows the Skill's exact first-adoption block order",
+            dirty,
+        )
         self.assertIn("staged, unstaged, and untracked", dirty)
         self.assertIn("Stop at the first adoption prompt", dirty)
+        self.assertIn(
+            "appear after the dirty-tree disclosure and before the full Task "
+            "JSON and check preview",
+            dirty,
+        )
         self.assertIn("no existing change is stashed, reset, committed, deleted", dirty)
 
         drift = scenario("UI-06 Task adoption baseline drift")
