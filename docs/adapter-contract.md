@@ -105,6 +105,25 @@ audit, review, status requests, and ordinary unselected coding requests do not
 activate Core. This changes adapter UX, not Core command semantics or
 authority.
 
+The adapter leads with a compact presentation summary before detailed contract
+material. A non-activating request is labeled `Mode: Analysis only`; an
+activated outcome is labeled `Mode: Managed execution`. Before adoption, the
+summary identifies the repository, objective, Scope, HEAD baseline, check
+names, profile, working-tree state, and next action. It then separates
+`Included in this confirmation`, `Not included in this confirmation`, and
+`Local records` before showing the full Task JSON and catalog-derived check
+preview. These labels are not persisted adapter state, Core output, or new
+authority. For an activated outcome, the adapter performs version, repository,
+HEAD, and check-catalog preflight before drafting the Task.
+
+If Core is missing or unsupported, the summary states `Status: Core
+unavailable`, preserves the actual preflight result, and gives installation and
+request-retry guidance without installing Core or implying that a Task exists.
+After `verify` exits zero, the adapter uses `Status: Evidence recorded`, not
+"verification passed", and states that recording Evidence does not establish
+check pass or completion eligibility. A bundle is described as a review
+handoff export, not a review result.
+
 Before the first Core write, the adapter may display a Task draft, a
 catalog-derived check preview, HEAD baseline semantics, and existing
 working-tree changes, then ask for one conversational confirmation. This is a
@@ -145,6 +164,18 @@ integrity-validated mechanical summary. The adapter reports that exact identity
 and must not read raw Evidence to choose the next operation. It branches only
 on the adopted saved `verifier.required` profile.
 
+Every nonzero stop and every successful pause or handoff includes a
+compact failure or handoff capsule before raw diagnostics. A failure capsule
+names the failed stage, exact command and exit code, identity retained only from
+earlier successful stdout, later operations not run, and the next safe explicit
+user decision. It must not imply that a retry is authorized. When valid
+identity exists, a resume capsule gives the canonical repository root, exact
+Task and Run IDs when available, opaque Evidence and bundle paths when
+available, saved profile, and the exact permitted resume request. The capsule
+is presentation only and is not persisted adapter state. In a new
+conversation, the user must explicitly supply the repository, Task ID, and Run
+ID from that capsule.
+
 For `verifier.required=false`, the basic profile proceeds directly to final
 confirmation without creating a bundle. The adapter shows the exact completion
 command but does not execute it. For `verifier.required=true`, the reviewed
@@ -156,6 +187,11 @@ through Core's required `--output` argument; for an existing Run, that bundle
 still requires an explicit request. Bundle preparation validates the stored
 Run's integrity, but a successful export does not establish mechanical pass or
 completion eligibility. It does not run or select a reviewer.
+
+The reviewed-profile handoff capsule states that it is awaiting a separately
+prepared Verdict, identifies the bundle export as containing historical S0/S1
+Evidence, and gives the exact request for recording that supplied Verdict. It
+does not select a reviewer, transmit the bundle, or claim that review occurred.
 
 The implementation conversation must not create a Verdict and claim
 independence. A person or a clean context using only the bundle may supply
