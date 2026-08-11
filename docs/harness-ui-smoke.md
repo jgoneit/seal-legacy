@@ -82,15 +82,15 @@ Use the shared Discussion prompt.
 
 Pass criteria:
 
-- the response leads with the exact label `Mode: Analysis only`;
+- the first user-visible content, including commentary, leads with the exact
+  label `Mode: Analysis only` and no preamble appears before it;
 - no Harness Core command runs and no Task, Run, bundle, or Verdict is created;
 - the response answers the discussion request without asking for Task adoption.
 
 ## UI-02 Managed request with Core unavailable
 
-Use a test environment where the Plugin is installed but `harness --version`
-is intentionally unavailable, then submit an executable coding outcome through
-the selected Plugin.
+Use the shared fixture and exact Basic prompt in a test environment where the
+Plugin is installed but `harness --version` is intentionally unavailable.
 
 If the Codex app environment cannot safely exclude Core without changing the
 host installation, record this scenario as blocked instead of simulating the
@@ -98,10 +98,12 @@ failure.
 
 Pass criteria:
 
-- the response reports `Status: Core unavailable`, the actual failed preflight,
-  and the Core/Plugin installation boundary;
-- it points to the installation guidance and names the request to repeat after
-  Core is available;
+- the Core-unavailable response leads with the exact label `Status: Core
+  unavailable`, not `Mode: Managed execution`, and reports the actual failed
+  preflight plus the Core/Plugin installation boundary;
+- it points to the Core CLI installation guidance and renders the exact Basic
+  prompt after `Original request to repeat (verbatim):` as the request to
+  repeat after Core is available;
 - it does not install Core, modify product source, or claim a Task or Run.
 
 ## UI-03 Basic profile happy path
