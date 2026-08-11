@@ -33,11 +33,14 @@ separate from this conversational workflow.
 
 Lead with a compact status summary before the contract detail. For a Harness
 discussion, explanation, plan, audit, review, or status request that does not
-activate Core, state `Mode: Analysis only` and that Core was not started. For an
-activated coding outcome, state `Mode: Managed execution` and show the current
-status, canonical repository, saved profile when known, and next action. Run
-the read-only version, repository, HEAD, and check-catalog preflight before
-drafting the Task so setup failures do not lead to an adoption prompt.
+activate Core, the first user-visible content, including any commentary or
+progress update, must begin exactly `Mode: Analysis only` and state that Core
+was not started. Do not emit a Skill-use announcement, preamble, or
+tool-progress message before that label. For an activated coding outcome, state
+`Mode: Managed execution` and show the current status, canonical repository,
+saved profile when known, and next action. Run the read-only version,
+repository, HEAD, and check-catalog preflight before drafting the Task so setup
+failures do not lead to an adoption prompt.
 
 For every first-adoption response, render these blocks in this exact
 top-to-bottom order. Do not interleave them or move a later block ahead of an
@@ -71,12 +74,16 @@ baseline, or dirty-tree disclosure that this Skill requires. These display
 labels are presentation only and are not persisted lifecycle state, Core
 results, approvals, or additional authority.
 
-If `harness --version` is missing, unparseable, or unsupported, lead with
-`Status: Core unavailable`, state that the Plugin and Core are installed
-separately, report the actual command result, point to the README Installation
-section, and name the original managed request as the request to repeat after
-compatible Core is available. Do not imply that a Task draft, Task, or Run was
-created.
+If `harness --version` is missing, unparseable, or unsupported, the
+Core-unavailable response must begin exactly `Status: Core unavailable`. Do not
+put `Mode: Managed execution`, a preamble, or another status ahead of it. State
+that the selected Plugin does not install or bundle Core and that the Core CLI
+is installed separately. Report the exact `harness --version` command, stdout,
+stderr, and numeric exit code. Point to the README Installation section. Quote
+the original managed request verbatim in the repeat guidance and render it
+after `Original request to repeat (verbatim):`. Do not replace it with `the
+same request` or a generic paraphrase. Do not imply that a Task draft, Task, or
+Run was created.
 
 After `verify` exits zero, lead with `Status: Evidence recorded`. This must not
 be described as verification passed; immediately state that Evidence recording
@@ -167,7 +174,16 @@ before any Core write.
 
 ## Create and carry the Task identity
 
-After confirmation, run:
+After confirmation, Task creation itself captures the authoritative saved
+baseline. Do not compare the current HEAD with the displayed HEAD before Task
+creation. If HEAD changed after adoption but the canonical repository is
+unchanged and a current HEAD exists, run `harness task create` exactly once.
+Treat the saved baseline from successful `task create` stdout as the only
+post-adoption drift decision point. Existing preflight failures for Core
+version, repository identity, current HEAD existence, or check-catalog
+existence still stop before Task creation.
+
+Run:
 
 ~~~bash
 harness task create --file <TASK_JSON>
@@ -350,6 +366,20 @@ authorizes only this one evaluation; Core, not the confirmation, decides
 completion. Never run `complete` without the separate final confirmation.
 Repeat preflight, run the exact command once, and report Core stdout, stderr,
 and exit code.
+
+After `complete` returns, preserve the subprocess result in the response after
+any required compact failure summary and before any parsed completion
+interpretation. Render `Core stdout (verbatim)` followed by a fenced `json`
+block containing the complete captured stdout exactly as emitted. Do not
+replace it with parsed fields, selected values, a reconstructed object, or a
+completion-path summary. Render `Core stderr (verbatim)` followed by a fenced
+`text` block containing the complete captured stderr exactly as emitted, then
+render `Core exit code: <INTEGER>` with the actual numeric value substituted
+for `<INTEGER>`. If either stream is empty, label that stream `(empty)` instead
+of inventing content.
+These three process-result fields are required for both exit zero and nonzero
+results. Only after displaying them may the response describe the exact Core
+result as completion accepted or completion refused.
 
 On failure, do not alter source or Evidence, create another Run, reverify,
 retry completion, or roll back. Report the refusal and stop.
