@@ -29,6 +29,68 @@ Task Scope describes what the completion claim covers; it is not a write
 permission or tool gate. Normal host and client permission prompts remain
 separate from this conversational workflow.
 
+## User-facing presentation
+
+Lead with a compact status summary before the contract detail. For a Harness
+discussion, explanation, plan, audit, review, or status request that does not
+activate Core, the first user-visible content, including any commentary or
+progress update, must begin exactly `Mode: Analysis only` and state that Core
+was not started. Do not emit a Skill-use announcement, preamble, or
+tool-progress message before that label. For an activated coding outcome, state
+`Mode: Managed execution` and show the current status, canonical repository,
+saved profile when known, and next action. Run the read-only version,
+repository, HEAD, and check-catalog preflight before drafting the Task so setup
+failures do not lead to an adoption prompt.
+
+For every first-adoption response, render these blocks in this exact
+top-to-bottom order. Do not interleave them or move a later block ahead of an
+earlier block:
+
+1. `Mode: Managed execution` and the current `Status`;
+2. a compact summary containing the canonical repository, outcome, Scope, HEAD
+   baseline, check names, profile, next action, and existing working-tree state
+   grouped as staged, unstaged, and untracked, or `Working tree: clean`;
+3. `Included in this confirmation`;
+4. `Not included in this confirmation`;
+5. `Local records`;
+6. `Task draft:` followed by the full Task JSON;
+7. the catalog-derived check preview; and
+8. one adoption question.
+
+The Task JSON and check preview must not appear before the dirty-tree
+disclosure or any of the three approval-boundary labels. The three approval
+labels mean:
+
+- `Included in this confirmation`: Task creation, ordinary implementation, the
+  first `verify` exactly once, and the reviewed profile's one conditional local
+  bundle when applicable;
+- `Not included in this confirmation`: Verdict record/show, reviewer
+  invocation, external sharing, and `complete`; and
+- `Local records`: the Task snapshot and any later Evidence or bundle paths
+  that the covered operations may create.
+
+Progressive disclosure must not omit or weaken any exact draft, argv, timeout,
+baseline, or dirty-tree disclosure that this Skill requires. These display
+labels are presentation only and are not persisted lifecycle state, Core
+results, approvals, or additional authority.
+
+If `harness --version` is missing, unparseable, or unsupported, the
+Core-unavailable response must begin exactly `Status: Core unavailable`. Do not
+put `Mode: Managed execution`, a preamble, or another status ahead of it. State
+that the selected Plugin does not install or bundle Core and that the Core CLI
+is installed separately. Report the exact `harness --version` command, stdout,
+stderr, and numeric exit code. Point to the README Installation section. Quote
+the original managed request verbatim in the repeat guidance and render it
+after `Original request to repeat (verbatim):`. Do not replace it with `the
+same request` or a generic paraphrase. Do not imply that a Task draft, Task, or
+Run was created.
+
+After `verify` exits zero, lead with `Status: Evidence recorded`. This must not
+be described as verification passed; immediately state that Evidence recording
+does not mean that checks passed or that completion is eligible. After a bundle
+export, describe it as a review handoff export, not a review result. Describe
+completion only from the exact `complete` result as accepted or refused.
+
 ## Core boundary and preflight
 
 Before every Core operation, run:
@@ -72,7 +134,11 @@ select an alternate output path or identity, or chain the next operation.
 
 Collect only `schema_version`, `id`, `type`, `objective`, `scope`, `checks`,
 `risk`, and `verifier.required`. Describe the intended outcome, not the
-implementation process. Show all of the following before asking for adoption:
+implementation process. Set `type` to exactly one public Task Schema value:
+`bugfix`, `feature`, `refactor`, `test`, `docs`, or `config-infra`. Use `docs`
+when the outcome changes documentation only. Do not invent another label such
+as `implementation`, `maintenance`, or `chore`. This draft guidance does not
+replace Core validation. Show all of the following before asking for adoption:
 
 - the draft Task JSON;
 - a catalog-derived check preview with `argv` and `required`, plus
@@ -108,7 +174,16 @@ before any Core write.
 
 ## Create and carry the Task identity
 
-After confirmation, run:
+After confirmation, Task creation itself captures the authoritative saved
+baseline. Do not compare the current HEAD with the displayed HEAD before Task
+creation. If HEAD changed after adoption but the canonical repository is
+unchanged and a current HEAD exists, run `harness task create` exactly once.
+Treat the saved baseline from successful `task create` stdout as the only
+post-adoption drift decision point. Existing preflight failures for Core
+version, repository identity, current HEAD existence, or check-catalog
+existence still stop before Task creation.
+
+Run:
 
 ~~~bash
 harness task create --file <TASK_JSON>
@@ -239,6 +314,38 @@ supplied Verdict is successfully recorded for the retained managed identity,
 continue immediately to the final completion confirmation. Run `verifier show`
 only when explicitly requested.
 
+## Report failures and handoffs
+
+For every blocked, aborted, or nonzero Core stop, lead with a compact failure
+summary before the raw stdout and stderr:
+
+- `Status: Harness stopped`;
+- `Failure stage`: the operation that did not complete;
+- `Core result`: the exact command, exit code, and whether stdout or stderr was
+  empty when a Core command ran, or `not run` plus the reason when none ran;
+- `Preserved identity`: only the canonical repository, Task ID, Run ID, and
+  opaque paths obtained from earlier successful Core stdout;
+- `Not run`: every covered later operation that was not executed; and
+- `Next explicit request`: the next safe user decision, or a statement that no
+  retry is authorized within this managed sequence.
+
+Do not put partial stdout, a partial Evidence directory, an inferred latest ID,
+or a proposed replacement Run in `Preserved identity`. The summary must not
+imply that a retry, repair, or replacement operation is authorized.
+
+When a valid carried identity exists at a pause or successful handoff, add a
+copyable `Resume capsule` containing the canonical repository root, exact Task
+ID, exact Run ID when available, opaque Evidence path when available, saved
+profile, bundle path when available, and the exact resume request permitted by
+the current lifecycle boundary. This capsule is presentation only; it does not
+persist state or activate another operation.
+
+For a reviewed-profile bundle handoff, label the state `Status: Review handoff
+ready`, include `Awaiting a separately prepared Verdict`, identify the bundle
+export as containing historical S0/S1 Evidence, and provide the exact resume
+request for recording that separately supplied Verdict. Do not select a
+reviewer, send the bundle, or claim review independence.
+
 ## Ask for final completion confirmation
 
 Enter this section after successful managed verification for a basic profile,
@@ -259,6 +366,20 @@ authorizes only this one evaluation; Core, not the confirmation, decides
 completion. Never run `complete` without the separate final confirmation.
 Repeat preflight, run the exact command once, and report Core stdout, stderr,
 and exit code.
+
+After `complete` returns, preserve the subprocess result in the response after
+any required compact failure summary and before any parsed completion
+interpretation. Render `Core stdout (verbatim)` followed by a fenced `json`
+block containing the complete captured stdout exactly as emitted. Do not
+replace it with parsed fields, selected values, a reconstructed object, or a
+completion-path summary. Render `Core stderr (verbatim)` followed by a fenced
+`text` block containing the complete captured stderr exactly as emitted, then
+render `Core exit code: <INTEGER>` with the actual numeric value substituted
+for `<INTEGER>`. If either stream is empty, label that stream `(empty)` instead
+of inventing content.
+These three process-result fields are required for both exit zero and nonzero
+results. Only after displaying them may the response describe the exact Core
+result as completion accepted or completion refused.
 
 On failure, do not alter source or Evidence, create another Run, reverify,
 retry completion, or roll back. Report the refusal and stop.

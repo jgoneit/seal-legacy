@@ -82,6 +82,21 @@ $harness Swagger/OpenAPI를 도입하고 한글 API 설명까지 검증해줘
 Core를 시작하지 않고 답변합니다. 선택하지 않은 일반 coding 작업도 Harness를
 활성화하지 않습니다.
 
+관리형 응답은 간결한 mode와 status 요약을 먼저 보여줍니다. 전체 Task JSON과
+check preview 앞에서 `Included in this confirmation`, `Not included in this
+confirmation`, `Local records`를 구분해 승인 경계를 먼저 확인할 수 있게 합니다.
+
+| 사용자 표시 status | 의미 |
+| --- | --- |
+| `Mode: Analysis only` | Core를 시작하지 않음 |
+| `Status: Core unavailable` | 관리형 요청은 인식됐지만 호환 Core CLI를 사용할 수 없음 |
+| `Status: Evidence recorded` | `verify`가 Run을 기록함. check 통과나 completion 결과는 아님 |
+| `Status: Harness stopped` | 단계가 실패하거나 차단됐으며 자동 수리나 재시도를 하지 않음 |
+| `Status: Review handoff ready` | Reviewed-profile bundle을 export했으며 reviewer나 Verdict 작업은 실행하지 않음 |
+
+이 표시는 대화 표현일 뿐이며, persisted workflow state를 추가하거나 Core 권한을
+바꾸지 않습니다.
+
 Plugin은 다음 순서로 동작합니다.
 
 1. 요청한 결과로 Task 초안을 작성하고 Scope, catalog-derived check preview,
@@ -118,6 +133,12 @@ stdout은 Evidence가 저장됐음을 뜻하지만 integrity-validated mechanica
 `verifier.required` field만 profile 분기에 사용하며 completion은 Core만 판정합니다.
 Task ID와 Run ID는 성공한 Core stdout과 최초 canonical repository root를 함께 보존한
 경우에만 재사용하며 “latest” Task나 Run을 추론하지 않습니다.
+
+모든 중단과 handoff는 단계, 정확한 Core 결과, 이전 성공 stdout에서 보존한
+identity, 실행하지 않은 후속 작업, 다음으로 가능한 안전한 명시적 요청을 compact
+capsule로 보여줍니다. Reviewed handoff는 bundle을 reviewer input으로, 별도로 준비한
+Verdict를 expected output으로 표시하고, 보존한 identity를 재개할 정확한 record
+요청도 안내합니다.
 
 복구 및 고급 작업에는 저수준 Skill을 escape hatch로 사용합니다.
 
@@ -373,6 +394,7 @@ resource도 확인합니다.
 
 - [Architecture](docs/architecture.md)
 - [Adapter CLI contract](docs/adapter-contract.md)
+- [Harness Codex UI smoke](docs/harness-ui-smoke.md)
 - [Exit codes](docs/exit-codes.md)
 - [Credential boundary](docs/credential-boundary.md)
 - [v0.2 Evidence migration](docs/migration-v0.2.md)

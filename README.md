@@ -83,6 +83,22 @@ form, Plugin selection alone and discussion, explanation, planning, audit,
 review, or status requests are answered without starting Core. Ordinary
 unselected coding work does not activate it either.
 
+Managed responses lead with a compact mode and status summary. Before the full
+Task JSON and check preview, the adoption prompt separates `Included in this
+confirmation`, `Not included in this confirmation`, and `Local records` so the
+approval boundary is visible first.
+
+| User-facing status | Meaning |
+| --- | --- |
+| `Mode: Analysis only` | Core was not started |
+| `Status: Core unavailable` | The managed invocation was recognized, but the compatible Core CLI is unavailable |
+| `Status: Evidence recorded` | `verify` recorded a Run; this is not a check-pass or completion result |
+| `Status: Harness stopped` | A stage failed or was blocked; no automatic repair or retry followed |
+| `Status: Review handoff ready` | A reviewed-profile bundle was exported; no reviewer or Verdict operation ran |
+
+These labels are presentation only. They do not add persisted workflow state or
+change Core authority.
+
 The Plugin then:
 
 1. drafts the Task from the requested outcome and shows its Scope, a
@@ -126,6 +142,13 @@ integrity-validated mechanical summary. The Plugin does not read raw
 `verifier.required` field, and Core alone decides completion. Task and Run IDs
 are reused only from successful Core stdout and only with their original
 canonical repository root; the Plugin does not infer a “latest” Task or Run.
+
+Every stop or handoff includes a compact capsule with the stage, exact Core
+result, identities retained from earlier successful stdout, later operations
+not run, and the next safe explicit request. A reviewed handoff additionally
+identifies the bundle as reviewer input, a separately prepared Verdict as the
+expected output, and the exact record request that resumes the retained
+identity.
 
 Use the low-level Skills as recovery and advanced escape hatches:
 
@@ -385,6 +408,7 @@ public imports, and packaged contract resources.
 
 - [Architecture](docs/architecture.md)
 - [Adapter CLI contract](docs/adapter-contract.md)
+- [Harness Codex UI smoke](docs/harness-ui-smoke.md)
 - [Exit codes](docs/exit-codes.md)
 - [Credential boundary](docs/credential-boundary.md)
 - [v0.2 Evidence migration](docs/migration-v0.2.md)
