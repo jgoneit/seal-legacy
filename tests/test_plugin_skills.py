@@ -276,6 +276,35 @@ class PluginSkillContractTests(unittest.TestCase):
                 with self.subTest(document=document.name, public_label=label):
                     self.assertIn(label, contents)
 
+    def test_analysis_and_core_unavailable_responses_have_exact_leads(self) -> None:
+        managed = _normalized(_skill_text("harness"))
+        start = managed.index("## User-facing presentation")
+        end = managed.index("## Core boundary and preflight", start)
+        presentation = managed[start:end]
+
+        required_fragments = (
+            (
+                "the first user-visible content, including any commentary or "
+                "progress update, must begin exactly `Mode: Analysis only`"
+            ),
+            "Do not emit a Skill-use announcement, preamble, or tool-progress message before that label",
+            (
+                "the Core-unavailable response must begin exactly "
+                "`Status: Core unavailable`"
+            ),
+            (
+                "Do not put `Mode: Managed execution`, a preamble, or another "
+                "status ahead of it"
+            ),
+            "the exact `harness --version` command, stdout, stderr, and numeric exit code",
+            "Quote the original managed request verbatim in the repeat guidance",
+            "`Original request to repeat (verbatim):`",
+            "Do not replace it with `the same request` or a generic paraphrase",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, presentation)
+
     def test_first_adoption_presentation_has_one_explicit_block_order(self) -> None:
         contents = _skill_text("harness")
         start = contents.index("For every first-adoption response")
@@ -403,6 +432,36 @@ class PluginSkillContractTests(unittest.TestCase):
             contract,
         )
 
+    def test_managed_completion_preserves_the_raw_core_process_result(self) -> None:
+        managed = _normalized(_skill_text("harness"))
+        start = managed.index("## Ask for final completion confirmation")
+        end = managed.index("## Explicit single-operation mode", start)
+        completion = managed[start:end]
+
+        required_fragments = (
+            "after any required compact failure summary",
+            "Core stdout (verbatim)",
+            "complete captured stdout exactly as emitted",
+            "Do not replace it with parsed fields",
+            "Core stderr (verbatim)",
+            "Core exit code: <INTEGER>",
+            "If either stream is empty, label that stream `(empty)`",
+            "both exit zero and nonzero results",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, completion)
+
+        ordered_fragments = (
+            "required compact failure summary",
+            "Core stdout (verbatim)",
+            "Core stderr (verbatim)",
+            "Core exit code: <INTEGER>",
+            "completion accepted or completion refused",
+        )
+        positions = [completion.index(fragment) for fragment in ordered_fragments]
+        self.assertEqual(positions, sorted(positions))
+
     def test_task_drafts_do_not_invent_optional_check_timeouts(self) -> None:
         for name in ("harness", "task"):
             with self.subTest(skill=name):
@@ -450,6 +509,38 @@ class PluginSkillContractTests(unittest.TestCase):
             "saved Task field, baseline, check",
             _normalized(KOREAN_README.read_text(encoding="utf-8")),
         )
+
+    def test_post_adoption_head_drift_is_reconciled_after_task_create(self) -> None:
+        managed = _normalized(_skill_text("harness"))
+        start = managed.index("## Create and carry the Task identity")
+        end = managed.index("## Let the coding Agent implement", start)
+        creation = managed[start:end]
+
+        required_fragments = (
+            "Do not compare the current HEAD with the displayed HEAD before Task creation",
+            (
+                "If HEAD changed after adoption but the canonical repository is "
+                "unchanged and a current HEAD exists, run `harness task create` "
+                "exactly once"
+            ),
+            (
+                "Treat the saved baseline from successful `task create` stdout "
+                "as the only post-adoption drift decision point"
+            ),
+            "Preserve the created Task",
+            "stop before implementation or verification",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, creation)
+
+        ordered_fragments = (
+            "run `harness task create` exactly once",
+            "saved baseline from successful `task create` stdout",
+            "compare the saved baseline with the displayed HEAD",
+        )
+        positions = [creation.index(fragment) for fragment in ordered_fragments]
+        self.assertEqual(positions, sorted(positions))
 
     def test_readmes_separate_core_and_plugin_installation(self) -> None:
         expected = (
@@ -594,11 +685,17 @@ class PluginSkillContractTests(unittest.TestCase):
 
         discussion = scenario("UI-01 Discussion-only selected Plugin")
         self.assertIn("exact label `Mode: Analysis only`", discussion)
+        self.assertIn("first user-visible content, including commentary", discussion)
+        self.assertIn("no preamble appears before it", discussion)
         self.assertNotIn("equivalent unambiguous", discussion)
 
         unavailable = scenario("UI-02 Managed request with Core unavailable")
+        self.assertIn("shared fixture and exact Basic prompt", unavailable)
         self.assertIn("`Status: Core unavailable`", unavailable)
+        self.assertIn("not `Mode: Managed execution`", unavailable)
         self.assertIn("actual failed preflight", unavailable)
+        self.assertIn("Core CLI installation guidance", unavailable)
+        self.assertIn("`Original request to repeat (verbatim):`", unavailable)
         self.assertIn("does not install Core", unavailable)
 
         basic = scenario("UI-03 Basic profile happy path")
@@ -629,8 +726,10 @@ class PluginSkillContractTests(unittest.TestCase):
 
         drift = scenario("UI-06 Task adoption baseline drift")
         self.assertIn("create an empty commit", drift)
+        self.assertIn("the created Task is preserved", drift)
         self.assertIn("exact saved baseline versus displayed HEAD difference", drift)
         self.assertIn("implementation and verification do not start", drift)
+        self.assertIn("exact saved Task or a new Task choice", drift)
 
         nonzero = scenario("UI-07 Nonzero Core stop")
         self.assertIn("shared Basic prompt", nonzero)
@@ -642,6 +741,7 @@ class PluginSkillContractTests(unittest.TestCase):
         completion = scenario("UI-08 Final completion confirmation")
         self.assertIn("exact `complete` command", completion)
         self.assertIn("does not run before a separate unambiguous final confirmation", completion)
+        self.assertIn("reports the exact Core stdout, stderr, and exit code", completion)
         self.assertIn("accepted or refused by Core", completion)
 
         ordinary = scenario("UI-09 Ordinary unselected coding stays inactive")
