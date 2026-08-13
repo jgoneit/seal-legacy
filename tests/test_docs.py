@@ -116,10 +116,11 @@ class PublicDocumentationTest(unittest.TestCase):
                 ):
                     self.assertNotIn(phrase, contents)
 
-    def test_skill_supports_only_the_v0_2_release_profile(self) -> None:
+    def test_skill_supports_only_the_v0_3_development_profile(self) -> None:
         contents = SKILL.read_text(encoding="utf-8")
 
-        self.assertIn("`>=0.2.0,<0.3.0`", contents)
+        self.assertIn("`>=0.3.0.dev0,<0.4.0`", contents)
+        self.assertNotIn("`>=0.2.0,<0.3.0`", contents)
         self.assertNotIn(">=0.1.0", contents)
         self.assertNotIn("v0.1.1", contents)
         self.assertNotIn("git+https://", contents)
@@ -138,6 +139,11 @@ class PublicDocumentationTest(unittest.TestCase):
         ):
             self.assertIn("harness run show TASK-001 --run-id <RUN_ID>", contents)
             self.assertIn("validated-run-summary/v1", contents)
+            self.assertIn("0.3.0-dev.0", contents)
+            self.assertIn("0.3.0.dev0", contents)
+            self.assertIn("run show", contents)
+            self.assertIn("raw `verification.json`", contents)
+            self.assertIn("completion", contents.lower())
 
         self.assertIn(
             "harness run show <TASK_ID> --run-id <RUN_ID>",

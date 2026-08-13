@@ -100,16 +100,18 @@ class PluginSkillContractTests(unittest.TestCase):
             "`$seal`",
             "explicitly selected `@Seal` Plugin",
             "one conversational confirmation",
-            "Task creation, ordinary implementation, and the first `verify` exactly once",
+            "Task creation, ordinary implementation, the first `verify` exactly once, and one `run show` exactly once",
             "first `verify` exactly once",
+            "one `run show` exactly once for the exact Run identity returned by that successful `verify`",
+            "No additional question is allowed between successful `verify` and that `run show`",
             "exactly one local bundle export",
             "if and only if the adopted saved Task has `verifier.required=true`",
             "fresh absolute output directory outside the target repository",
             "does not authorize `complete`",
-            "restate that adopting it covers ordinary implementation and the first `verify` exactly once",
+            "restate that adopting it covers ordinary implementation, the first `verify` exactly once, and one `run show` exactly once",
             "same conversation",
             "successful `task create` stdout `id`",
-            "successful `verify` stdout `run_id`",
+            "successful `verify` stdout to be one JSON object with exactly `run_id` and `evidence_path`",
             "Do not select a latest Task or Run",
         )
         for fragment in required_fragments:
@@ -173,8 +175,10 @@ class PluginSkillContractTests(unittest.TestCase):
             "alternate output path",
             "outside the target repository",
             "Do not read `<evidence_path>/verification.json`",
-            "does not expose an integrity-validated mechanical summary",
-            "Branch only on the adopted saved Task's `verifier.required` field",
+            "choose the next branch only from the adopted saved Task's `verifier.required` field",
+            "Do not interpret raw Evidence",
+            "Failure stage` to `run show`",
+            "bundle, Verdict operations, and `complete` as not run",
             "implementation conversation",
             "clean-context",
         )
@@ -182,7 +186,7 @@ class PluginSkillContractTests(unittest.TestCase):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, contents)
 
-    def test_verify_results_do_not_bypass_core_run_validation(self) -> None:
+    def test_verify_results_adopt_only_the_exact_validated_run_summary(self) -> None:
         for name in ("seal", "verify"):
             with self.subTest(skill=name):
                 contents = _normalized(_skill_text(name))
@@ -191,16 +195,64 @@ class PluginSkillContractTests(unittest.TestCase):
                     contents,
                 )
                 self.assertIn(
-                    "public `verify` stdout does not expose an integrity-validated mechanical summary",
+                    "Public `verify` stdout does not expose an integrity-validated mechanical summary",
                     contents,
                 )
-                self.assertIn("exact `run_id` and `evidence_path`", contents)
+                self.assertIn(
+                    "exactly `run_id` and `evidence_path`",
+                    contents,
+                )
+                self.assertIn(
+                    "harness run show <TASK_ID> --run-id <RUN_ID>",
+                    contents,
+                )
+                self.assertIn("validated-run-summary/v1", contents)
+                self.assertIn("Missing or unknown keys", contents)
+                self.assertIn("identity mismatch", contents)
+                self.assertIn("wrong type", contents)
+                self.assertIn("JSON object key ordering", contents)
+                self.assertIn("adapter contract failure", contents)
+                self.assertIn("fall back to raw Evidence", contents)
 
         managed = _normalized(_skill_text("seal"))
-        self.assertIn(
-            "do not inspect raw Evidence to choose the branch",
-            managed,
+        verify_position = managed.index("harness verify <TASK_ID>")
+        run_show_position = managed.index(
+            "harness run show <TASK_ID> --run-id <RUN_ID>"
         )
+        self.assertLess(verify_position, run_show_position)
+
+        expected_top_level = (
+            "`checks`",
+            "`evidence_sha256`",
+            "`mechanical_result`",
+            "`required_checks_pass`",
+            "`run_id`",
+            "`schema_version`",
+            "`scope_pass`",
+            "`scope_violations`",
+            "`source_stable_during_checks`",
+            "`task_id`",
+        )
+        summary_section = managed[
+            managed.index("Require exactly these top-level keys") :
+            managed.index("After a valid summary")
+        ]
+        for key in expected_top_level:
+            with self.subTest(top_level_key=key):
+                self.assertIn(key, summary_section)
+        for nested_key in (
+            "`exit_code`",
+            "`name`",
+            "`passed`",
+            "`required`",
+            "`timed_out`",
+            "`path`",
+            "`previous_path`",
+            "`source`",
+            "`status`",
+        ):
+            with self.subTest(nested_key=nested_key):
+                self.assertIn(nested_key, summary_section)
 
         contract = _normalized(ADAPTER_CONTRACT.read_text(encoding="utf-8"))
         self.assertIn(
@@ -218,6 +270,10 @@ class PluginSkillContractTests(unittest.TestCase):
             "When `verifier.required=false`, do not create a bundle",
             "continue immediately to the final completion confirmation",
             "When `verifier.required=true`, create exactly one approved local bundle",
+            "required check failure, timeout, Scope violation, or source instability",
+            "still have `run show` exit 0",
+            "neither raw Evidence nor any summary result changes the profile route",
+            "including when the valid stored mechanical state is failed",
             "Pause for a separately prepared Verdict",
             "Never run `complete` without the separate final confirmation",
             "Bundle success does not mean a mechanical pass or completion eligibility",
@@ -227,7 +283,7 @@ class PluginSkillContractTests(unittest.TestCase):
                 self.assertIn(fragment, managed)
 
         contract = _normalized(ADAPTER_CONTRACT.read_text(encoding="utf-8"))
-        self.assertIn("saved `verifier.required` profile", contract)
+        self.assertIn("adopted saved Task's `verifier.required` profile", contract)
         self.assertIn("basic profile proceeds directly to final confirmation", contract)
         self.assertIn("reviewed profile exports exactly one approved local bundle", contract)
 
@@ -243,6 +299,9 @@ class PluginSkillContractTests(unittest.TestCase):
             "Local records",
             "Status: Evidence recorded",
             "must not be described as verification passed",
+            "Core validated stored Run integrity and serialized the summary",
+            "stored mechanical state",
+            "Neither successful command nor that stored state means completion acceptance or completion eligibility",
             "presentation only and are not persisted lifecycle state",
         )
         for fragment in required_fragments:
@@ -259,6 +318,36 @@ class PluginSkillContractTests(unittest.TestCase):
         ):
             with self.subTest(contract_fragment=fragment):
                 self.assertIn(fragment, contract)
+
+        display_section = managed[
+            managed.index("After a valid summary, compactly show") :
+            managed.index("A valid summary may contain")
+        ]
+        for field in (
+            "canonical repository",
+            "exact Task ID",
+            "exact Run ID",
+            "opaque Evidence path",
+            "`evidence_sha256`",
+            "`mechanical_result`",
+            "`scope_pass`",
+            "Scope violation",
+            "`required_checks_pass`",
+            "`source_stable_during_checks`",
+            "`required`",
+            "`passed`",
+            "`timed_out`",
+            "`exit_code`",
+        ):
+            with self.subTest(display_field=field):
+                self.assertIn(field, display_section)
+        for forbidden_claim in (
+            "`verification passed`",
+            "`Task completed`",
+            "`completion eligible`",
+        ):
+            with self.subTest(forbidden_claim=forbidden_claim):
+                self.assertIn(forbidden_claim, display_section)
 
         public_labels = (
             "Mode: Analysis only",
@@ -357,9 +446,11 @@ class PluginSkillContractTests(unittest.TestCase):
         required_fragments = (
             "canonical repository root",
             "Bind the exact Task ID",
-            "bind the returned Run ID and opaque Evidence path to that same root",
+            "Bind the returned Run ID and opaque Evidence path to that same root",
             "resolve the selected repository root again",
             "differs from the retained root",
+            "require the successful `verify` identity to equal the retained Task ID plus the returned Run ID",
+            "harness run show <TASK_ID> --run-id <RUN_ID>",
             "Do not reuse or search for those IDs in another repository",
         )
         for fragment in required_fragments:
@@ -560,7 +651,10 @@ class PluginSkillContractTests(unittest.TestCase):
                 "harness task create --file <TASK_JSON>",
                 "harness task show <TASK_ID>",
             ),
-            "verify": ("harness verify <TASK_ID>",),
+            "verify": (
+                "harness verify <TASK_ID>",
+                "harness run show <TASK_ID> --run-id <RUN_ID>",
+            ),
             "bundle": (
                 "harness verifier bundle <TASK_ID> --run-id <RUN_ID> --output <OUTPUT_DIR>",
             ),
@@ -569,7 +663,21 @@ class PluginSkillContractTests(unittest.TestCase):
         for name, commands in expected_commands.items():
             with self.subTest(skill=name):
                 contents = _skill_text(name)
-                self.assertIn("Perform only the requested Core operation", contents)
+                if name == "verify":
+                    self.assertIn(
+                        "Perform only the requested bounded Core sequence",
+                        _normalized(contents),
+                    )
+                    self.assertIn(
+                        "Report the exact Evidence identity and validated stored state, or the exact failure, and stop",
+                        _normalized(contents),
+                    )
+                    metadata = _normalized(_agent_metadata(name))
+                    self.assertIn("<TASK_ID>", metadata)
+                    self.assertIn("exact Run", metadata)
+                    self.assertIn("Core-validated", metadata)
+                else:
+                    self.assertIn("Perform only the requested Core operation", contents)
                 for command in commands:
                     self.assertIn(command, contents)
 
@@ -578,7 +686,7 @@ class PluginSkillContractTests(unittest.TestCase):
         interface = manifest["interface"]
 
         self.assertEqual(manifest["name"], "seal")
-        self.assertEqual(manifest["version"], "0.2.1")
+        self.assertEqual(manifest["version"], "0.3.0-dev.0")
         self.assertEqual(interface["displayName"], "Seal")
         self.assertEqual(
             interface["shortDescription"],
@@ -589,10 +697,18 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertEqual(interface["websiteURL"], "https://github.com/jgoneit/seal")
         self.assertIn("managed", manifest["description"].lower())
         self.assertIn("managed", interface["longDescription"].lower())
+        self.assertIn("core-validated stored run state", interface["longDescription"].lower())
         prompts = interface["defaultPrompt"]
         self.assertLessEqual(len(prompts), 3)
         self.assertTrue(any(prompt.startswith("$seal ") for prompt in prompts))
         self.assertTrue(any(not prompt.startswith("$seal") for prompt in prompts))
+        verify_prompts = [
+            prompt for prompt in prompts if prompt.startswith("$seal:verify ")
+        ]
+        self.assertEqual(len(verify_prompts), 1)
+        self.assertIn("<TASK_ID>", verify_prompts[0])
+        self.assertIn("exact Run", verify_prompts[0])
+        self.assertIn("Core-validated", verify_prompts[0])
 
     def test_current_plugin_surfaces_use_only_the_seal_identity(self) -> None:
         current_surfaces = (
@@ -712,6 +828,10 @@ class PluginSkillContractTests(unittest.TestCase):
             "UI-07 Nonzero Core stop",
             "UI-08 Final completion confirmation",
             "UI-09 Ordinary unselected coding stays inactive",
+            "UI-10 Valid required-check failure",
+            "UI-11 Valid required-check timeout",
+            "UI-12 Corrupt or unsafe Evidence fail-stop",
+            "UI-13 Explicit `$seal:verify` bounded sequence",
             "Observed result",
             "Pass criteria",
             "pass, fail, blocked, or not run",
@@ -723,6 +843,8 @@ class PluginSkillContractTests(unittest.TestCase):
             "regular-file setup is not removed or repaired",
             "does not run before a separate unambiguous final confirmation",
             "Any `fail`, `blocked`, or `not run` result keeps that current-source acceptance gate open",
+            "selected-Plugin UI smoke was not run",
+            "UI-01 through UI-13 remain `not run`",
         )
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):
@@ -731,7 +853,7 @@ class PluginSkillContractTests(unittest.TestCase):
         scenario_ids = re.findall(r"(?m)^## (UI-\d{2}) ", contents)
         self.assertEqual(
             scenario_ids,
-            [f"UI-{index:02d}" for index in range(1, 10)],
+            [f"UI-{index:02d}" for index in range(1, 14)],
         )
 
         def scenario(heading: str) -> str:
@@ -761,12 +883,19 @@ class PluginSkillContractTests(unittest.TestCase):
         basic = scenario("UI-03 Basic profile happy path")
         self.assertIn("`Included in this confirmation`", basic)
         self.assertIn("exactly one `verify`", basic)
+        self.assertIn("exactly one `harness run show", basic)
+        self.assertIn("for its returned exact identity", basic)
         self.assertIn("`Status: Evidence recorded`", basic)
+        self.assertIn("raw `verification.json`", basic)
         self.assertIn("no bundle is created", basic)
 
         reviewed = scenario("UI-04 Reviewed profile handoff")
         self.assertIn("one conditional local bundle", reviewed)
-        self.assertIn("exactly one `verify` and one fresh external bundle", reviewed)
+        self.assertIn(
+            "exactly one `verify`, its one exact `run show`, and one fresh external bundle export occur in that order",
+            reviewed,
+        )
+        self.assertIn("without reading raw `verification.json`", reviewed)
         self.assertIn("`Status: Review handoff ready`", reviewed)
         self.assertIn("does not run a reviewer", reviewed)
 
@@ -799,6 +928,7 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("regular-file setup is not removed or repaired", nonzero)
 
         completion = scenario("UI-08 Final completion confirmation")
+        self.assertIn("exact validated Run Summary query", completion)
         self.assertIn("exact `complete` command", completion)
         self.assertIn("does not run before a separate unambiguous final confirmation", completion)
         self.assertIn("reports the exact Core stdout, stderr, and exit code", completion)
@@ -816,8 +946,42 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("no Seal-specific lifecycle language", ordinary)
         self.assertIn("no Outcome Harness Core command runs", ordinary)
 
+        failed_check = scenario("UI-10 Valid required-check failure")
+        self.assertIn("exactly one `verify`", failed_check)
+        self.assertIn("exactly one `run show`", failed_check)
+        self.assertIn("`mechanical_result=fail`", failed_check)
+        self.assertIn("`required_checks_pass=false`", failed_check)
+        self.assertIn("`timed_out=false`", failed_check)
+        self.assertIn("`exit_code=17`", failed_check)
+        self.assertIn("raw `verification.json` is not read", failed_check)
+        self.assertIn("saved Basic profile alone", failed_check)
+
+        timeout = scenario("UI-11 Valid required-check timeout")
+        self.assertIn("exactly one `verify`", timeout)
+        self.assertIn("exactly one matching `run show`", timeout)
+        self.assertIn("`timed_out=true`", timeout)
+        self.assertIn("raw `verification.json` is not read", timeout)
+        self.assertIn("saved Basic profile alone", timeout)
+
+        corrupt = scenario("UI-12 Corrupt or unsafe Evidence fail-stop")
+        self.assertIn("variant A corrupts", corrupt)
+        self.assertIn("variant B replaces", corrupt)
+        self.assertIn("Core returns exit 8", corrupt)
+        self.assertIn("`Status: Seal stopped`", corrupt)
+        self.assertIn("`run show` as the failure stage", corrupt)
+        self.assertIn("no raw-Evidence fallback", corrupt)
+        self.assertIn("replacement Run", corrupt)
+
+        verify_escape = scenario("UI-13 Explicit `$seal:verify` bounded sequence")
+        self.assertIn("exact `task show`", verify_escape)
+        self.assertIn("exactly one `verify`", verify_escape)
+        self.assertIn("exactly one `run show`", verify_escape)
+        self.assertIn("without reading raw `verification.json`", verify_escape)
+        self.assertIn("stops after `run show`", verify_escape)
+        self.assertIn("does not create a bundle", verify_escape)
+
         release = scenario("Current-source interpretation")
-        self.assertIn("All nine required scenarios", release)
+        self.assertIn("All thirteen required scenarios", release)
         self.assertIn("fresh Observed result of `pass`", release)
         self.assertIn("current Seal selected-Plugin", release)
         self.assertIn("historical `v0.2.1` release evidence", release)
