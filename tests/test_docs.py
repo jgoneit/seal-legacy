@@ -108,6 +108,32 @@ class PublicDocumentationTest(unittest.TestCase):
         self.assertNotIn("git+https://", contents)
         self.assertNotRegex(contents, r"(?m)^\s*(?:from|import)\s+harness")
 
+    def test_v0_3_validated_run_summary_contract_is_documented(self) -> None:
+        adapter_contract = (DOCS_ROOT / "adapter-contract.md").read_text(
+            encoding="utf-8"
+        )
+        architecture = (DOCS_ROOT / "architecture.md").read_text(encoding="utf-8")
+        exit_codes = (DOCS_ROOT / "exit-codes.md").read_text(encoding="utf-8")
+
+        for contents in (
+            README.read_text(encoding="utf-8"),
+            KOREAN_README.read_text(encoding="utf-8"),
+        ):
+            self.assertIn("harness run show TASK-001 --run-id <RUN_ID>", contents)
+            self.assertIn("validated-run-summary/v1", contents)
+
+        self.assertIn(
+            "harness run show <TASK_ID> --run-id <RUN_ID>",
+            adapter_contract,
+        )
+        self.assertIn("validated-run-summary/v1", adapter_contract)
+        self.assertIn("calls `validate_run()` once", architecture)
+        self.assertIn(
+            "does not return exits 4–7 or 9",
+            " ".join(exit_codes.split()),
+        )
+        self.assertIn('"schema_version": 1', adapter_contract)
+
 
 if __name__ == "__main__":
     unittest.main()

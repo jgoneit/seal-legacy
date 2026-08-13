@@ -1,7 +1,8 @@
 # Harness exit codes
 
-The exit codes below describe Core `0.2.x` and are part of its public CLI
-contract. Existing meanings are stable.
+The exit codes below describe the `0.3.0.dev0` Core development line and are
+part of its public CLI contract. Existing numeric meanings remain stable from
+the published `v0.2.1` release.
 
 | Code | Meaning | Typical condition |
 | ---: | --- | --- |
@@ -14,6 +15,27 @@ contract. Existing meanings are stable.
 | 7 | verifier gate not satisfied | Required verifier Evidence is missing, or the recorded Verdict is fail/unable or contains a blocker |
 | 8 | evidence missing or corrupt | Required Evidence files are missing, JSON is unreadable, the verification schema version is unsupported, or stored records contradict one another |
 | 9 | source binding not satisfied | S0 differs from S1, or current S2 differs from the validated post-check S1 |
+
+## `harness run show` state query
+
+`harness run show <TASK_ID> --run-id <RUN_ID>` calls the canonical
+`validate_run()` exactly once and returns a transient Validated Run Summary. It
+does not run checks, collect S2, inspect current source, read Verdict or
+completion state, write files, or infer a latest Run.
+
+Exit 0 means that stored Run integrity was validated and the state envelope was
+serialized. It applies equally to a mechanically passing Run and to a valid Run
+that records a required-check failure, timeout, Scope violation, or S0/S1
+instability. Those conditions appear in the JSON fields rather than changing
+the command's exit code.
+
+Invalid input or Task/Run identity is exit 2, a repository-resolution failure
+is exit 3, and missing, malformed, contradictory, unsupported, or unsafe
+Evidence is exit 8. The command never applies completion policy, so it does not
+return exits 4–7 or 9 for valid stored state. Success has one JSON object on
+stdout and empty stderr. Handled errors have empty stdout and an
+`error: <message>` diagnostic on stderr; argparse errors use its normal usage
+and error text on stderr.
 
 ## `harness complete` decision process
 

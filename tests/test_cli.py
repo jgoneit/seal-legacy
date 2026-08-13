@@ -48,12 +48,34 @@ class CommandLineTests(unittest.TestCase):
         self.assertEqual(pyproject["project"]["scripts"]["harness"], "harness.cli:main")
 
     def test_harness_help(self) -> None:
-        self.assert_command_succeeds("--help")
+        result = self._run_command("--help")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertIn(
+            "{task,verify,run,verifier,complete}",
+            result.stdout,
+        )
+
+        task_help = self._run_command("task", "--help")
+        self.assertEqual(task_help.returncode, 0, task_help.stderr)
+        self.assertEqual(task_help.stderr, "")
+        self.assertIn("{create,show}", task_help.stdout)
+
+        run_help = self._run_command("run", "--help")
+        self.assertEqual(run_help.returncode, 0, run_help.stderr)
+        self.assertEqual(run_help.stderr, "")
+        self.assertIn("{show}", run_help.stdout)
+
+        verifier_help = self._run_command("verifier", "--help")
+        self.assertEqual(verifier_help.returncode, 0, verifier_help.stderr)
+        self.assertEqual(verifier_help.stderr, "")
+        self.assertIn("{record,show,bundle}", verifier_help.stdout)
 
     def test_harness_version(self) -> None:
         result = self._run_command("--version")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "0.2.1\n")
+        self.assertEqual(result.stdout, "0.3.0.dev0\n")
         self.assertEqual(result.stderr, "")
 
     def test_python_module_help(self) -> None:
@@ -147,7 +169,7 @@ assert not hasattr(verdict_module, "read_run_artifact_bytes")
                 self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_missing_command_or_subcommand_is_invalid_input(self) -> None:
-        for arguments in ((), ("task",), ("verifier",)):
+        for arguments in ((), ("task",), ("run",), ("verifier",)):
             with self.subTest(arguments=arguments):
                 result = self._run_command(*arguments)
                 self.assertEqual(result.returncode, 2)

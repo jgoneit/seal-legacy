@@ -569,6 +569,7 @@ class VerificationEvidenceTests(unittest.TestCase):
             self.assertEqual(cli.main(["verify", "TASK-VERIFY"]), 0)
 
         response = json.loads(output.getvalue())
+        self.assertEqual(set(response), {"evidence_path", "run_id"})
         evidence_path = Path(response["evidence_path"])
         verification = json.loads((evidence_path / "verification.json").read_text(encoding="utf-8"))
         self.assertEqual(response["run_id"], verification["run_id"])

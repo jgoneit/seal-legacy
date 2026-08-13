@@ -13,6 +13,10 @@ verification Evidence v2 only. Historical v0.1.x Evidence is not upgraded in
 place; see
 [Migrating verification Evidence to v0.2](docs/migration-v0.2.md).
 
+The current repository opens the Core `0.3.0.dev0` development line. Its first
+addition is a read-only, integrity-validated Run Summary command; the published
+`v0.2.1` Plugin and release artifacts remain unchanged.
+
 ## What Harness does
 
 Harness helps answer:
@@ -292,6 +296,23 @@ recorded failed outcomes. `complete` applies completion policy.
 
 `verify --base-ref` is not supported. Verification uses only the full baseline
 saved in the Task snapshot.
+
+#### Core 0.3 development: show validated Run state
+
+On the `0.3.0.dev0` development line, inspect one exact stored Run without
+reading raw `verification.json`:
+
+```bash
+harness run show TASK-001 --run-id <RUN_ID>
+```
+
+The command returns the exact `validated-run-summary/v1` envelope documented in
+the [Adapter CLI Contract](docs/adapter-contract.md). It calls the canonical
+stored-Run validator, performs no writes or lifecycle transition, and never
+infers a latest Run. A structurally valid failed Run still returns exit 0 with
+its failed state in JSON; missing or corrupt Evidence returns exit 8. It does
+not rerun checks, collect S2, inspect Verdict or completion state, invoke a
+reviewer, retry, repair, or recommend a next action.
 
 ### Advanced and recovery operations
 
