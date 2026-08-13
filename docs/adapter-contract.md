@@ -1,9 +1,11 @@
 # Harness Adapter CLI Contract
 
 This document defines the public subprocess contract for a thin adapter. The
-current Core development line is `0.3.0.dev0`; the latest published Core and
-Codex Plugin remain `v0.2.1`. An adapter must not import the Core Python
-package. It uses only the CLI and stdout JSON described below.
+current Core development line is `0.3.0.dev0`; the latest published Core
+release and historical Codex Plugin release are both `v0.2.1`; the current source Plugin is
+branded Seal while retaining manifest version `0.2.1`. An adapter must not
+import the Core Python package. It uses only the CLI and stdout JSON described
+below.
 
 ## Public CLI
 
@@ -170,9 +172,9 @@ completion operations all call the canonical stored-Run validator.
 ## Managed adapter lifecycle
 
 An adapter may connect existing public commands into a managed,
-conversation-scoped workflow only after a literal Harness Skill invocation or
-an explicitly selected Harness Plugin paired with an executable coding
-outcome. Plugin selection alone, Harness discussion, explanation, planning,
+conversation-scoped workflow only after a literal Seal Skill invocation or
+an explicitly selected Seal Plugin paired with an executable coding
+outcome. Plugin selection alone, Seal discussion, explanation, planning,
 audit, review, status requests, and ordinary unselected coding requests do not
 activate Core. This changes adapter UX, not Core command semantics or
 authority.
@@ -238,8 +240,9 @@ result. Successful public `verify` stdout continues to supply exactly `run_id`
 and `evidence_path`; extending it would break the published adapter contract
 and mix Evidence recording with a state query. A Core `0.3.0.dev0` adapter may
 subsequently issue the explicit read-only `run show` command for the returned
-identity. The published `v0.2.1` Codex Plugin does not adopt that command in
-this Core slice and retains routing on the saved `verifier.required` profile.
+identity. The Seal Plugin retaining manifest version `0.2.1` does not adopt
+that command in this Core slice and retains routing on the saved
+`verifier.required` profile.
 Neither adapter may read raw Evidence to choose a lifecycle operation.
 
 Every nonzero stop and every successful pause or handoff includes a
