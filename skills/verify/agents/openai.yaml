@@ -1,6 +1,6 @@
 interface:
-  display_name: "Harness Verify"
-  short_description: "Record one Harness Evidence Run"
-  default_prompt: "$harness:verify 지정한 Harness Task를 한 번 검증해줘"
+  display_name: "Seal Verify"
+  short_description: "Record one Core Evidence Run"
+  default_prompt: "$seal:verify 지정한 Task를 한 번 검증해줘"
 policy:
   allow_implicit_invocation: false

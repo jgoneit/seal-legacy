@@ -1,6 +1,0 @@
-interface:
-  display_name: "Harness"
-  short_description: "Managed acceptance evidence workflow"
-  default_prompt: "$harness 구현 요청을 Task로 정의하고 최초 검증, 조건부 local bundle, 최종 완료 확인까지 관리해줘"
-policy:
-  allow_implicit_invocation: true

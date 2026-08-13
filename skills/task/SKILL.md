@@ -1,12 +1,12 @@
 ---
 name: task
-description: Create or inspect one Harness Task as an explicit low-level operation. Use only when the user invokes $harness:task for Task drafting, creation, adoption, or lookup; do not continue into implementation or verification.
+description: Create or inspect one Outcome Harness Core Task as an explicit low-level operation. Use only when the user invokes $seal:task for Task drafting, creation, adoption, or lookup; do not continue into implementation or verification.
 ---
 
-# Harness Task escape hatch
+# Seal Task escape hatch
 
 Activate only for the namespaced invocation. If required input or Task adoption
-is missing, stop this turn. Ask the user to invoke `$harness:task` again with
+is missing, stop this turn. Ask the user to invoke `$seal:task` again with
 the missing input or confirmation; do not rely on an untagged reply.
 Perform only the requested Core operation. Do not continue into implementation,
 verification, bundle export, Verdict handling, or completion.
