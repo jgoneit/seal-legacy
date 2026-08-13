@@ -67,7 +67,7 @@ Use this result shape in the release or audit record:
 
 | Field | Recorded value |
 | --- | --- |
-| Scenario | `UI-01` through `UI-09` |
+| Scenario | `UI-01` through `UI-13` |
 | Fresh Codex task | task identifier or timestamp |
 | Environment | app build, Plugin version, Core version, repository, HEAD |
 | Observed result | pass, fail, blocked, or not run |
@@ -116,7 +116,14 @@ Pass criteria:
   confirmation`, `Not included in this confirmation`, and `Local records`
   before the full Task JSON and check preview;
 - Task creation, ordinary implementation, and exactly one `verify` occur;
-- the result is labeled `Status: Evidence recorded`, not verification passed;
+- the successful `verify` is followed by exactly one `harness run show
+  <TASK_ID> --run-id <RUN_ID>` for its returned exact identity, with no question
+  between them;
+- the result is labeled `Status: Evidence recorded`, not verification passed,
+  and compactly displays the canonical repository, Task/Run/Evidence identity,
+  Evidence SHA-256, mechanical, Scope, required-check, source-stability,
+  violation, and per-check state from the valid summary;
+- no direct read or interpretation of raw `verification.json` occurs;
 - no bundle is created and `complete` waits for a separate final confirmation.
 
 ## UI-04 Reviewed profile handoff
@@ -126,7 +133,10 @@ Use the shared fixture and Reviewed prompt. Approve the displayed Task once.
 Pass criteria:
 
 - the initial approval explicitly includes one conditional local bundle;
-- exactly one `verify` and one fresh external bundle export occur;
+- exactly one `verify`, its one exact `run show`, and one fresh external bundle
+  export occur in that order;
+- the validated stored state is displayed without reading raw
+  `verification.json` before bundle export;
 - the response reports `Status: Review handoff ready` with repository, Task,
   Run, Evidence, bundle, profile, and exact resume request;
 - it states that it is awaiting a separately prepared Verdict and does not run
@@ -193,13 +203,13 @@ Pass criteria:
 ## UI-08 Final completion confirmation
 
 Start a fresh Codex task, execute a new passing basic-profile flow through
-Evidence recording, and then continue in that same conversation to observe the
-final confirmation boundary.
+Evidence recording and the exact validated Run Summary query, and then continue
+in that same conversation to observe the final confirmation boundary.
 
 Pass criteria:
 
 - the response shows the canonical repository, exact Task ID, exact Run ID,
-  saved profile, and exact `complete` command;
+  validated stored state, saved profile, and exact `complete` command;
 - `complete` does not run before a separate unambiguous final confirmation;
 - after confirmation, the response reports the exact Core stdout, stderr, and
   exit code and describes completion only as accepted or refused by Core.
@@ -227,12 +237,88 @@ Pass criteria:
   and no Outcome Harness Core command runs; and
 - no Task, Run, Evidence, bundle, Verdict, or completion artifact is created.
 
+## UI-10 Valid required-check failure
+
+Create a fresh disposable repository like the shared fixture, but define the
+selected required check to exit 17 after printing a fixture marker. Use a Basic
+profile Task whose Scope contains only the intended product file, then approve
+the managed request once.
+
+Pass criteria:
+
+- exactly one `verify` records the failed check and returns exit 0, followed by
+  exactly one `run show` for that returned Run with exit 0;
+- the compact stored state reports `mechanical_result=fail`,
+  `required_checks_pass=false`, and the exact required check with
+  `passed=false`, `timed_out=false`, and `exit_code=17`;
+- the failed stored state is not treated as a command failure and raw
+  `verification.json` is not read;
+- the saved Basic profile alone selects the separate completion-confirmation
+  path, but `complete` does not run before that confirmation.
+
+## UI-11 Valid required-check timeout
+
+Create a fresh disposable repository whose required check sleeps longer than
+its one-second `timeout_seconds`. Use a Basic profile and approve once.
+
+Pass criteria:
+
+- exactly one `verify` records the timeout and returns exit 0, followed by
+  exactly one matching `run show` with exit 0;
+- the compact stored state preserves the exact required check with
+  `passed=false` and `timed_out=true` rather than collapsing it into a generic
+  command error;
+- raw `verification.json` is not read, the saved Basic profile alone selects
+  the completion-confirmation path, and `complete` is not run.
+
+## UI-12 Corrupt or unsafe Evidence fail-stop
+
+Run two fresh disposable variants. Use an external test-only `harness` wrapper
+outside the target repository that delegates every command to the exact Core
+CLI. Immediately before delegating the first `run show`, variant A corrupts the
+returned Run's `verification.json`; variant B replaces the returned Run
+directory with an unsafe symlink. The wrapper is fault injection only: record
+its absolute path and contents, and do not install it as product code.
+
+Pass criteria for each variant:
+
+- Task creation and exactly one `verify` succeed, then the Plugin invokes the
+  exact returned identity's `run show` exactly once;
+- Core returns exit 8 with empty success stdout and the real stderr diagnostic;
+- the response leads with `Status: Seal stopped`, identifies `run show` as the
+  failure stage, and reports the exact command, stdout, stderr, and exit code;
+- only the canonical repository and Task/Run/Evidence identity returned before
+  failure are preserved;
+- no raw-Evidence fallback, retry, repair, replacement Run, bundle, Verdict
+  operation, or `complete` occurs.
+
+## UI-13 Explicit `$seal:verify` bounded sequence
+
+Create an exact saved Basic Task in a fresh disposable repository with Core,
+then make the in-Scope product change without creating a Run. Start a fresh
+Codex task and invoke `$seal:verify` with the canonical repository and exact
+Task ID.
+
+Pass criteria:
+
+- existing preflight and exact `task show` occur, followed by exactly one
+  `verify` and exactly one `run show` for the returned exact Run, in that order;
+- the response reports the Evidence identity and complete compact validated
+  stored state without reading raw `verification.json`;
+- the sequence stops after `run show`: it does not create a bundle, invoke or
+  record a reviewer/Verdict, request or run `complete`, repair, retry, or create
+  a replacement Run.
+
 ## Current-source interpretation
 
-All nine required scenarios must each record a fresh Observed result of `pass`
+All thirteen required scenarios must each record a fresh Observed result of `pass`
 before claiming that the current Seal selected-Plugin and ordinary-unselected
 routing contract passed. Any `fail`, `blocked`, or `not run` result keeps that
 current-source acceptance gate open. Static contract tests, literal `$seal`
 execution, package smoke tests, historical `v0.2.1` release evidence, or a
 previously observed Codex task are useful supporting evidence but do not
 replace this UI smoke.
+
+PR2 implementation record: selected-Plugin UI smoke was not run. UI-01 through
+UI-13 remain `not run`; no scenario is recorded as passed by this document
+update.

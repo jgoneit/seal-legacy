@@ -1,9 +1,9 @@
 # Harness Adapter CLI Contract
 
 This document defines the public subprocess contract for a thin adapter. The
-current Core development line is `0.3.0.dev0`; the latest published Core
-release and historical Codex Plugin release are both `v0.2.1`; the current source Plugin is
-branded Seal while retaining manifest version `0.2.1`. An adapter must not
+current Core development line is `0.3.0.dev0`; the current source Seal Plugin
+development version is `0.3.0-dev.0`; and the latest published Core and Plugin
+release remains `v0.2.1`. An adapter must not
 import the Core Python package. It uses only the CLI and stdout JSON described
 below.
 
@@ -195,8 +195,11 @@ unavailable`, preserves the actual preflight result, and gives installation and
 request-retry guidance without installing Core or implying that a Task exists.
 After `verify` exits zero, the adapter uses `Status: Evidence recorded`, not
 "verification passed", and states that recording Evidence does not establish
-check pass or completion eligibility. A bundle is described as a review
-handoff export, not a review result.
+check pass or completion eligibility. After `run show` exits zero, it separately
+states that stored Run integrity was validated and the summary was serialized.
+`mechanical_result=pass` is only stored mechanical state. None of those states
+means completion acceptance or completion eligibility. A bundle is described
+as a review handoff export, not a review result.
 
 Before the first Core write, the adapter may display a Task draft, a
 catalog-derived check preview, HEAD baseline semantics, and existing
@@ -209,11 +212,13 @@ label such as `implementation`, `maintenance`, or `chore`. This draft guidance
 does not replace Core validation. An omitted optional `timeout_seconds` remains
 omitted in the preview rather than being replaced with an adapter-invented
 default. The confirmation may cover Task creation, continuation of ordinary
-implementation, and the first `verify` exactly once. When the displayed Task
-uses the reviewed profile, it may also cover exactly one local bundle export to
-a fresh absolute directory outside the target repository, if and only if the
-adopted saved Task retains `verifier.required=true`. It does not authorize
-Verdict record/show, reviewer invocation, external sharing, `complete`,
+implementation, the first `verify` exactly once, and one exact `run show` for
+the Run returned by that successful `verify`; no additional question is needed
+between those two commands. When the displayed Task uses the reviewed profile,
+it may also cover exactly one local bundle export to a fresh absolute directory
+outside the target repository, if and only if the adopted saved Task retains
+`verifier.required=true`. It does not authorize Verdict record/show, reviewer
+invocation, external sharing, `complete`, retry, repair, a replacement Run,
 implementation permissions, or replacement of host and client approval
 prompts.
 
@@ -238,12 +243,32 @@ conversation requires explicit identities.
 A nonzero command result stops the covered sequence. Partial stdout is not a
 result. Successful public `verify` stdout continues to supply exactly `run_id`
 and `evidence_path`; extending it would break the published adapter contract
-and mix Evidence recording with a state query. A Core `0.3.0.dev0` adapter may
-subsequently issue the explicit read-only `run show` command for the returned
-identity. The Seal Plugin retaining manifest version `0.2.1` does not adopt
-that command in this Core slice and retains routing on the saved
-`verifier.required` profile.
-Neither adapter may read raw Evidence to choose a lifecycle operation.
+and mix Evidence recording with a state query. The source Seal Plugin
+`0.3.0-dev.0` resolves the canonical repository again after successful
+verification, checks the retained Task, returned Run, and repository binding,
+and issues exactly one read-only command without another question:
+
+```text
+harness run show <TASK_ID> --run-id <RUN_ID>
+```
+
+The Plugin accepts exit-zero stdout only when it is the exact
+`validated-run-summary/v1` object documented above: exact top-level, check, and
+Scope-violation key sets; integer schema version 1; exact retained identities;
+and the documented field types. JSON object ordering is not semantic. Missing
+or unknown keys, invalid JSON, a non-object envelope, identity mismatch, or an
+invalid type is an adapter contract failure. The Plugin stops without guessing,
+coercing, retrying, repairing, creating a replacement Run, or falling back to
+raw Evidence. It never reads raw `verification.json` to report stored state or
+choose a lifecycle operation.
+
+A valid stored Run with a required-check failure, timeout, Scope violation, or
+source instability still returns `run show` exit 0. The Plugin displays the
+canonical repository, retained identities, opaque Evidence path from `verify`,
+Evidence SHA-256, mechanical result, Scope state and violations, required-check
+state, source stability, and every check state. It then routes only on the
+adopted saved Task's `verifier.required` profile; the validated mechanical
+state never changes the Basic or Reviewed branch.
 
 Every nonzero stop and every successful pause or handoff includes a
 compact failure or handoff capsule before raw diagnostics. A failure capsule
@@ -257,17 +282,36 @@ is presentation only and is not persisted adapter state. In a new
 conversation, the user must explicitly supply the repository, Task ID, and Run
 ID from that capsule.
 
+A nonzero `run show` result uses `Status: Seal stopped` and identifies `run
+show` as the failure stage. The Plugin reports the exact command, stdout,
+stderr, and exit code; preserves only repository, Task, Run, and Evidence
+identity already obtained from successful earlier stdout; and does not run a
+bundle, Verdict operation, or `complete`. It does not retry, repair, create a
+new Run, or use raw Evidence as a fallback. Core exit 2 retains input/identity
+meaning, exit 3 retains repository meaning, and exit 8 retains missing,
+corrupt, unsupported, or unsafe Evidence meaning. `run show` does not use
+completion-policy exits 4–7 or 9. An invalid exit-zero envelope stops at the
+separate `run show adapter contract` stage with the same downstream boundary.
+
 For `verifier.required=false`, the basic profile proceeds directly to final
-confirmation without creating a bundle. The adapter shows the exact completion
-command but does not execute it. For `verifier.required=true`, the reviewed
-profile exports exactly one approved local bundle to a fresh absolute output
-directory outside the target repository and then pauses for a separately
-prepared Verdict. When an adapter-level bundle request omits an output path,
+confirmation without creating a bundle, even when the valid stored mechanical
+state is failed. The adapter shows the exact completion command but does not
+execute it. For `verifier.required=true`, the reviewed profile exports exactly
+one approved local bundle to a fresh absolute output directory outside the
+target repository after `run show`, even when that valid summary contains a
+failed state, and then pauses for a separately prepared Verdict. When an
+adapter-level bundle request omits an output path,
 the adapter selects the same kind of fresh external directory and passes it
 through Core's required `--output` argument; for an existing Run, that bundle
 still requires an explicit request. Bundle preparation validates the stored
 Run's integrity, but a successful export does not establish mechanical pass or
 completion eligibility. It does not run or select a reviewer.
+
+The explicit `$seal:verify` escape hatch performs only its bounded sequence:
+the existing version, repository, and exact Task preflight; one `verify`; one
+`run show` for the returned identity; then an Evidence identity and validated
+stored-state report or exact failure. It stops without a bundle, Verdict,
+completion, repair, retry, or replacement Run.
 
 The reviewed-profile handoff capsule states that it is awaiting a separately
 prepared Verdict, identifies the bundle export as containing historical S0/S1

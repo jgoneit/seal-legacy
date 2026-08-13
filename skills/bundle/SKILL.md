@@ -11,7 +11,7 @@ target repository is missing, stop this turn. Ask the user to invoke
 Perform only the requested Core operation. Require exact Task and Run IDs. Do
 not infer the latest Run or enter another lifecycle step.
 
-Run `harness --version` and support Core `>=0.2.0,<0.3.0`. Do not install a
+Run `harness --version` and support Core `>=0.3.0.dev0,<0.4.0`. Do not install a
 missing or unsupported Core. From the confirmed target Git repository with a
 current HEAD, run `harness task show <TASK_ID>` before export. Use only the
 public CLI, stdout JSON, stderr, and exit codes; do not import Core or assemble

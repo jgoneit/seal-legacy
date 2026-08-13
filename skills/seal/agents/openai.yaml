@@ -1,6 +1,6 @@
 interface:
   display_name: "Seal"
-  short_description: "Managed acceptance evidence workflow"
-  default_prompt: "$seal 구현 요청을 Task로 정의하고 최초 검증, 조건부 local bundle, 최종 완료 확인까지 관리해줘"
+  short_description: "Managed validated evidence workflow"
+  default_prompt: "$seal 구현 요청을 Task로 정의하고 최초 검증, exact Run의 Core-validated 저장 상태, 조건부 local bundle, 최종 완료 확인까지 관리해줘"
 policy:
   allow_implicit_invocation: true

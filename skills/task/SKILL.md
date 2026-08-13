@@ -12,7 +12,7 @@ Perform only the requested Core operation. Do not continue into implementation,
 verification, bundle export, Verdict handling, or completion.
 
 Before every operation, run `harness --version` and support Core
-`>=0.2.0,<0.3.0`. Do not install a missing or unsupported Core. Run commands as
+`>=0.3.0.dev0,<0.4.0`. Do not install a missing or unsupported Core. Run commands as
 subprocesses from a confirmed target Git repository with a current HEAD. Do not
 import Core or reproduce its validation.
 

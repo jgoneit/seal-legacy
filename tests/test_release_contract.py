@@ -38,7 +38,8 @@ CURRENT_CONTRACT_DOCS = (
     REPOSITORY_ROOT / "docs" / "migration-v0.2.md",
 )
 CORE_DEVELOPMENT_VERSION = "0.3.0.dev0"
-RELEASE_VERSION = "0.2.1"
+PLUGIN_DEVELOPMENT_VERSION = "0.3.0-dev.0"
+PUBLISHED_RELEASE_VERSION = "0.2.1"
 
 
 class ReleaseContractTests(unittest.TestCase):
@@ -57,9 +58,22 @@ class ReleaseContractTests(unittest.TestCase):
         cls.readme = README.read_text(encoding="utf-8")
         cls.korean_readme = KOREAN_README.read_text(encoding="utf-8")
 
-    def test_core_development_and_release_versions_are_explicit(self) -> None:
+    def test_core_plugin_development_and_published_versions_are_explicit(self) -> None:
         self.assertEqual(__version__, CORE_DEVELOPMENT_VERSION)
-        self.assertEqual(self.plugin_manifest["version"], RELEASE_VERSION)
+        self.assertEqual(
+            self.plugin_manifest["version"],
+            PLUGIN_DEVELOPMENT_VERSION,
+        )
+        self.assertRegex(
+            PLUGIN_DEVELOPMENT_VERSION,
+            r"^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)-"
+            r"(?:0|[1-9]\d*|[A-Za-z-][0-9A-Za-z-]*)"
+            r"(?:\.(?:0|[1-9]\d*|[A-Za-z-][0-9A-Za-z-]*))*$",
+        )
+        self.assertNotEqual(
+            PLUGIN_DEVELOPMENT_VERSION,
+            PUBLISHED_RELEASE_VERSION,
+        )
         self.assertIn("version", self.pyproject["project"]["dynamic"])
         self.assertEqual(
             self.pyproject["tool"]["setuptools"]["dynamic"]["version"],
@@ -68,10 +82,10 @@ class ReleaseContractTests(unittest.TestCase):
 
     def test_release_workflow_matches_distribution_and_version(self) -> None:
         distribution = self.pyproject["project"]["name"].replace("-", "_")
-        artifact_stem = f"{distribution}-{RELEASE_VERSION}"
-        expected_note = f"docs/releases/v{RELEASE_VERSION}.md"
+        artifact_stem = f"{distribution}-{PUBLISHED_RELEASE_VERSION}"
+        expected_note = f"docs/releases/v{PUBLISHED_RELEASE_VERSION}.md"
 
-        self.assertIn(f'- "v{RELEASE_VERSION}"', self.workflow)
+        self.assertIn(f'- "v{PUBLISHED_RELEASE_VERSION}"', self.workflow)
         self.assertIn(
             f"dist/{artifact_stem}-*.whl",
             self.workflow,
@@ -82,7 +96,7 @@ class ReleaseContractTests(unittest.TestCase):
         )
         self.assertIn(f"dist/{artifact_stem}.tar.gz", self.workflow)
         self.assertIn(
-            f"name: Harness v{RELEASE_VERSION} (Experimental)",
+            f"name: Harness v{PUBLISHED_RELEASE_VERSION} (Experimental)",
             self.workflow,
         )
         self.assertIn(f"body_path: {expected_note}", self.workflow)
@@ -152,22 +166,26 @@ class ReleaseContractTests(unittest.TestCase):
         )
         self.assertIsNotNone(english_claim)
         self.assertIsNotNone(korean_claim)
-        self.assertEqual(english_claim.group(1), RELEASE_VERSION)
-        self.assertEqual(korean_claim.group(1), RELEASE_VERSION)
+        self.assertEqual(english_claim.group(1), PUBLISHED_RELEASE_VERSION)
+        self.assertEqual(korean_claim.group(1), PUBLISHED_RELEASE_VERSION)
 
         install_ref = (
-            f"git+https://github.com/jgoneit/seal.git@v{RELEASE_VERSION}"
+            "git+https://github.com/jgoneit/seal.git@"
+            f"v{PUBLISHED_RELEASE_VERSION}"
         )
         distribution = self.pyproject["project"]["name"].replace("-", "_")
-        wheel_name = f"{distribution}-{RELEASE_VERSION}-py3-none-any.whl"
+        wheel_name = (
+            f"{distribution}-{PUBLISHED_RELEASE_VERSION}-py3-none-any.whl"
+        )
         for document in (self.readme, self.korean_readme):
             self.assertIn(install_ref, document)
             self.assertIn(wheel_name, document)
 
-    def test_skills_support_the_final_v0_2_release_range(self) -> None:
+    def test_skills_support_only_the_core_v0_3_development_range(self) -> None:
         for name, contents in self.skills.items():
             with self.subTest(skill=name):
-                self.assertIn("`>=0.2.0,<0.3.0`", contents)
+                self.assertIn("`>=0.3.0.dev0,<0.4.0`", contents)
+                self.assertNotIn("`>=0.2.0,<0.3.0`", contents)
                 self.assertNotIn(">=0.1.0", contents)
                 self.assertNotIn("v0.1.1", contents)
                 self.assertNotIn("git+https://", contents)
@@ -177,7 +195,7 @@ class ReleaseContractTests(unittest.TestCase):
                 )
 
     def test_current_contract_docs_do_not_retain_retired_release_dev_version(self) -> None:
-        retired_development_version = f"{RELEASE_VERSION}.dev0"
+        retired_development_version = f"{PUBLISHED_RELEASE_VERSION}.dev0"
         for document in CURRENT_CONTRACT_DOCS:
             with self.subTest(document=document.relative_to(REPOSITORY_ROOT)):
                 self.assertNotIn(
