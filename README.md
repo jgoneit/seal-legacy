@@ -15,11 +15,11 @@ source-bound verification Evidence v2 only. Historical v0.1.x Evidence is not
 upgraded in place; see
 [Migrating verification Evidence to v0.2](docs/migration-v0.2.md).
 
-The current repository opens the Core `0.3.0.dev0` development line. Its first
-addition is a read-only, integrity-validated Run Summary command. This
-branding-only development change renames the current source Plugin to Seal
-while retaining manifest version `0.2.1`; the historical `v0.2.1` Plugin and
-release artifacts remain unchanged.
+The current repository uses Core development version `0.3.0.dev0` and source
+Plugin development version `0.3.0-dev.0`. The source Plugin supports Core
+`>=0.3.0.dev0,<0.4.0` and adopts its read-only, integrity-validated Run Summary
+command. The latest published Core and Plugin release remains `v0.2.1`; its
+tag, artifacts, release notes, and historical Plugin behavior remain unchanged.
 
 ## What Outcome Harness Core does
 
@@ -54,6 +54,7 @@ Task snapshot + full baseline commit
 harness verify: S0 → checks → S1
    ▼
 Saved Evidence v2
+   ├── run show              read-only validated state query
    ├── verifier bundle       optional explicit export
    ├── verifier record/show  optional user-provided Verdict
    └── complete              explicit S2 and policy evaluation
@@ -108,46 +109,62 @@ approval boundary is visible first.
 These labels are presentation only. They do not add persisted workflow state or
 change Core authority.
 
+After `Status: Evidence recorded`, the Plugin compactly shows the exact stored
+Run state returned by Core. `verify` exit 0 means Evidence was recorded; `run
+show` exit 0 means stored Run integrity was validated and its summary was
+serialized; `mechanical_result=pass` is only stored mechanical state. None
+means completion acceptance or completion eligibility.
+
 The Plugin then:
 
 1. drafts the Task from the requested outcome and shows its Scope, a
    catalog-derived check preview, HEAD baseline semantics, and existing
    working-tree changes;
 2. asks for one confirmation covering Task creation, ordinary implementation,
-   and the first `verify` exactly once. For a reviewed profile, the displayed
-   coverage also includes exactly one local bundle export to a fresh absolute
-   directory outside the repository;
+   the first `verify` exactly once, and one `run show` exactly once for the Run
+   returned by that successful verification. For a reviewed profile, the
+   displayed coverage also includes exactly one local bundle export to a fresh
+   absolute directory outside the repository;
 3. creates the Task, reports Core's authoritative normalized checks from
    successful stdout, binds the exact Task ID to the original canonical
    repository root in the same conversation, and lets the coding Agent
    implement normally; if the saved Task fields, baseline, or checks differ
    from the approved draft and preview, it stops for explicit re-adoption first;
 4. runs the approved verification once, binds the exact Run ID and opaque
-   Evidence path to the same repository root, and reports that Evidence
-   identity. It then branches only on the adopted saved Task profile: a basic
-   profile shows the exact `complete` command and asks for final confirmation;
-   a reviewed profile exports the one approved local bundle and pauses for an
-   separately prepared Verdict; and
-5. records a separately supplied Verdict only on an explicit request, then asks
+   Evidence path to the same repository root, re-resolves that root, and runs
+   `harness run show <TASK_ID> --run-id <RUN_ID>` exactly once without another
+   question. It accepts only the exact `validated-run-summary/v1` object, shows
+   the Evidence digest, mechanical, Scope, required-check, source-stability,
+   violation, and per-check state, and never reads raw `verification.json`;
+5. branches only on the adopted saved Task profile after every valid summary,
+   including failed-check, timeout, Scope-violation, and source-instability
+   state. A basic profile shows the exact `complete` command and asks for final
+   confirmation; a reviewed profile exports the one approved local bundle and
+   pauses for a separately prepared Verdict; and
+6. records a separately supplied Verdict only on an explicit request, then asks
    for final confirmation immediately before `complete`. The retained IDs do
    not need to be copied again in the same conversation.
 
 Together, the initial managed request and the user's affirmative reply to the
 displayed covered actions form the explicit request for Task creation,
-implementation, the first verification, and the reviewed profile's one local
-bundle when applicable. They do not authorize Verdict record/show, reviewer
-invocation, external sharing, `complete`, or a replacement for normal Codex
-permission prompts.
+implementation, the first verification, its exact Run Summary query, and the
+reviewed profile's one local bundle when applicable. They do not authorize Verdict
+record/show, reviewer invocation, external sharing, `complete`, retry, repair,
+a replacement Run, or a replacement for normal Codex permission prompts.
 An unambiguous reply to the Plugin's own pending confirmation may resume the
 same workflow; unrelated approvals and ordinary coding requests do not
 activate Seal.
 
-If Task creation, verification, bundle, Verdict recording, or completion fails,
-the managed flow stops. It does not repair source, replace Evidence, choose an
-alternate path, create another Run, or retry automatically. Successful `verify`
-stdout in Core `0.2.x` records Evidence but does not expose an
-integrity-validated mechanical summary. The Plugin does not read raw
-`verification.json`; profile routing uses only the adopted saved
+If Task creation, verification, `run show`, bundle, Verdict recording, or
+completion fails, the managed flow stops. It does not repair source, replace
+Evidence, choose an alternate path, create another Run, or retry automatically.
+Successful `verify` stdout remains exactly `{run_id, evidence_path}`; the Plugin
+queries the returned identity through Core instead of reading raw
+`verification.json`. Missing or unknown summary keys, identity or type
+mismatches, and invalid envelopes fail closed. A nonzero `run show` reports the
+exact command, stdout, stderr, and exit code, preserves only identity already
+returned by successful commands, and does not continue to bundle, Verdict, or
+completion operations. Profile routing still uses only the adopted saved
 `verifier.required` field, and Core alone decides completion. Task and Run IDs
 are reused only from successful Core stdout and only with their original
 canonical repository root; the Plugin does not infer a “latest” Task or Run.
@@ -163,7 +180,7 @@ Use the low-level Skills as recovery and advanced escape hatches:
 
 ```text
 $seal:task      create or inspect one Task
-$seal:verify    record one verification Run
+$seal:verify    record one verification Run, show that exact validated state, then stop
 $seal:bundle    export one exact Task and Run
 $seal:complete  evaluate one exact Task and Run after final confirmation
 ```
@@ -171,6 +188,11 @@ $seal:complete  evaluate one exact Task and Run after final confirmation
 Each low-level Skill is explicit-only. If it needs a missing adoption, ID,
 path, or confirmation, repeat the same namespaced invocation in the follow-up;
 an untagged reply does not activate an escape hatch.
+
+`$seal:verify` is a bounded sequence: existing preflight and exact Task lookup,
+one `verify`, one `run show` for the returned exact Run, then an Evidence
+identity and validated stored-state report. It never continues into bundle,
+Verdict, completion, repair, retry, or a replacement Run.
 
 If `$seal:bundle` omits an output path, the Plugin chooses a unique absolute
 path outside the confirmed target repository whose final directory does not
@@ -217,9 +239,11 @@ The Python distribution name is `outcome-harness`; the console command is
 
 ### Codex Plugin
 
-The source Plugin manifest remains `0.2.1` for this branding-only development
-change; this is not a new release. A personal marketplace entry that points to
-this checkout installs or refreshes the Plugin separately from the Core package:
+The source Plugin manifest is `0.3.0-dev.0`; this opens a development line, not
+a published release. It requires Core `>=0.3.0.dev0,<0.4.0` and is not compatible
+with Core 0.2.x. The latest published Plugin remains `v0.2.1`. A personal
+marketplace entry that points to this checkout installs or refreshes the Plugin
+separately from the Core package:
 
 ```bash
 codex plugin add seal@personal
@@ -318,6 +342,11 @@ infers a latest Run. A structurally valid failed Run still returns exit 0 with
 its failed state in JSON; missing or corrupt Evidence returns exit 8. It does
 not rerun checks, collect S2, inspect Verdict or completion state, invoke a
 reviewer, retry, repair, or recommend a next action.
+
+The source Seal Plugin `0.3.0-dev.0` automatically issues this exact command
+once for the Run returned by its one successful managed or `$seal:verify`
+verification. It validates the envelope before displaying stored state and
+does not consume raw `verification.json`.
 
 ### Advanced and recovery operations
 

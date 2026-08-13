@@ -14,10 +14,11 @@ verification Evidence v2만 지원하며, 과거 v0.1.x Evidence를 in-place upg
 자세한 내용은 [v0.2 verification Evidence migration](docs/migration-v0.2.md)을
 참고하세요.
 
-현재 repository는 Core `0.3.0.dev0` development line을 엽니다. 첫 변경은 읽기
-전용 integrity-validated Run Summary 명령입니다. 이번 branding-only development
-변경은 current source Plugin을 Seal로 rename하면서 manifest version `0.2.1`을
-유지하며, historical `v0.2.1` Plugin과 release artifact는 변경하지 않습니다.
+현재 repository는 Core development version `0.3.0.dev0`과 source Plugin
+development version `0.3.0-dev.0`을 사용합니다. Source Plugin은 Core
+`>=0.3.0.dev0,<0.4.0`을 지원하고 읽기 전용 integrity-validated Run Summary
+명령을 채택합니다. 최신 published Core와 Plugin release는 계속 `v0.2.1`이며,
+해당 tag, artifact, release note, historical Plugin 동작은 변경하지 않습니다.
 
 ## Outcome Harness Core의 역할
 
@@ -51,6 +52,7 @@ Task snapshot + full baseline commit
 harness verify: S0 → checks → S1
    ▼
 저장된 Evidence v2
+   ├── run show              읽기 전용 validated state 조회
    ├── verifier bundle       선택적인 명시적 export
    ├── verifier record/show  선택적인 사용자 제공 Verdict
    └── complete              명시적인 S2 및 policy 평가
@@ -103,42 +105,59 @@ confirmation`, `Local records`를 구분해 승인 경계를 먼저 확인할 �
 이 표시는 대화 표현일 뿐이며, persisted workflow state를 추가하거나 Core 권한을
 바꾸지 않습니다.
 
+`Status: Evidence recorded` 뒤에는 Core가 반환한 exact stored Run state를
+compact하게 보여줍니다. `verify` exit 0은 Evidence 기록, `run show` exit 0은
+stored Run integrity 검증 및 summary 직렬화를 뜻하며,
+`mechanical_result=pass`는 저장된 mechanical state일 뿐입니다. 어느 것도
+completion acceptance 또는 completion eligibility를 뜻하지 않습니다.
+
 Plugin은 다음 순서로 동작합니다.
 
 1. 요청한 결과로 Task 초안을 작성하고 Scope, catalog-derived check preview,
    HEAD baseline 의미, 기존 working-tree 변경을 보여줍니다.
-2. Task 생성, 평소 방식의 구현, 최초 `verify` 정확히 1회를 포함하는 한 번의
-   확인을 요청합니다. Reviewed profile이면 repository 밖의 fresh absolute
-   directory에 local bundle을 정확히 한 번 export하는 범위도 함께 표시합니다.
+2. Task 생성, 평소 방식의 구현, 최초 `verify` 정확히 1회, 그 성공한 verification이
+   반환한 Run에 대한 `run show` 정확히 1회를 포함하는 한 번의 확인을 요청합니다.
+   Reviewed profile이면 repository 밖의 fresh absolute directory에 local bundle을
+   정확히 한 번 export하는 범위도 함께 표시합니다.
 3. Task를 생성하고 성공 stdout에서 Core가 정규화한 authoritative check와
    정확한 Task ID를 최초 canonical repository root에 bind한 뒤 같은 대화에서
    연결하고 Coding Agent가 평소 방식으로 구현하게 합니다. saved Task field,
    baseline, check 중 하나라도 승인한 draft와 preview와 다르면 구현 전에
    중단하고 정확한 saved Task를 다시 명시적으로 채택받습니다.
-4. 승인된 verification을 한 번 실행하고 정확한 Run ID와 opaque Evidence path를
-   같은 repository root에 bind한 뒤 그 Evidence identity를 보고합니다. 그다음
-   adopted saved Task profile만 사용해 분기합니다. Basic profile은 정확한
-   `complete` command를 보여주고 최종 확인을 요청하며, reviewed profile은 승인된
-   local bundle을 한 번 export하고 별도로 준비된 Verdict를 기다립니다.
-5. 별도로 제공된 Verdict는 명시적 요청에서만 기록하고, `complete` 직전에는 별도의
+4. 승인된 verification을 한 번 실행하고 exact Run ID와 opaque Evidence path를
+   같은 repository root에 bind합니다. Root를 다시 resolve한 뒤 추가 질문 없이
+   `harness run show <TASK_ID> --run-id <RUN_ID>`를 정확히 한 번 실행합니다. Exact
+   `validated-run-summary/v1` object만 받아 Evidence digest, mechanical, Scope,
+   required-check, source-stability, violation, per-check state를 보여주며 raw
+   `verification.json`을 읽지 않습니다.
+5. failed check, timeout, Scope violation, source instability를 포함한 모든 valid
+   summary 뒤에도 adopted saved Task profile만 사용해 분기합니다. Basic profile은
+   정확한 `complete` command를 보여주고 최종 확인을 요청하며, reviewed profile은
+   승인된 local bundle을 한 번 export하고 별도로 준비된 Verdict를 기다립니다.
+6. 별도로 제공된 Verdict는 명시적 요청에서만 기록하고, `complete` 직전에는 별도의
    최종 확인을 요청합니다. 같은 대화에서는 보존한 ID를 다시 복사할 필요가 없습니다.
 
 최초 관리형 요청과 화면에 표시한 범위에 대한 사용자의 명확한 승인 답변이 함께
-Task 생성, 구현, 최초 verification, 해당하는 reviewed profile의 local bundle 1회에
-대한 명시적 요청을 이룹니다. 이는 Verdict record/show, reviewer 실행, 외부 공유,
-`complete`를 승인하거나 일반 Codex permission prompt를 대신하지 않습니다.
+Task 생성, 구현, 최초 verification, exact Run Summary query, 해당하는 reviewed
+profile의 local bundle 1회에 대한 명시적 요청을 이룹니다. 이는 Verdict
+record/show, reviewer 실행, 외부 공유, `complete`, retry, repair, replacement Run을
+승인하거나 일반 Codex permission prompt를 대신하지 않습니다.
 Plugin이 직접 요청한 pending 확인에 대한
 명확한 답변은 같은 workflow를 재개할 수 있지만, 무관한 승인과 일반 coding
 요청에서는 Seal이 활성화되지 않습니다.
 
-Task 생성, verification, bundle, Verdict 기록, completion 중 하나가 실패하면 관리형
-흐름은 중단합니다. Source를 자동 수리하거나 Evidence를 교체하고 alternate path를
-선택하거나 새 Run을 만들거나 재시도하지 않습니다. Core `0.2.x`의 성공한 `verify`
-stdout은 Evidence가 저장됐음을 뜻하지만 integrity-validated mechanical summary를
-노출하지 않습니다. Plugin은 raw `verification.json`을 읽지 않고 adopted saved
-`verifier.required` field만 profile 분기에 사용하며 completion은 Core만 판정합니다.
-Task ID와 Run ID는 성공한 Core stdout과 최초 canonical repository root를 함께 보존한
-경우에만 재사용하며 “latest” Task나 Run을 추론하지 않습니다.
+Task 생성, verification, `run show`, bundle, Verdict 기록, completion 중 하나가
+실패하면 관리형 흐름은 중단합니다. Source를 자동 수리하거나 Evidence를 교체하고
+alternate path를 선택하거나 새 Run을 만들거나 재시도하지 않습니다. 성공한
+`verify` stdout은 계속 exact `{run_id, evidence_path}`이며, Plugin은 raw
+`verification.json`을 읽지 않고 반환된 identity를 Core에 조회합니다. Summary의
+missing/unknown key, identity/type mismatch, invalid envelope는 fail-closed로
+중단합니다. Nonzero `run show`는 exact command, stdout, stderr, exit code를
+보고하고 이전 성공 command가 반환한 identity만 보존하며 bundle, Verdict,
+completion으로 진행하지 않습니다. Profile 분기에는 adopted saved
+`verifier.required` field만 사용하고 completion은 Core만 판정합니다. Task ID와 Run
+ID는 성공한 Core stdout과 최초 canonical repository root를 함께 보존한 경우에만
+재사용하며 “latest” Task나 Run을 추론하지 않습니다.
 
 모든 중단과 handoff는 단계, 정확한 Core 결과, 이전 성공 stdout에서 보존한
 identity, 실행하지 않은 후속 작업, 다음으로 가능한 안전한 명시적 요청을 compact
@@ -150,7 +169,7 @@ Verdict를 expected output으로 표시하고, 보존한 identity를 재개할 �
 
 ```text
 $seal:task      Task 하나를 생성하거나 조회
-$seal:verify    verification Run 하나를 기록
+$seal:verify    verification Run 하나를 기록하고 exact validated state까지 보여준 뒤 중단
 $seal:bundle    정확한 Task와 Run 하나를 export
 $seal:complete  최종 확인 후 정확한 Task와 Run 하나를 평가
 ```
@@ -158,6 +177,11 @@ $seal:complete  최종 확인 후 정확한 Task와 Run 하나를 평가
 각 저수준 Skill은 explicit-only입니다. Task 채택, ID, path, confirmation이
 부족해 후속 요청이 필요하면 같은 namespaced invocation을 다시 포함해야 하며,
 tag 없는 답변은 escape hatch를 활성화하지 않습니다.
+
+`$seal:verify`는 bounded sequence입니다. 기존 preflight와 exact Task lookup 뒤
+`verify` 한 번, 반환된 exact Run의 `run show` 한 번만 수행하고 Evidence identity와
+validated stored state를 보고합니다. Bundle, Verdict, completion, repair, retry,
+replacement Run으로 이어지지 않습니다.
 
 `$seal:bundle`에서 output path를 생략하면 Plugin이 confirmed target repository
 밖의 final directory가 존재하지 않는 unique absolute path를 선택하고, Core의 필수
@@ -201,9 +225,11 @@ current Codex Plugin 이름은 `seal`입니다.
 
 ### Codex Plugin
 
-이번 branding-only development 변경에서도 source Plugin manifest는 `0.2.1`을
-유지하며 새 release를 뜻하지 않습니다. 이 checkout을 가리키는 personal
-marketplace entry에서는 Core package와 별도로 Plugin을 설치하거나 갱신합니다.
+Source Plugin manifest는 `0.3.0-dev.0`이며 published release가 아닌 development
+line을 엽니다. Core `>=0.3.0.dev0,<0.4.0`이 필요하고 Core 0.2.x와 호환되지
+않습니다. 최신 published Plugin은 계속 `v0.2.1`입니다. 이 checkout을 가리키는
+personal marketplace entry에서는 Core package와 별도로 Plugin을 설치하거나
+갱신합니다.
 
 ```bash
 codex plugin add seal@personal
@@ -302,6 +328,11 @@ latest Run도 추론하지 않습니다. 구조적으로 유효한 failed Run은
 JSON에 담아 exit 0으로 반환하고, missing/corrupt Evidence는 exit 8입니다. Check
 재실행, S2 수집, Verdict/completion 상태 조회, reviewer 호출, retry, repair, next
 action 추천은 수행하지 않습니다.
+
+Source Seal Plugin `0.3.0-dev.0`은 managed flow 또는 `$seal:verify`의 성공한 한 번의
+verification이 반환한 Run에 대해 이 exact command를 자동으로 한 번 실행합니다.
+Stored state를 보여주기 전에 envelope를 검증하며 raw `verification.json`을
+소비하지 않습니다.
 
 ### 고급 및 복구 작업
 
