@@ -122,11 +122,14 @@ import harness.run_manifest as manifest_module
 import harness.run_validator as validator_module
 import harness.verdict as verdict_module
 
+assert callable(ValidatedRun.read_log_bytes)
 assert not hasattr(validator_module, "validate_run_documents")
 assert not hasattr(validator_module, "validate_task_snapshot")
 assert not hasattr(manifest_module, "read_run_artifact_bytes")
 assert not hasattr(manifest_module, "safe_run_relative_path")
 assert not hasattr(bundle_module, "read_run_artifact_bytes")
+assert "_read_run_artifact_bytes" not in bundle_module.__dict__
+assert "_RunArtifactReadError" not in bundle_module.__dict__
 assert not hasattr(verdict_module, "read_run_artifact_bytes")
 """
         for imports in (

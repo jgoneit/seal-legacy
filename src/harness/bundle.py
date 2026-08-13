@@ -21,16 +21,18 @@ from importlib import resources
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from ._run_artifact_io import (
-    RunArtifactReadError as _RunArtifactReadError,
-    read_run_artifact_bytes as _read_run_artifact_bytes,
-)
 from ._source_binding_documents import (
     SOURCE_AFTER_CHECKS_FILENAME,
     SOURCE_BEFORE_CHECKS_FILENAME,
 )
 from .exit_codes import ExitCode
-from .run_validator import RunIdentityError, RunValidationError, ValidatedRun, validate_run
+from .run_validator import (
+    RunEvidenceError,
+    RunIdentityError,
+    RunValidationError,
+    ValidatedRun,
+    validate_run,
+)
 from .source_snapshot import SourceSnapshot
 from .task import TaskError
 
@@ -101,8 +103,7 @@ def create_verification_bundle(
         checks_document=validated_run.checks,
         verification=validated_run.verification,
         diff_patch=validated_run.diff_patch,
-        log_paths=validated_run.log_paths,
-        evidence_path=validated_run.evidence_path,
+        validated_run=validated_run,
         source_before_checks=validated_run.source_before_checks,
         source_after_checks=validated_run.source_after_checks,
         prompt=prompt,
@@ -191,8 +192,7 @@ def _bundle_payloads(
     checks_document: Mapping[str, Any],
     verification: Mapping[str, Any],
     diff_patch: bytes,
-    log_paths: tuple[PurePosixPath, ...],
-    evidence_path: Path,
+    validated_run: ValidatedRun,
     source_before_checks: SourceSnapshot,
     source_after_checks: SourceSnapshot,
     prompt: str,
@@ -216,9 +216,9 @@ def _bundle_payloads(
     payloads[SOURCE_AFTER_CHECKS_FILENAME] = _pretty_json_bytes(
         source_after_checks.to_document()
     )
-    for relative_path in log_paths:
+    for relative_path in validated_run.log_paths:
         payloads[relative_path.as_posix()] = _sanitize_bytes(
-            _read_validated_log_bytes(evidence_path, relative_path),
+            _read_validated_log_bytes(validated_run, relative_path),
             replacements,
         )
     payloads = dict(sorted(payloads.items()))
@@ -274,11 +274,14 @@ def _read_verifier_instructions() -> str:
         raise BundleEvidenceError("Verifier instructions are missing or unreadable.") from error
 
 
-def _read_validated_log_bytes(evidence_path: Path, relative_path: PurePosixPath) -> bytes:
+def _read_validated_log_bytes(
+    validated_run: ValidatedRun,
+    relative_path: PurePosixPath,
+) -> bytes:
     """Read a log path returned by ``validate_run`` without revalidating the Run."""
     try:
-        return _read_run_artifact_bytes(evidence_path, relative_path)
-    except _RunArtifactReadError as error:
+        return validated_run.read_log_bytes(relative_path)
+    except RunEvidenceError as error:
         raise BundleEvidenceError(
             f"Could not read previously validated log file: {relative_path.as_posix()}."
         ) from error

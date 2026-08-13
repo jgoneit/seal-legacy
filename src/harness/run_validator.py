@@ -15,6 +15,10 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from ._run_artifact_io import (
+    RunArtifactReadError as _RunArtifactReadError,
+    read_run_artifact_bytes as _read_run_artifact_bytes,
+)
 from ._run_documents import (
     RUN_EVIDENCE_SCHEMA_VERSION,
     RunDocumentEvidenceError as _RunDocumentEvidenceError,
@@ -111,6 +115,30 @@ class ValidatedRun:
     scope_pass: bool
     required_checks_pass: bool
     mechanical_result: str
+
+    def read_log_bytes(self, relative_path: PurePosixPath) -> bytes:
+        """Read one validated check log without decoding or widening access."""
+        if not isinstance(relative_path, PurePosixPath):
+            raise TypeError("relative_path must be a PurePosixPath.")
+        if relative_path not in self.log_paths:
+            raise RunEvidenceError(
+                f"Requested path '{relative_path.as_posix()}' "
+                "is not a validated check log."
+            )
+        try:
+            current_evidence_path = _validated_evidence_directory(
+                self.repository,
+                self.task_id,
+                self.run_id,
+            )
+            if current_evidence_path != self.evidence_path:
+                raise RunEvidenceError("Validated Evidence Run directory changed.")
+            return _read_run_artifact_bytes(self.evidence_path, relative_path)
+        except (RunEvidenceError, _RunArtifactReadError) as error:
+            raise RunEvidenceError(
+                "Could not read previously validated log file: "
+                f"{relative_path.as_posix()}."
+            ) from error
 
 
 def validate_run(

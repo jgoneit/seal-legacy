@@ -10,7 +10,7 @@ import sys
 import tempfile
 import unittest
 from dataclasses import FrozenInstanceError
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -286,6 +286,101 @@ class CanonicalRunIntegrityTests(unittest.TestCase):
         reread = validate_run("TASK-RUN", run.run_id, cwd=self.repository)
         self.assertEqual(reread.task["objective"], "Exercise canonical Run integrity validation.")
         self.assertTrue(reread.check_records[0]["passed"])
+
+    def test_validated_log_paths_are_exactly_the_recorded_check_logs(self) -> None:
+        run = self._valid_run()
+        validated = validate_run("TASK-RUN", run.run_id, cwd=self.repository)
+
+        expected = tuple(
+            PurePosixPath(record[field])
+            for record in validated.check_records
+            for field in ("stdout_path", "stderr_path")
+        )
+
+        self.assertEqual(validated.log_paths, expected)
+        self.assertEqual(len(validated.log_paths), len(set(validated.log_paths)))
+        self.assertNotIn(PurePosixPath("task.json"), validated.log_paths)
+
+    def test_reads_validated_log_bytes_without_text_decoding(self) -> None:
+        stdout = b"stdout-before-\xff\x00-after\n"
+        stderr = b"stderr-before-\xfe\x80-after\n"
+        program = (
+            "import os; "
+            f"os.write(1, {stdout!r}); "
+            f"os.write(2, {stderr!r})"
+        )
+        self._create_task(checks=[self._check("raw-bytes", program)])
+        self._write("src/example.txt", "after\n")
+        run = self._run()
+        validated = validate_run("TASK-RUN", run.run_id, cwd=self.repository)
+        record = validated.check_records[0]
+
+        self.assertEqual(
+            validated.read_log_bytes(PurePosixPath(record["stdout_path"])),
+            stdout,
+        )
+        self.assertEqual(
+            validated.read_log_bytes(PurePosixPath(record["stderr_path"])),
+            stderr,
+        )
+
+    def test_log_reader_rejects_paths_outside_validated_log_membership(self) -> None:
+        run = self._valid_run()
+        validated = validate_run("TASK-RUN", run.run_id, cwd=self.repository)
+
+        for path in (
+            PurePosixPath("task.json"),
+            PurePosixPath("../outside.log"),
+            PurePosixPath("/tmp/outside.log"),
+        ):
+            with self.subTest(path=path):
+                with self.assertRaisesRegex(
+                    RunEvidenceError,
+                    "is not a validated check log",
+                ):
+                    validated.read_log_bytes(path)
+
+        with self.assertRaisesRegex(
+            TypeError,
+            "relative_path must be a PurePosixPath",
+        ):
+            validated.read_log_bytes("task.json")  # type: ignore[arg-type]
+
+    @unittest.skipUnless(os.name == "posix", "symlink escape coverage requires POSIX")
+    def test_log_reader_rejects_external_symlink_swap_after_validation(self) -> None:
+        run = self._valid_run()
+        validated = validate_run("TASK-RUN", run.run_id, cwd=self.repository)
+        relative_path = validated.log_paths[0]
+        log_path = validated.evidence_path.joinpath(*relative_path.parts)
+        outside = self.root / "outside-after-validation.log"
+        outside.write_text("outside\n", encoding="utf-8")
+        log_path.unlink()
+        log_path.symlink_to(outside)
+
+        with self.assertRaisesRegex(
+            RunEvidenceError,
+            "Could not read previously validated log file",
+        ):
+            validated.read_log_bytes(relative_path)
+
+    @unittest.skipUnless(os.name == "posix", "symlink escape coverage requires POSIX")
+    def test_log_reader_rejects_run_directory_swap_after_validation(self) -> None:
+        run = self._valid_run()
+        validated = validate_run("TASK-RUN", run.run_id, cwd=self.repository)
+        relative_path = validated.log_paths[0]
+        original_run = self.root / "original-validated-run"
+        outside_run = self.root / "outside-run-after-validation"
+        outside_log = outside_run.joinpath(*relative_path.parts)
+        outside_log.parent.mkdir(parents=True)
+        outside_log.write_text("outside\n", encoding="utf-8")
+        validated.evidence_path.rename(original_run)
+        validated.evidence_path.symlink_to(outside_run, target_is_directory=True)
+
+        with self.assertRaisesRegex(
+            RunEvidenceError,
+            "Could not read previously validated log file",
+        ):
+            validated.read_log_bytes(relative_path)
 
     def test_rejects_required_file_and_json_failures(self) -> None:
         run = self._valid_run()
