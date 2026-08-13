@@ -23,7 +23,7 @@ PLUGIN_MANIFEST = REPOSITORY_ROOT / ".codex-plugin" / "plugin.json"
 CHECK_CATALOG = REPOSITORY_ROOT / ".harness" / "checks.json"
 CI_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
 RELEASE_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
-SKILL_NAMES = ("harness", "task", "verify", "bundle", "complete")
+SKILL_NAMES = ("seal", "task", "verify", "bundle", "complete")
 SKILLS = tuple(
     REPOSITORY_ROOT / "skills" / name / "SKILL.md" for name in SKILL_NAMES
 )
@@ -143,11 +143,11 @@ class ReleaseContractTests(unittest.TestCase):
 
     def test_readme_pair_matches_current_release_and_install_artifacts(self) -> None:
         english_claim = re.search(
-            r"The latest Experimental release is `v([^`]+)`",
+            r"The latest Outcome Harness Core Experimental release is `v([^`]+)`",
             self.readme,
         )
         korean_claim = re.search(
-            r"최신 Experimental release는 `v([^`]+)`",
+            r"최신 Outcome Harness Core Experimental release는 `v([^`]+)`",
             self.korean_readme,
         )
         self.assertIsNotNone(english_claim)
@@ -156,7 +156,7 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertEqual(korean_claim.group(1), RELEASE_VERSION)
 
         install_ref = (
-            f"git+https://github.com/jgoneit/harness.git@v{RELEASE_VERSION}"
+            f"git+https://github.com/jgoneit/seal.git@v{RELEASE_VERSION}"
         )
         distribution = self.pyproject["project"]["name"].replace("-", "_")
         wheel_name = f"{distribution}-{RELEASE_VERSION}-py3-none-any.whl"

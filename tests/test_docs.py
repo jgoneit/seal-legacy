@@ -10,7 +10,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = REPOSITORY_ROOT / "docs"
 README = REPOSITORY_ROOT / "README.md"
 KOREAN_README = REPOSITORY_ROOT / "README.ko.md"
-SKILL = REPOSITORY_ROOT / "skills" / "harness" / "SKILL.md"
+SKILL = REPOSITORY_ROOT / "skills" / "seal" / "SKILL.md"
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 
 
@@ -42,12 +42,12 @@ class PublicDocumentationTest(unittest.TestCase):
         korean_lines = KOREAN_README.read_text(encoding="utf-8").splitlines()
 
         self.assertEqual(english_lines[:3], [
-            "# Harness",
+            "# Seal",
             "",
             "Language: English | [한국어](README.ko.md)",
         ])
         self.assertEqual(korean_lines[:3], [
-            "# Harness",
+            "# Seal",
             "",
             "Language: [English](README.md) | 한국어",
         ])
@@ -74,6 +74,23 @@ class PublicDocumentationTest(unittest.TestCase):
     def test_historical_release_notes_remain_available_in_english(self) -> None:
         self.assertTrue((DOCS_ROOT / "releases" / "v0.1.0.md").is_file())
         self.assertTrue((DOCS_ROOT / "releases" / "v0.1.1.md").is_file())
+
+    def test_v0_2_1_release_keeps_its_historical_harness_ui_smoke(self) -> None:
+        release_note = (DOCS_ROOT / "releases" / "v0.2.1.md").read_text(
+            encoding="utf-8"
+        )
+        historical_smoke = DOCS_ROOT / "harness-ui-smoke.md"
+
+        self.assertTrue(historical_smoke.is_file())
+        self.assertIn(
+            "[Harness Codex UI smoke](../harness-ui-smoke.md)",
+            release_note,
+        )
+        contents = historical_smoke.read_text(encoding="utf-8")
+        self.assertIn("# Harness Codex UI smoke", contents)
+        self.assertIn("Select the installed `@Harness` Plugin", contents)
+        self.assertIn("creating the `v0.2.1` release tag", contents)
+        self.assertNotIn("$seal", contents)
 
     def test_current_contract_docs_do_not_claim_v1_compatibility(self) -> None:
         current_documents = (
