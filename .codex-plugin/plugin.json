@@ -1,7 +1,7 @@
 {
   "name": "seal",
-  "version": "0.2.1",
-  "description": "Managed Seal Plugin for evidence-backed completion through Outcome Harness Core.",
+  "version": "0.3.0-dev.0",
+  "description": "Managed Seal Plugin for Core-validated evidence-backed completion through Outcome Harness Core.",
   "author": {
     "name": "Jaegon Seo",
     "url": "https://github.com/jgoneit"
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "Seal",
     "shortDescription": "Evidence-backed completion for coding agents",
-    "longDescription": "Use Seal's managed, conversation-scoped workflow to draft a Task, connect ordinary implementation to one approved verification, prepare one local bundle for a reviewed profile, carry the exact Evidence identity, and ask separately before Outcome Harness Core evaluates completion.",
+    "longDescription": "Use Seal's managed, conversation-scoped workflow to draft a Task, connect ordinary implementation to one approved verification, show the exact Core-validated stored Run state, prepare one local bundle for a reviewed profile, carry the exact Evidence identity, and ask separately before Outcome Harness Core evaluates completion.",
     "developerName": "Jaegon Seo",
     "category": "Developer Tools",
     "capabilities": [
@@ -31,7 +31,7 @@
     "defaultPrompt": [
       "$seal Swagger/OpenAPI\ub97c \ub3c4\uc785\ud558\uace0 \ud55c\uae00 API \uc124\uba85\uae4c\uc9c0 \uac80\uc99d\ud574\uc918",
       "\uc774 \uc800\uc7a5\uc18c\uc5d0 Swagger/OpenAPI\ub97c \ub3c4\uc785\ud558\uace0 \ud55c\uae00 API \uc124\uba85\uae4c\uc9c0 \uad00\ub9ac\ud615\uc73c\ub85c \uac80\uc99d\ud574\uc918",
-      "$seal:verify \uae30\uc874 Task\ub97c \ud55c \ubc88 \uac80\uc99d\ud558\uace0 Run ID\uc640 Evidence \uacbd\ub85c\ub97c \ubcf4\uc5ec\uc918"
+      "$seal:verify <TASK_ID>\ub97c \ud55c \ubc88 \uac80\uc99d\ud558\uace0 exact Run\uc758 Core-validated \uc800\uc7a5 \uc0c1\ud0dc\uae4c\uc9c0 \ubcf4\uc5ec\uc918"
     ]
   }
 }

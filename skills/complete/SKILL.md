@@ -14,7 +14,7 @@ never infer a latest identity. An invocation that names both IDs and explicitly
 asks to complete may count as the final confirmation. Otherwise show the exact
 command and ask once immediately before execution.
 
-Run `harness --version` and support Core `>=0.2.0,<0.3.0`. Do not install a
+Run `harness --version` and support Core `>=0.3.0.dev0,<0.4.0`. Do not install a
 missing or unsupported Core. From the confirmed target Git repository with a
 current HEAD, run `harness task show <TASK_ID>` before completion. Use only the
 public CLI, stdout JSON, stderr, and exit codes; do not import Core or
