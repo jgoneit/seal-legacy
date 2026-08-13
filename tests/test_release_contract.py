@@ -1,4 +1,4 @@
-"""Static consistency checks for the v0.2.1 release surface."""
+"""Static consistency checks for Core development and release surfaces."""
 
 from __future__ import annotations
 
@@ -37,11 +37,12 @@ CURRENT_CONTRACT_DOCS = (
     REPOSITORY_ROOT / "docs" / "exit-codes.md",
     REPOSITORY_ROOT / "docs" / "migration-v0.2.md",
 )
+CORE_DEVELOPMENT_VERSION = "0.3.0.dev0"
 RELEASE_VERSION = "0.2.1"
 
 
 class ReleaseContractTests(unittest.TestCase):
-    """Keep independently maintained release surfaces on one exact version."""
+    """Keep Core development and published release identities explicit."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -56,8 +57,8 @@ class ReleaseContractTests(unittest.TestCase):
         cls.readme = README.read_text(encoding="utf-8")
         cls.korean_readme = KOREAN_README.read_text(encoding="utf-8")
 
-    def test_core_plugin_and_package_metadata_share_version(self) -> None:
-        self.assertEqual(__version__, RELEASE_VERSION)
+    def test_core_development_and_release_versions_are_explicit(self) -> None:
+        self.assertEqual(__version__, CORE_DEVELOPMENT_VERSION)
         self.assertEqual(self.plugin_manifest["version"], RELEASE_VERSION)
         self.assertIn("version", self.pyproject["project"]["dynamic"])
         self.assertEqual(
@@ -113,12 +114,12 @@ class ReleaseContractTests(unittest.TestCase):
             DEFAULT_CHECK_TIMEOUT_SECONDS,
         )
 
-    def test_clean_wheel_workflows_require_exact_cli_version(self) -> None:
+    def test_clean_wheel_workflows_require_their_exact_cli_version(self) -> None:
         expected_assertions = (
             (
                 self.ci_workflow,
                 'test "$("$RUNNER_TEMP/clean-install/bin/harness" --version)" '
-                '= "0.2.1"',
+                f'= "{CORE_DEVELOPMENT_VERSION}"',
             ),
             (
                 self.workflow,
@@ -175,12 +176,12 @@ class ReleaseContractTests(unittest.TestCase):
                     r"(?m)^\s*(?:from|import)\s+harness",
                 )
 
-    def test_current_contract_docs_do_not_retain_development_version(self) -> None:
-        development_version = f"{RELEASE_VERSION}.dev0"
+    def test_current_contract_docs_do_not_retain_retired_release_dev_version(self) -> None:
+        retired_development_version = f"{RELEASE_VERSION}.dev0"
         for document in CURRENT_CONTRACT_DOCS:
             with self.subTest(document=document.relative_to(REPOSITORY_ROOT)):
                 self.assertNotIn(
-                    development_version,
+                    retired_development_version,
                     document.read_text(encoding="utf-8"),
                 )
 
