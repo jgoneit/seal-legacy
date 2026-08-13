@@ -11,15 +11,19 @@
 - Split a responsibility only when a concrete boundary and consumer require it.
 - Do not add runtime dependencies without an explicit design reason.
 
-## v0.2 contract
+## v0.3 development contract
 
-- Current Core supports source-bound verification Evidence v2 only.
+- The current Core development line is `0.3.0.dev0`; the published v0.2
+  contract remains historical release material.
+- Current Core continues to support source-bound verification Evidence v2 only.
 - Preserve the public meaning of CLI commands, stdout JSON, stderr, stable exit
   codes, and Task, Evidence, Verdict, Bundle, and completion documents.
 - Keep failed checks, timeouts, Scope violations, and source mismatch distinct
   from missing or corrupt Evidence.
-- Do not add compatibility adapters, migration engines, new Schema versions,
-  new commands, or roadmap features during the v0.2 scope freeze.
+- New read-only state surfaces must consume `ValidatedRun` from `validate_run()`;
+  they must not reinterpret persisted Evidence or imply lifecycle transitions.
+- Do not add compatibility adapters, migration engines, persisted Schema
+  versions, or commands outside the approved v0.3 dependency cone.
 - Bundle exports a validated stored Run; it does not rerun checks or collect S2.
 
 ## Change protocol

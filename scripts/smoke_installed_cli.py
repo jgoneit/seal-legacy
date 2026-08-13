@@ -158,6 +158,79 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
             )
         )
         _require(evidence_path.is_dir(), "verify did not create its Evidence directory")
+        harness_bytes_before_run_show = _directory_file_bytes(
+            repository / ".harness"
+        )
+        run_summary = _run_json(
+            (str(harness), "run", "show", TASK_ID, "--run-id", run_id),
+            cwd=repository,
+        )
+        _require_exact_keys(
+            run_summary,
+            {
+                "checks",
+                "evidence_sha256",
+                "mechanical_result",
+                "required_checks_pass",
+                "run_id",
+                "schema_version",
+                "scope_pass",
+                "scope_violations",
+                "source_stable_during_checks",
+                "task_id",
+            },
+            "run show stdout",
+        )
+        _require(
+            run_summary.get("schema_version") == 1
+            and run_summary.get("task_id") == TASK_ID
+            and run_summary.get("run_id") == run_id,
+            "run show returned the wrong schema or Task/run identity",
+        )
+        _require(
+            run_summary.get("mechanical_result") == "pass"
+            and run_summary.get("scope_pass") is True
+            and run_summary.get("scope_violations") == []
+            and run_summary.get("required_checks_pass") is True
+            and run_summary.get("source_stable_during_checks") is True,
+            "run show did not return the expected passing stored state",
+        )
+        _require(
+            isinstance(run_summary.get("evidence_sha256"), str)
+            and bool(run_summary["evidence_sha256"]),
+            "run show did not return a non-empty Evidence digest",
+        )
+        run_summary_checks = run_summary.get("checks")
+        _require(
+            isinstance(run_summary_checks, list) and len(run_summary_checks) == 1,
+            "run show did not return exactly one check result",
+        )
+        run_summary_check = run_summary_checks[0]
+        _require(
+            isinstance(run_summary_check, Mapping),
+            "run show check result is not an object",
+        )
+        _require_exact_keys(
+            run_summary_check,
+            {"exit_code", "name", "passed", "required", "timed_out"},
+            "run show check result",
+        )
+        _require(
+            run_summary_check
+            == {
+                "exit_code": 0,
+                "name": "installed-cli-smoke",
+                "passed": True,
+                "required": True,
+                "timed_out": False,
+            },
+            "run show returned an unexpected check result",
+        )
+        _require(
+            _directory_file_bytes(repository / ".harness")
+            == harness_bytes_before_run_show,
+            "run show changed persisted Harness artifacts",
+        )
         verification = _read_json_object(
             evidence_path / "verification.json",
             "verification.json",
@@ -255,6 +328,11 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
             isinstance(bundle_manifest.get("source_evidence_sha256"), str)
             and isinstance(bundle_manifest.get("bundle_sha256"), str),
             "bundle manifest is missing its Evidence or bundle digest",
+        )
+        _require(
+            run_summary.get("evidence_sha256")
+            == bundle_manifest.get("source_evidence_sha256"),
+            "run show and bundle disagree on the validated Evidence digest",
         )
         _require(
             bundle_result.get("bundle_sha256")
@@ -384,6 +462,7 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
             "lifecycle": [
                 "task create",
                 "verify",
+                "run show",
                 "verifier bundle",
                 "verifier record",
                 "verifier show",
@@ -453,6 +532,14 @@ def _read_json_object(path: Path, description: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise InstalledCliSmokeError(f"{description} must be a JSON object")
     return value
+
+
+def _directory_file_bytes(root: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and not path.is_symlink()
+    }
 
 
 def _required_string(

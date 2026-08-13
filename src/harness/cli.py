@@ -12,8 +12,12 @@ from .bundle import BundleError, BundleEvidenceError, create_verification_bundle
 from .evidence import CompletionError, EvidenceRepositoryError, complete_task, verify_task
 from .exit_codes import ExitCode
 from .gitdiff import GitDiffError, GitDiffTaskError
+from .run_validator import RunEvidenceError, ValidatedRun, validate_run
 from .task import TaskError, TaskRepositoryError, create_task, show_task
 from .verdict import VerdictError, VerdictEvidenceError, record_verdict, show_verdict
+
+
+_VALIDATED_RUN_SUMMARY_SCHEMA_VERSION = 1
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -46,6 +50,21 @@ def build_parser() -> argparse.ArgumentParser:
         "verify", help="run Task checks and write mechanical verification evidence"
     )
     verify_parser.add_argument("task_id", metavar="TASK_ID")
+
+    run_parser = commands.add_parser(
+        "run", help="inspect validated stored Run state"
+    )
+    run_commands = run_parser.add_subparsers(dest="run_command", required=True)
+    run_show_parser = run_commands.add_parser(
+        "show", help="print an integrity-validated stored Run summary"
+    )
+    run_show_parser.add_argument("task_id", metavar="TASK_ID")
+    run_show_parser.add_argument(
+        "--run-id",
+        metavar="RUN_ID",
+        required=True,
+        help="explicit verification run id to inspect; latest-run selection is unsupported",
+    )
 
     verifier_parser = commands.add_parser(
         "verifier", help="record, inspect, or prepare independent verifier evidence"
@@ -132,6 +151,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                     sort_keys=True,
                 )
             )
+        elif arguments.command == "run" and arguments.run_command == "show":
+            validated_run = validate_run(arguments.task_id, arguments.run_id)
+            print(
+                json.dumps(
+                    _validated_run_summary(validated_run),
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
         elif arguments.command == "verifier" and arguments.verifier_command == "record":
             record = record_verdict(
                 arguments.task_id,
@@ -204,6 +233,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _exit_code_for(error: TaskError | GitDiffError | BundleError | VerdictError) -> int:
     """Return the documented stable exit code for a handled command error."""
+    if isinstance(error, RunEvidenceError):
+        return int(ExitCode.EVIDENCE_MISSING_OR_CORRUPT)
     if isinstance(error, CompletionError):
         return int(error.exit_code)
     if isinstance(error, BundleEvidenceError):
@@ -217,3 +248,40 @@ def _exit_code_for(error: TaskError | GitDiffError | BundleError | VerdictError)
     if isinstance(error, GitDiffError):
         return int(ExitCode.GIT_OR_REPOSITORY_ERROR)
     return int(ExitCode.INVALID_INPUT_OR_SCHEMA)
+
+
+def _validated_run_summary(validated_run: ValidatedRun) -> dict[str, object]:
+    """Project one canonically validated Run into the public read-only view."""
+    scope_violations = validated_run.verification["scope_violations"]
+    assert isinstance(scope_violations, list)
+    return {
+        "schema_version": _VALIDATED_RUN_SUMMARY_SCHEMA_VERSION,
+        "task_id": validated_run.task_id,
+        "run_id": validated_run.run_id,
+        "evidence_sha256": validated_run.evidence_sha256,
+        "mechanical_result": validated_run.mechanical_result,
+        "scope_pass": validated_run.scope_pass,
+        "scope_violations": [
+            {
+                "source": violation["source"],
+                "status": violation["status"],
+                "path": violation["path"],
+                "previous_path": violation["previous_path"],
+            }
+            for violation in scope_violations
+        ],
+        "required_checks_pass": validated_run.required_checks_pass,
+        "source_stable_during_checks": (
+            validated_run.source_stable_during_checks
+        ),
+        "checks": [
+            {
+                "name": record["name"],
+                "required": record["required"],
+                "passed": record["passed"],
+                "timed_out": record["timed_out"],
+                "exit_code": record["exit_code"],
+            }
+            for record in validated_run.check_records
+        ],
+    }

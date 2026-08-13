@@ -1,7 +1,8 @@
 # Harness architecture
 
-This document describes the `0.2.x` Core, which supports source-bound
-verification Evidence v2 only. See
+This document describes the `0.3.0.dev0` Core development line, which retains
+source-bound verification Evidence v2 only. The latest published release is
+`v0.2.1`. See
 [Migrating verification Evidence to v0.2](migration-v0.2.md) for historical
 v0.1.x Evidence.
 
@@ -15,14 +16,15 @@ credential-enforcement layer.
 | Task | Validate a Task Spec, resolve named checks, and save the Task snapshot and full Git baseline |
 | Verify | Collect S0, execute saved checks, collect S1, record Git changes and logs, and write Evidence v2 |
 | `validate_run()` | Validate one stored Task/run pair, its S0/S1 documents, and its raw-byte Run Manifest |
+| Run Summary | Project one `ValidatedRun` into transient machine-readable state without a transition |
 | Bundle | Export a limited portable view of a validated Run without rerunning it |
 | Verdict | Validate and preserve a user-provided Manual Verdict for a validated Run |
 | Complete | Validate the Run and Verdict, collect S2, enforce source binding, and apply completion policy |
 | Adapter | Invoke the Core CLI as a subprocess and relay documented stdout, stderr, and exit codes |
 
-`validate_run()` is the only public authority for stored Run integrity. Bundle,
-Verdict, and completion consumers do not reconstruct or partially validate the
-stored Evidence contract themselves.
+`validate_run()` is the only public authority for stored Run integrity. Run
+Summary, Bundle, Verdict, and completion consumers do not reconstruct or
+partially validate the stored Evidence contract themselves.
 
 ## Core modules
 
@@ -41,7 +43,7 @@ stored Evidence contract themselves.
 | `harness.verdict` | Manual Verdict record and retrieval |
 | `harness._source_binding` | Completion-time S2 collection and S0/S1/S2 comparison |
 | `harness._completion` | Completion policy and completion record |
-| `harness.cli` | Stable command, JSON stdout, stderr, and exit-code mapping |
+| `harness.cli` | Stable command, JSON stdout, stderr, exit-code mapping, and the private transient Run Summary projection |
 
 `schemas/verdict.schema.json` and `prompts/verifier.md` are canonical human-facing
 contracts. Their mirrors in `src/harness/resources` are packaged, and
@@ -59,6 +61,7 @@ Task snapshot + full baseline commit
 harness verify: collect S0 → run checks → collect S1
    ▼
 Stored Evidence v2
+   ├── run show: validate once → transient stored-state JSON
    ├── optional verifier bundle export
    ├── optional user-provided Manual Verdict record/show
    └── explicit complete: validate → collect S2 → source gates → policy gates
@@ -68,8 +71,14 @@ The saved Evidence Run is the end of the minimum default flow. Bundle export,
 Verdict operations, and completion evaluation happen only when explicitly
 requested.
 
+`run show` is a state-only branch. It requires an explicit Task ID and Run ID,
+calls `validate_run()` once, and projects only the returned immutable snapshot.
+It does not write an artifact, rerun checks, collect current S2, read Verdict or
+completion records, evaluate completion eligibility, select a latest Run, or
+recommend a transition.
+
 `verify` uses only the baseline saved in the Task snapshot. The former
-Run-level baseline override is not part of the v0.2 contract.
+Run-level baseline override is not part of the current contract.
 
 ## Evidence v2
 
@@ -101,7 +110,9 @@ and are not mechanical Run files.
 
 Missing, malformed, tampered, contradictory, or unsupported stored Evidence is
 exit 8. Failed checks, timeouts, Scope violations, and source instability are
-validly recorded failed outcomes rather than corrupt Evidence.
+validly recorded failed outcomes rather than corrupt Evidence. Accordingly,
+`run show` returns exit 0 for those valid failed Runs and represents the state
+in its JSON envelope; it returns no envelope for corrupt Evidence.
 
 ## Source binding and completion
 

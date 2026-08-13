@@ -1,9 +1,9 @@
 # Harness Adapter CLI Contract
 
-This document defines the public contract for a thin adapter, including the
-Codex Plugin, when invoking Harness Core `0.2.x` as a subprocess. An adapter
-must not import the Core Python package; it uses only the CLI and stdout JSON
-described below.
+This document defines the public subprocess contract for a thin adapter. The
+current Core development line is `0.3.0.dev0`; the latest published Core and
+Codex Plugin remain `v0.2.1`. An adapter must not import the Core Python
+package. It uses only the CLI and stdout JSON described below.
 
 ## Public CLI
 
@@ -13,16 +13,21 @@ described below.
 | `harness task create` | `--file <TASK_JSON>` |
 | `harness task show` | `<TASK_ID>` |
 | `harness verify` | `<TASK_ID>` |
+| `harness run show` | `<TASK_ID> --run-id <RUN_ID>` |
 | `harness verifier bundle` | `<TASK_ID> --run-id <RUN_ID> --output <DIR>` |
 | `harness verifier record` | `<TASK_ID> --run-id <RUN_ID> --file <VERDICT_JSON>` |
 | `harness verifier show` | `<TASK_ID> --run-id <RUN_ID>` |
 | `harness complete` | `<TASK_ID> --run-id <RUN_ID>` |
 
-Core `0.2.x` does not support `verify --base-ref`, a hidden alias, or an
+Core does not support `verify --base-ref`, a hidden alias, or an
 environment fallback. Supplying `--base-ref` is invalid argparse input and
 returns exit 2. Verification always uses the full baseline commit saved in the
 Task snapshot. Task baseline revision and CI-specific base/head selection are
 separate, unsupported concerns.
+
+`run show` is new in Core `0.3.0.dev0`. It requires both identities and never
+selects a latest Run. It is a read-only state query, not a lifecycle
+transition.
 
 ## Success stdout
 
@@ -33,12 +38,68 @@ Except for `--version` and `--help`, successful stdout from every command above 
 | `task create` | `schema_version`, `id`, `type`, `objective`, `scope`, `checks`, `risk`, `verifier`, `baseline` |
 | `task show` | `schema_version`, `id`, `type`, `objective`, `scope`, `checks`, `risk`, `verifier`, `baseline` |
 | `verify` | `run_id`, `evidence_path` |
+| `run show` | `schema_version`, `task_id`, `run_id`, `evidence_sha256`, `mechanical_result`, `scope_pass`, `scope_violations`, `required_checks_pass`, `source_stable_during_checks`, `checks` |
 | `verifier bundle` | `task_id`, `run_id`, `bundle_path`, `manifest_path`, `total_size_bytes`, `bundle_sha256` |
 | `verifier record` | `task_id`, `run_id`, `raw_verdict_path`, `verdict_path` |
 | `verifier show` | `schema_version`, `task_id`, `run_id`, `verifier`, `verdict`, `summary`, `findings`, `reviewed_at` |
 | `complete` | `task_id`, `run_id`, `completion_path` |
 
 Path fields may contain local absolute paths in the repository where the command ran. An adapter must treat them as opaque local paths and must not reuse them on another host or in another repository.
+
+### Validated Run Summary v1
+
+The public envelope identifier is `validated-run-summary/v1`.
+
+Core `0.3.0.dev0` defines this exact transient success envelope for
+`harness run show <TASK_ID> --run-id <RUN_ID>`:
+
+```json
+{
+  "checks": [
+    {
+      "exit_code": 0,
+      "name": "unit-test",
+      "passed": true,
+      "required": true,
+      "timed_out": false
+    }
+  ],
+  "evidence_sha256": "<SHA256>",
+  "mechanical_result": "pass",
+  "required_checks_pass": true,
+  "run_id": "<RUN_ID>",
+  "schema_version": 1,
+  "scope_pass": true,
+  "scope_violations": [],
+  "source_stable_during_checks": true,
+  "task_id": "<TASK_ID>"
+}
+```
+
+Every check object has exactly `name`, `required`, `passed`, `timed_out`, and
+`exit_code`. The `checks` array contains every validated saved check in saved
+Task order. `exit_code` is an integer when the process produced one and `null`
+when the check process could not be started. Every Scope-violation object has
+exactly `source`, `status`, `path`, and `previous_path`; `previous_path` is
+`null` when there is no prior path. `scope_violations` retains the validated
+recorded order rather than being re-sorted or recomputed. JSON object ordering
+is not semantic. `schema_version` versions only this stdout envelope. It does
+not change Evidence v2, add a persisted artifact, or define a downloadable
+schema file.
+
+The fields expose the requested identity, the validated Run Manifest digest,
+and the stored mechanical state needed by a machine consumer. The envelope
+intentionally excludes local Evidence paths, Task objective and baseline,
+check argv and log contents, timestamps, Verdict and completion state, current
+source or S2, completion eligibility, next actions, and retry or repair advice.
+
+Core constructs the envelope only after one successful canonical
+`validate_run(task_id, run_id)` call. It does not read
+`verification.json` through a second interpretation path. A valid Run whose
+required check failed or timed out, whose Scope failed, or whose source changed
+during checks still returns exit 0 with those states represented in the JSON.
+Missing, malformed, contradictory, unsupported, or unsafe Evidence returns exit
+8 and no summary.
 
 ## stderr and exit codes
 
@@ -60,11 +121,22 @@ An adapter must not assume that a failed command returns partial success JSON. I
 
 The existing meanings of these numbers are a stable contract. See [Exit codes](exit-codes.md) for the detailed completion decision order.
 
+For `run show`, exit 0 means that stored Run integrity was validated and the
+summary was serialized; it does not mean `mechanical_result` is `pass` or that
+completion is allowed. Invalid arguments or Task/Run identity return exit 2,
+repository errors return exit 3, and missing, corrupt, unsupported, or unsafe
+Evidence returns exit 8. This state query does not use completion-policy exits
+4–7 or 9. On success stderr is empty. On a handled error stdout is empty and
+stderr is exactly the normal `error: <message>` diagnostic stream; argparse
+usage errors retain argparse's usage/error format on stderr.
+
 ## Public read-only artifacts
 
-An adapter's default boundary is the CLI and JSON. It may use the following
-v0.2.x read-only artifact surface only when it needs to display or archive
-Evidence. An adapter must not create or modify these files.
+An adapter's default boundary is the CLI and JSON. In Core `0.3.0.dev0`, an
+adapter that needs mechanical Run state uses `run show` rather than interpreting
+`verification.json`. It may use the following unchanged Evidence v2 read-only
+artifact surface only when it needs to display or archive Evidence. An adapter
+must not create or modify these files.
 
 | Location | Documented purpose and fields |
 | --- | --- |
@@ -92,8 +164,8 @@ files directly from the filesystem.
 
 A direct artifact read is not a Core-validated Run result. An adapter may
 archive or inspect a documented artifact, but its contents must not drive
-lifecycle decisions or completion claims. Core consumers such as bundle,
-Verdict, and completion operations call the canonical stored-Run validator.
+lifecycle decisions or completion claims. `run show`, bundle, Verdict, and
+completion operations all call the canonical stored-Run validator.
 
 ## Managed adapter lifecycle
 
@@ -162,11 +234,13 @@ Evidence directory, or persist its own lifecycle state. A later or new
 conversation requires explicit identities.
 
 A nonzero command result stops the covered sequence. Partial stdout is not a
-result. After successful Evidence recording, Core `0.2.x` public `verify`
-stdout supplies only `run_id` and `evidence_path`; it does not expose an
-integrity-validated mechanical summary. The adapter reports that exact identity
-and must not read raw Evidence to choose the next operation. It branches only
-on the adopted saved `verifier.required` profile.
+result. Successful public `verify` stdout continues to supply exactly `run_id`
+and `evidence_path`; extending it would break the published adapter contract
+and mix Evidence recording with a state query. A Core `0.3.0.dev0` adapter may
+subsequently issue the explicit read-only `run show` command for the returned
+identity. The published `v0.2.1` Codex Plugin does not adopt that command in
+this Core slice and retains routing on the saved `verifier.required` profile.
+Neither adapter may read raw Evidence to choose a lifecycle operation.
 
 Every nonzero stop and every successful pause or handoff includes a
 compact failure or handoff capsule before raw diagnostics. A failure capsule
@@ -227,6 +301,6 @@ An adapter must not depend on any of the following:
 
 This separation keeps Core's responsibility for deterministic local Evidence
 distinct from an adapter's UI, model, network, credential, and retry policies.
-Harness Core `0.2.x` does not call model APIs or external verifier CLIs.
+Harness Core does not call model APIs or external verifier CLIs.
 See [Migrating verification Evidence to v0.2](migration-v0.2.md) for the
 historical Evidence boundary.

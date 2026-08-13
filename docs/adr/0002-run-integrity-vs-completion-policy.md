@@ -23,7 +23,7 @@ A failed work result and damaged Evidence are also distinct states. Even when a 
 
 ## Consequences
 
-When stored Evidence is damaged, every consumer rejects it at the same canonical error boundary. Conversely, a mechanically failed Run is preserved as input to an external review bundle and an independent Manual Verdict. Public CLI commands and existing exit-code numbers do not change; only `complete` expresses completion policy for a valid Run through exits 4–7 and 9.
+When stored Evidence is damaged, every consumer rejects it at the same canonical error boundary. Conversely, a mechanically failed Run is preserved as input to an external review bundle and an independent Manual Verdict. The original v0.2 consumer commands and existing exit-code numbers do not change; only `complete` expresses completion policy for a valid Run through exits 4–7 and 9.
 
 The log accessor does not rerun `validate_run()`, recompute the Run Manifest, or make local files immutable. A log that has become missing, unreadable, non-regular, or an external symlink escape after validation raises `RunEvidenceError`; the checks are best-effort access-time confinement, not a filesystem lock or a race-free descriptor protocol. Other same-user filesystem mutation remains within the local-storage limitations below.
 
@@ -42,3 +42,28 @@ This decision does not make the local filesystem immutable storage. ADR 0003 sub
 versioned persisted S0/S1 validation while keeping `validate_run()` limited to
 stored Evidence. Current-source S2 collection remains a separate completion-time
 policy step.
+
+## Read-only Run Summary amendment
+
+Core `0.3.0.dev0` adds
+`harness run show <TASK_ID> --run-id <RUN_ID>` as a separate read-only consumer
+of this authority. The command calls `validate_run()` once and projects only
+the returned immutable `ValidatedRun` into the transient
+`validated-run-summary/v1` stdout envelope. It does not add a persisted
+artifact or Evidence schema, and it does not inspect `verification.json`
+through another interpretation path.
+
+A valid failed Run returns exit 0 with its check, timeout, Scope, and S0/S1
+state represented in the envelope. Missing, corrupt, contradictory,
+unsupported, or unsafe Evidence returns exit 8 and no envelope. Invalid
+identity remains exit 2 and repository failure remains exit 3. Because the
+command exposes stored state rather than applying completion policy, it does
+not use exits 4–7 or 9 for valid Runs.
+
+Extending `verify` stdout was rejected because its exact identity-only JSON is
+already public and `verify` is a write transition. A Python-only API was
+rejected because subprocess adapters do not import Core. Direct raw Evidence
+interpretation was rejected because it would create a second stored-Run
+authority. Latest-Run selection, S2 collection, Verdict or completion lookup,
+reviewer invocation, retry, repair, and next-action advice remain outside this
+consumer.

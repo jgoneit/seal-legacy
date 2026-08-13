@@ -13,6 +13,10 @@ Evidence v2만 지원하며, 과거 v0.1.x Evidence를 in-place upgrade하지 �
 자세한 내용은 [v0.2 verification Evidence migration](docs/migration-v0.2.md)을
 참고하세요.
 
+현재 repository는 Core `0.3.0.dev0` development line을 엽니다. 첫 변경은 읽기
+전용 integrity-validated Run Summary 명령이며, published `v0.2.1` Plugin과
+release artifact는 변경하지 않습니다.
+
 ## Harness의 역할
 
 Harness는 다음 질문에 답할 근거를 남깁니다.
@@ -279,6 +283,23 @@ Evidence를 안전하게 기록했다면 `verify`는 성공할 수 있습니다.
 
 `verify --base-ref`는 지원하지 않습니다. Verification은 saved Task snapshot의
 full baseline만 사용합니다.
+
+#### Core 0.3 development: 검증된 Run 상태 조회
+
+`0.3.0.dev0` development line에서는 raw `verification.json`을 직접 읽지 않고
+정확한 stored Run 하나를 조회할 수 있습니다.
+
+```bash
+harness run show TASK-001 --run-id <RUN_ID>
+```
+
+명령은 [Adapter CLI Contract](docs/adapter-contract.md)에 정의한 exact
+`validated-run-summary/v1` envelope를 반환합니다. Canonical stored-Run
+validator를 호출할 뿐 파일을 쓰거나 lifecycle transition을 수행하지 않고,
+latest Run도 추론하지 않습니다. 구조적으로 유효한 failed Run은 실패 상태를
+JSON에 담아 exit 0으로 반환하고, missing/corrupt Evidence는 exit 8입니다. Check
+재실행, S2 수집, Verdict/completion 상태 조회, reviewer 호출, retry, repair, next
+action 추천은 수행하지 않습니다.
 
 ### 고급 및 복구 작업
 

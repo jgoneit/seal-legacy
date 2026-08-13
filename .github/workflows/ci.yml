@@ -27,7 +27,7 @@ jobs:
           "$RUNNER_TEMP/clean-install/bin/python" -m pip install "$RUNNER_TEMP"/wheels/outcome_harness-*.whl
           cd "$RUNNER_TEMP"
           "$RUNNER_TEMP/clean-install/bin/harness" --help
-          test "$("$RUNNER_TEMP/clean-install/bin/harness" --version)" = "0.2.1"
+          test "$("$RUNNER_TEMP/clean-install/bin/harness" --version)" = "0.3.0.dev0"
           "$RUNNER_TEMP/clean-install/bin/python" -c "import harness; print(harness.__version__)"
           "$RUNNER_TEMP/clean-install/bin/python" -c "from harness.run_validator import validate_run; print(validate_run)"
           "$RUNNER_TEMP/clean-install/bin/python" -c "from harness.verdict_validator import validate_verdict; print(validate_verdict)"
