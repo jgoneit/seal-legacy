@@ -1,6 +1,6 @@
 interface:
-  display_name: "Harness Complete"
+  display_name: "Seal Complete"
   short_description: "Evaluate explicit completion"
-  default_prompt: "$harness:complete 지정한 Task와 Run의 완료를 평가해줘"
+  default_prompt: "$seal:complete 지정한 Task와 Run의 완료를 평가해줘"
 policy:
   allow_implicit_invocation: false

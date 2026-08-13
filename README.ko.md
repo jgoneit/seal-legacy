@@ -1,25 +1,27 @@
-# Harness
+# Seal
 
 Language: [English](README.md) | 한국어
 
-> **Agent의 작업 방식을 통제하지 않고, 완료 주장이 Evidence로 뒷받침되는지
-> 검증합니다.**
+> **Evidence-backed completion for coding agents**
 
-Harness는 Task snapshot, product 변경, check 결과, source identity를 검토 가능한
-Evidence Run으로 저장하는 실험적 로컬 CLI입니다.
+Seal은 public Outcome Harness Core CLI 위의 선택적 Codex Plugin입니다.
+`Seal Plugin → public harness subprocess CLI → Outcome Harness Core` 계층을
+사용합니다. Outcome Harness Core는 Task snapshot, product 변경, check 결과,
+source identity를 검토 가능한 Evidence Run으로 저장하는 실험적 로컬 CLI입니다.
 
-최신 Experimental release는 `v0.2.1`입니다. Source-bound verification
-Evidence v2만 지원하며, 과거 v0.1.x Evidence를 in-place upgrade하지 않습니다.
+최신 Outcome Harness Core Experimental release는 `v0.2.1`입니다. Source-bound
+verification Evidence v2만 지원하며, 과거 v0.1.x Evidence를 in-place upgrade하지 않습니다.
 자세한 내용은 [v0.2 verification Evidence migration](docs/migration-v0.2.md)을
 참고하세요.
 
 현재 repository는 Core `0.3.0.dev0` development line을 엽니다. 첫 변경은 읽기
-전용 integrity-validated Run Summary 명령이며, published `v0.2.1` Plugin과
-release artifact는 변경하지 않습니다.
+전용 integrity-validated Run Summary 명령입니다. 이번 branding-only development
+변경은 current source Plugin을 Seal로 rename하면서 manifest version `0.2.1`을
+유지하며, historical `v0.2.1` Plugin과 release artifact는 변경하지 않습니다.
 
-## Harness의 역할
+## Outcome Harness Core의 역할
 
-Harness는 다음 질문에 답할 근거를 남깁니다.
+Outcome Harness Core는 다음 질문에 답할 근거를 남깁니다.
 
 > 저장된 Run이 현재 product source의 Task 완료 주장을 뒷받침하는가?
 
@@ -33,9 +35,9 @@ Harness는 다음 질문에 답할 근거를 남깁니다.
 - 선택적인 사용자 제공 Manual Verdict
 - 명시적인 completion policy 결과
 
-Harness는 tool을 가로채거나 구현 방식을 제한하지 않습니다. 모델 또는 external
-verifier를 호출하지 않고, 코드를 자동 수리하지 않으며, immutable storage를
-제공하지 않습니다.
+Outcome Harness Core는 tool을 가로채거나 구현 방식을 제한하지 않습니다. 모델
+또는 external verifier를 호출하지 않고, 코드를 자동 수리하지 않으며, immutable
+storage를 제공하지 않습니다.
 
 ## Core CLI workflow
 
@@ -66,24 +68,24 @@ harness verify: S0 → checks → S1
   `complete`에는 별도로 준비된 blocker 없는 `pass` Manual Verdict도
   필요합니다.
 
-Harness는 reviewer를 선택하거나 실행하지 않습니다. Bundle export는 검토를
-위한 historical Evidence만 준비합니다.
+Outcome Harness Core는 reviewer를 선택하거나 실행하지 않습니다. Bundle export는
+검토를 위한 historical Evidence만 준비합니다.
 
-## Codex Plugin 관리형 workflow
+## Seal Codex Plugin 관리형 workflow
 
-위 Core CLI는 계속 명시적이고 서로 독립적인 작업 집합입니다. Codex Plugin은
-literal 관리형 요청이나, 선택한 `@Harness` Plugin에 실행 가능한 coding outcome을
+위 Core CLI는 계속 명시적이고 서로 독립적인 작업 집합입니다. Seal Plugin은
+literal 관리형 요청이나, 선택한 `@Seal` Plugin에 실행 가능한 coding outcome을
 보낸 경우 같은 대화 안에서 UX를 연결합니다.
 
 ```text
-$harness Swagger/OpenAPI를 도입하고 한글 API 설명까지 검증해줘
+$seal Swagger/OpenAPI를 도입하고 한글 API 설명까지 검증해줘
 
-@Harness 선택: Swagger/OpenAPI를 도입하고 한글 API 설명까지 검증해줘
+@Seal 선택: Swagger/OpenAPI를 도입하고 한글 API 설명까지 검증해줘
 ```
 
 두 진입 방식 모두 실행 가능한 coding outcome이 있어야 합니다. 진입 방식과
 무관하게 Plugin 선택만 한 경우와 토론, 설명, 계획, 감사, 리뷰, 상태 확인 요청은
-Core를 시작하지 않고 답변합니다. 선택하지 않은 일반 coding 작업도 Harness를
+Core를 시작하지 않고 답변합니다. 선택하지 않은 일반 coding 작업도 Seal을
 활성화하지 않습니다.
 
 관리형 응답은 간결한 mode와 status 요약을 먼저 보여줍니다. 전체 Task JSON과
@@ -95,7 +97,7 @@ confirmation`, `Local records`를 구분해 승인 경계를 먼저 확인할 �
 | `Mode: Analysis only` | Core를 시작하지 않음 |
 | `Status: Core unavailable` | 관리형 요청은 인식됐지만 호환 Core CLI를 사용할 수 없음 |
 | `Status: Evidence recorded` | `verify`가 Run을 기록함. check 통과나 completion 결과는 아님 |
-| `Status: Harness stopped` | 단계가 실패하거나 차단됐으며 자동 수리나 재시도를 하지 않음 |
+| `Status: Seal stopped` | 단계가 실패하거나 차단됐으며 자동 수리나 재시도를 하지 않음 |
 | `Status: Review handoff ready` | Reviewed-profile bundle을 export했으며 reviewer나 Verdict 작업은 실행하지 않음 |
 
 이 표시는 대화 표현일 뿐이며, persisted workflow state를 추가하거나 Core 권한을
@@ -117,7 +119,7 @@ Plugin은 다음 순서로 동작합니다.
    같은 repository root에 bind한 뒤 그 Evidence identity를 보고합니다. 그다음
    adopted saved Task profile만 사용해 분기합니다. Basic profile은 정확한
    `complete` command를 보여주고 최종 확인을 요청하며, reviewed profile은 승인된
-   local bundle을 한 번 export하고 독립적으로 준비된 Verdict를 기다립니다.
+   local bundle을 한 번 export하고 별도로 준비된 Verdict를 기다립니다.
 5. 별도로 제공된 Verdict는 명시적 요청에서만 기록하고, `complete` 직전에는 별도의
    최종 확인을 요청합니다. 같은 대화에서는 보존한 ID를 다시 복사할 필요가 없습니다.
 
@@ -127,7 +129,7 @@ Task 생성, 구현, 최초 verification, 해당하는 reviewed profile의 local
 `complete`를 승인하거나 일반 Codex permission prompt를 대신하지 않습니다.
 Plugin이 직접 요청한 pending 확인에 대한
 명확한 답변은 같은 workflow를 재개할 수 있지만, 무관한 승인과 일반 coding
-요청에서는 Harness가 활성화되지 않습니다.
+요청에서는 Seal이 활성화되지 않습니다.
 
 Task 생성, verification, bundle, Verdict 기록, completion 중 하나가 실패하면 관리형
 흐름은 중단합니다. Source를 자동 수리하거나 Evidence를 교체하고 alternate path를
@@ -147,17 +149,17 @@ Verdict를 expected output으로 표시하고, 보존한 identity를 재개할 �
 복구 및 고급 작업에는 저수준 Skill을 escape hatch로 사용합니다.
 
 ```text
-$harness:task      Task 하나를 생성하거나 조회
-$harness:verify    verification Run 하나를 기록
-$harness:bundle    정확한 Task와 Run 하나를 export
-$harness:complete  최종 확인 후 정확한 Task와 Run 하나를 평가
+$seal:task      Task 하나를 생성하거나 조회
+$seal:verify    verification Run 하나를 기록
+$seal:bundle    정확한 Task와 Run 하나를 export
+$seal:complete  최종 확인 후 정확한 Task와 Run 하나를 평가
 ```
 
 각 저수준 Skill은 explicit-only입니다. Task 채택, ID, path, confirmation이
 부족해 후속 요청이 필요하면 같은 namespaced invocation을 다시 포함해야 하며,
 tag 없는 답변은 escape hatch를 활성화하지 않습니다.
 
-`$harness:bundle`에서 output path를 생략하면 Plugin이 confirmed target repository
+`$seal:bundle`에서 output path를 생략하면 Plugin이 confirmed target repository
 밖의 final directory가 존재하지 않는 unique absolute path를 선택하고, Core의 필수
 `--output` argument로 전달합니다.
 
@@ -180,7 +182,7 @@ Verdict JSON을 파일로 만들 때도 repository 밖의 temporary file을 사�
 
 ```bash
 python3 -m pip install \
-  "git+https://github.com/jgoneit/harness.git@v0.2.1"
+  "git+https://github.com/jgoneit/seal.git@v0.2.1"
 harness --version
 ```
 
@@ -194,17 +196,17 @@ Release artifact 이름은 `outcome_harness-0.2.1-py3-none-any.whl`과
 - Python 3.11 이상
 - Git
 
-Python distribution 이름은 `outcome-harness`, console command와 Codex Plugin
-이름은 `harness`입니다.
+Python distribution 이름은 `outcome-harness`, console command는 `harness`,
+current Codex Plugin 이름은 `seal`입니다.
 
 ### Codex Plugin
 
-여기서 설명하는 관리형 Plugin workflow는 `v0.2.1`에 포함됩니다. 이 checkout을
-가리키는 personal marketplace entry에서는 Core package와 별도로 Plugin을
-설치하거나 갱신합니다.
+이번 branding-only development 변경에서도 source Plugin manifest는 `0.2.1`을
+유지하며 새 release를 뜻하지 않습니다. 이 checkout을 가리키는 personal
+marketplace entry에서는 Core package와 별도로 Plugin을 설치하거나 갱신합니다.
 
 ```bash
-codex plugin add harness@personal
+codex plugin add seal@personal
 ```
 
 Codex는 Plugin content를 cache합니다. 설치 또는 갱신 후 refreshed Skill과
@@ -379,6 +381,8 @@ source-bound completion claim에는 v0.2.x CLI로 새 Evidence v2 Run을 생성�
 
 ## Trust와 security 경계
 
+- Seal은 Plugin branding이며 signature, remote attestation, immutable 또는
+  tamper-proof store, non-repudiation 보장, external trust anchor가 아닙니다.
 - Run Manifest는 mechanical file의 raw-byte size와 SHA-256으로 누락·변경을
   탐지합니다. Signature가 아니며, local user가 Evidence와 manifest를 함께
   다시 쓰는 상황을 방어하지 않습니다.
@@ -415,7 +419,7 @@ resource도 확인합니다.
 
 - [Architecture](docs/architecture.md)
 - [Adapter CLI contract](docs/adapter-contract.md)
-- [Harness Codex UI smoke](docs/harness-ui-smoke.md)
+- [Seal Codex UI smoke](docs/seal-ui-smoke.md)
 - [Exit codes](docs/exit-codes.md)
 - [Credential boundary](docs/credential-boundary.md)
 - [v0.2 Evidence migration](docs/migration-v0.2.md)

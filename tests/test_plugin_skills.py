@@ -1,4 +1,4 @@
-"""Contract coverage for the Harness Codex Plugin skills."""
+"""Contract coverage for the Seal Codex Plugin skills."""
 
 from __future__ import annotations
 
@@ -12,11 +12,11 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SKILLS_ROOT = REPOSITORY_ROOT / "skills"
 PLUGIN_MANIFEST = REPOSITORY_ROOT / ".codex-plugin" / "plugin.json"
 ADAPTER_CONTRACT = REPOSITORY_ROOT / "docs" / "adapter-contract.md"
-UI_SMOKE = REPOSITORY_ROOT / "docs" / "harness-ui-smoke.md"
+UI_SMOKE = REPOSITORY_ROOT / "docs" / "seal-ui-smoke.md"
 TASK_SCHEMA = REPOSITORY_ROOT / "schemas" / "task.schema.json"
 README = REPOSITORY_ROOT / "README.md"
 KOREAN_README = REPOSITORY_ROOT / "README.ko.md"
-EXPECTED_SKILLS = ("harness", "task", "verify", "bundle", "complete")
+EXPECTED_SKILLS = ("seal", "task", "verify", "bundle", "complete")
 
 
 def _skill_text(name: str) -> str:
@@ -49,21 +49,21 @@ class PluginSkillContractTests(unittest.TestCase):
 
                 self.assertEqual(_frontmatter_name(_skill_text(name)), name)
                 metadata = _agent_metadata(name)
-                expected_policy = "true" if name == "harness" else "false"
+                expected_policy = "true" if name == "seal" else "false"
                 self.assertIn(
                     f"policy:\n  allow_implicit_invocation: {expected_policy}",
                     metadata,
                 )
-                invocation = "$harness" if name == "harness" else f"$harness:{name}"
+                invocation = "$seal" if name == "seal" else f"$seal:{name}"
                 self.assertIn(invocation, metadata)
 
         self.assertIn(
             "unambiguous confirmation or resume reply in the same conversation",
-            _normalized(_skill_text("harness")),
+            _normalized(_skill_text("seal")),
         )
-        managed = _normalized(_skill_text("harness"))
+        managed = _normalized(_skill_text("seal"))
         self.assertIn(
-            "Start the managed workflow only when `$harness` or an explicitly selected `@Harness` Plugin is paired with an executable end-to-end coding outcome",
+            "Start the managed workflow only when `$seal` or an explicitly selected `@Seal` Plugin is paired with an executable end-to-end coding outcome",
             managed,
         )
         self.assertIn(
@@ -86,7 +86,7 @@ class PluginSkillContractTests(unittest.TestCase):
             with self.subTest(explicit_follow_up=name):
                 contents = _normalized(_skill_text(name))
                 self.assertIn(
-                    f"Ask the user to invoke `$harness:{name}` again",
+                    f"Ask the user to invoke `$seal:{name}` again",
                     contents,
                 )
                 self.assertIn(
@@ -95,10 +95,10 @@ class PluginSkillContractTests(unittest.TestCase):
                 )
 
     def test_managed_skill_defines_one_approved_initial_verification(self) -> None:
-        contents = _normalized(_skill_text("harness"))
+        contents = _normalized(_skill_text("seal"))
         required_fragments = (
-            "`$harness`",
-            "explicitly selected `@Harness` Plugin",
+            "`$seal`",
+            "explicitly selected `@Seal` Plugin",
             "one conversational confirmation",
             "Task creation, ordinary implementation, and the first `verify` exactly once",
             "first `verify` exactly once",
@@ -124,7 +124,7 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("docs", task_types)
 
         documents = {
-            "managed skill": _normalized(_skill_text("harness")),
+            "managed skill": _normalized(_skill_text("seal")),
             "task skill": _normalized(_skill_text("task")),
             "adapter contract": _normalized(
                 ADAPTER_CONTRACT.read_text(encoding="utf-8")
@@ -160,7 +160,7 @@ class PluginSkillContractTests(unittest.TestCase):
                 )
 
     def test_managed_skill_preserves_failure_and_review_boundaries(self) -> None:
-        contents = _normalized(_skill_text("harness"))
+        contents = _normalized(_skill_text("seal"))
         required_fragments = (
             "blocked or aborted",
             (
@@ -183,7 +183,7 @@ class PluginSkillContractTests(unittest.TestCase):
                 self.assertIn(fragment, contents)
 
     def test_verify_results_do_not_bypass_core_run_validation(self) -> None:
-        for name in ("harness", "verify"):
+        for name in ("seal", "verify"):
             with self.subTest(skill=name):
                 contents = _normalized(_skill_text(name))
                 self.assertIn(
@@ -196,7 +196,7 @@ class PluginSkillContractTests(unittest.TestCase):
                 )
                 self.assertIn("exact `run_id` and `evidence_path`", contents)
 
-        managed = _normalized(_skill_text("harness"))
+        managed = _normalized(_skill_text("seal"))
         self.assertIn(
             "do not inspect raw Evidence to choose the branch",
             managed,
@@ -213,7 +213,7 @@ class PluginSkillContractTests(unittest.TestCase):
         )
 
     def test_managed_profile_handoff_preserves_final_confirmation(self) -> None:
-        managed = _normalized(_skill_text("harness"))
+        managed = _normalized(_skill_text("seal"))
         required_fragments = (
             "When `verifier.required=false`, do not create a bundle",
             "continue immediately to the final completion confirmation",
@@ -232,7 +232,7 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("reviewed profile exports exactly one approved local bundle", contract)
 
     def test_managed_skill_leads_with_compact_user_facing_status(self) -> None:
-        managed = _normalized(_skill_text("harness"))
+        managed = _normalized(_skill_text("seal"))
         required_fragments = (
             "## User-facing presentation",
             "Mode: Analysis only",
@@ -264,7 +264,7 @@ class PluginSkillContractTests(unittest.TestCase):
             "Mode: Analysis only",
             "Status: Core unavailable",
             "Status: Evidence recorded",
-            "Status: Harness stopped",
+            "Status: Seal stopped",
             "Status: Review handoff ready",
             "Included in this confirmation",
             "Not included in this confirmation",
@@ -277,7 +277,7 @@ class PluginSkillContractTests(unittest.TestCase):
                     self.assertIn(label, contents)
 
     def test_analysis_and_core_unavailable_responses_have_exact_leads(self) -> None:
-        managed = _normalized(_skill_text("harness"))
+        managed = _normalized(_skill_text("seal"))
         start = managed.index("## User-facing presentation")
         end = managed.index("## Core boundary and preflight", start)
         presentation = managed[start:end]
@@ -306,7 +306,7 @@ class PluginSkillContractTests(unittest.TestCase):
                 self.assertIn(fragment, presentation)
 
     def test_first_adoption_presentation_has_one_explicit_block_order(self) -> None:
-        contents = _skill_text("harness")
+        contents = _skill_text("seal")
         start = contents.index("For every first-adoption response")
         end = contents.index("The three approval", start)
         section = _normalized(contents[start:end])
@@ -332,10 +332,10 @@ class PluginSkillContractTests(unittest.TestCase):
         )
 
     def test_managed_failures_and_review_handoffs_include_resume_capsules(self) -> None:
-        managed = _normalized(_skill_text("harness"))
+        managed = _normalized(_skill_text("seal"))
         required_fragments = (
             "## Report failures and handoffs",
-            "Status: Harness stopped",
+            "Status: Seal stopped",
             "Failure stage",
             "Preserved identity",
             "Not run",
@@ -353,7 +353,7 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("must not imply that a retry is authorized", contract)
 
     def test_managed_identity_is_bound_to_the_original_repository_root(self) -> None:
-        managed = _normalized(_skill_text("harness"))
+        managed = _normalized(_skill_text("seal"))
         required_fragments = (
             "canonical repository root",
             "Bind the exact Task ID",
@@ -405,7 +405,7 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("Core's required `--output` argument", contract)
 
     def test_bundle_success_is_not_reported_as_mechanical_pass(self) -> None:
-        for name in ("harness", "bundle"):
+        for name in ("seal", "bundle"):
             with self.subTest(skill=name):
                 contents = _normalized(_skill_text(name))
                 self.assertIn("bundle success does not mean", contents.lower())
@@ -419,7 +419,7 @@ class PluginSkillContractTests(unittest.TestCase):
         )
 
     def test_completion_prompt_does_not_infer_recorded_verdict_state(self) -> None:
-        managed = _normalized(_skill_text("harness"))
+        managed = _normalized(_skill_text("seal"))
         self.assertIn("saved Task's `verifier.required` setting", managed)
         self.assertIn(
             "Do not inspect or claim a recorded Verdict state unless the user separately requested `verifier show`",
@@ -433,7 +433,7 @@ class PluginSkillContractTests(unittest.TestCase):
         )
 
     def test_managed_completion_preserves_the_raw_core_process_result(self) -> None:
-        managed = _normalized(_skill_text("harness"))
+        managed = _normalized(_skill_text("seal"))
         start = managed.index("## Ask for final completion confirmation")
         end = managed.index("## Explicit single-operation mode", start)
         completion = managed[start:end]
@@ -463,7 +463,7 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
 
     def test_task_drafts_do_not_invent_optional_check_timeouts(self) -> None:
-        for name in ("harness", "task"):
+        for name in ("seal", "task"):
             with self.subTest(skill=name):
                 contents = _normalized(_skill_text(name))
                 self.assertIn("catalog-derived check preview", contents)
@@ -475,7 +475,7 @@ class PluginSkillContractTests(unittest.TestCase):
                 self.assertIn("do not infer a numeric default", contents)
 
     def test_verdict_input_does_not_mutate_verified_product_source(self) -> None:
-        contents = _normalized(_skill_text("harness"))
+        contents = _normalized(_skill_text("seal"))
         self.assertIn("Verdict input outside the target repository", contents)
         self.assertIn("inline Verdict JSON", contents)
         self.assertIn("Do not move or delete a repository-local Verdict", contents)
@@ -487,7 +487,7 @@ class PluginSkillContractTests(unittest.TestCase):
                 )
 
     def test_managed_creation_reconciles_the_approved_preview(self) -> None:
-        contents = _normalized(_skill_text("harness"))
+        contents = _normalized(_skill_text("seal"))
         required_fragments = (
             "saved baseline differs from the displayed HEAD",
             "saved Task fields differ from the approved draft",
@@ -511,7 +511,7 @@ class PluginSkillContractTests(unittest.TestCase):
         )
 
     def test_post_adoption_head_drift_is_reconciled_after_task_create(self) -> None:
-        managed = _normalized(_skill_text("harness"))
+        managed = _normalized(_skill_text("seal"))
         start = managed.index("## Create and carry the Task identity")
         end = managed.index("## Let the coding Agent implement", start)
         creation = managed[start:end]
@@ -551,7 +551,7 @@ class PluginSkillContractTests(unittest.TestCase):
             with self.subTest(document=document.name):
                 contents = document.read_text(encoding="utf-8")
                 self.assertIn("### Codex Plugin", contents)
-                self.assertIn("codex plugin add harness@personal", contents)
+                self.assertIn("codex plugin add seal@personal", contents)
                 self.assertIn(boundary, contents)
 
     def test_escape_hatches_name_only_their_core_operation(self) -> None:
@@ -577,20 +577,80 @@ class PluginSkillContractTests(unittest.TestCase):
         manifest = json.loads(PLUGIN_MANIFEST.read_text(encoding="utf-8"))
         interface = manifest["interface"]
 
+        self.assertEqual(manifest["name"], "seal")
+        self.assertEqual(manifest["version"], "0.2.1")
+        self.assertEqual(interface["displayName"], "Seal")
+        self.assertEqual(
+            interface["shortDescription"],
+            "Evidence-backed completion for coding agents",
+        )
+        self.assertEqual(manifest["homepage"], "https://github.com/jgoneit/seal")
+        self.assertEqual(manifest["repository"], "https://github.com/jgoneit/seal")
+        self.assertEqual(interface["websiteURL"], "https://github.com/jgoneit/seal")
         self.assertIn("managed", manifest["description"].lower())
         self.assertIn("managed", interface["longDescription"].lower())
         prompts = interface["defaultPrompt"]
         self.assertLessEqual(len(prompts), 3)
-        self.assertTrue(any(prompt.startswith("$harness ") for prompt in prompts))
-        self.assertTrue(any(not prompt.startswith("$harness") for prompt in prompts))
+        self.assertTrue(any(prompt.startswith("$seal ") for prompt in prompts))
+        self.assertTrue(any(not prompt.startswith("$seal") for prompt in prompts))
+
+    def test_current_plugin_surfaces_use_only_the_seal_identity(self) -> None:
+        current_surfaces = (
+            PLUGIN_MANIFEST,
+            README,
+            KOREAN_README,
+            ADAPTER_CONTRACT,
+            UI_SMOKE,
+            *(SKILLS_ROOT / name / "SKILL.md" for name in EXPECTED_SKILLS),
+            *(
+                SKILLS_ROOT / name / "agents" / "openai.yaml"
+                for name in EXPECTED_SKILLS
+            ),
+        )
+        forbidden = (
+            "$harness",
+            "@Harness",
+            "harness@personal",
+            "plugin://harness@personal",
+            "Status: Harness stopped",
+            "github.com/jgoneit/harness",
+        )
+        for surface in current_surfaces:
+            contents = surface.read_text(encoding="utf-8")
+            for phrase in forbidden:
+                with self.subTest(
+                    surface=surface.relative_to(REPOSITORY_ROOT),
+                    phrase=phrase,
+                ):
+                    self.assertNotIn(phrase, contents)
+
+        managed = _normalized(_skill_text("seal"))
+        self.assertIn(
+            "Seal Plugin → public `harness` subprocess CLI → Outcome Harness Core",
+            managed,
+        )
+        for document in (README, KOREAN_README):
+            contents = _normalized(document.read_text(encoding="utf-8"))
+            self.assertIn(
+                "Seal Plugin → public harness subprocess CLI → Outcome Harness Core",
+                contents,
+            )
+            for non_claim in (
+                "signature",
+                "remote attestation",
+                "tamper-proof",
+                "non-repudiation",
+                "external trust anchor",
+            ):
+                self.assertIn(non_claim, contents)
 
     def test_public_docs_separate_core_and_plugin_workflows(self) -> None:
         expected = (
-            (README, "## Core CLI workflow", "## Codex Plugin managed workflow"),
+            (README, "## Core CLI workflow", "## Seal Codex Plugin managed workflow"),
             (
                 KOREAN_README,
                 "## Core CLI workflow",
-                "## Codex Plugin 관리형 workflow",
+                "## Seal Codex Plugin 관리형 workflow",
             ),
         )
         for document, core_heading, plugin_heading in expected:
@@ -599,10 +659,10 @@ class PluginSkillContractTests(unittest.TestCase):
                 self.assertIn(core_heading, contents)
                 self.assertIn(plugin_heading, contents)
                 for invocation in (
-                    "$harness:task",
-                    "$harness:verify",
-                    "$harness:bundle",
-                    "$harness:complete",
+                    "$seal:task",
+                    "$seal:verify",
+                    "$seal:bundle",
+                    "$seal:complete",
                 ):
                     self.assertIn(invocation, contents)
 
@@ -619,7 +679,7 @@ class PluginSkillContractTests(unittest.TestCase):
             _normalized(KOREAN_README.read_text(encoding="utf-8")),
         )
         self.assertIn(
-            "selected `@Harness` Plugin",
+            "selected `@Seal` Plugin",
             _normalized(README.read_text(encoding="utf-8")),
         )
         self.assertIn(
@@ -627,7 +687,7 @@ class PluginSkillContractTests(unittest.TestCase):
             _normalized(README.read_text(encoding="utf-8")),
         )
         self.assertIn(
-            "선택한 `@Harness` Plugin",
+            "선택한 `@Seal` Plugin",
             _normalized(KOREAN_README.read_text(encoding="utf-8")),
         )
         self.assertIn(
@@ -662,7 +722,7 @@ class PluginSkillContractTests(unittest.TestCase):
             "does not run a reviewer",
             "regular-file setup is not removed or repaired",
             "does not run before a separate unambiguous final confirmation",
-            "Any `fail`, `blocked`, or `not run` result keeps the release gate open",
+            "Any `fail`, `blocked`, or `not run` result keeps that current-source acceptance gate open",
         )
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):
@@ -745,24 +805,26 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("accepted or refused by Core", completion)
 
         ordinary = scenario("UI-09 Ordinary unselected coding stays inactive")
-        self.assertIn("without selecting `@Harness` or any Harness Skill", ordinary)
+        self.assertIn("without selecting `@Seal` or any Seal Skill", ordinary)
         self.assertIn(
             'Append the exact line "Ordinary coding smoke fixture" to README.md only.',
             ordinary,
         )
         self.assertIn("tests routing rather than missing setup", ordinary)
-        self.assertIn("no Harness mode or status summary appears", ordinary)
+        self.assertIn("no Seal mode or status summary appears", ordinary)
         self.assertIn("including `Mode: Analysis only`", ordinary)
-        self.assertIn("no Harness-specific lifecycle language", ordinary)
-        self.assertIn("no Harness Core command runs", ordinary)
+        self.assertIn("no Seal-specific lifecycle language", ordinary)
+        self.assertIn("no Outcome Harness Core command runs", ordinary)
 
-        release = scenario("Release interpretation")
+        release = scenario("Current-source interpretation")
         self.assertIn("All nine required scenarios", release)
         self.assertIn("fresh Observed result of `pass`", release)
-        self.assertIn("creating the `v0.2.1` release tag", release)
+        self.assertIn("current Seal selected-Plugin", release)
+        self.assertIn("historical `v0.2.1` release evidence", release)
+        self.assertNotIn("creating the `v0.2.1` release tag", release)
 
-        self.assertIn("Harness Codex UI smoke", README.read_text(encoding="utf-8"))
-        self.assertIn("Harness Codex UI smoke", KOREAN_README.read_text(encoding="utf-8"))
+        self.assertIn("Seal Codex UI smoke", README.read_text(encoding="utf-8"))
+        self.assertIn("Seal Codex UI smoke", KOREAN_README.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

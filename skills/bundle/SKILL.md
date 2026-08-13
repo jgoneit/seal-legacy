@@ -1,13 +1,13 @@
 ---
 name: bundle
-description: Export one explicitly identified saved Task and Run as a portable verifier bundle. Use only when the user invokes $harness:bundle; do not execute a reviewer, create a Verdict, collect S2, or complete.
+description: Export one explicitly identified saved Task and Run as a portable verifier bundle. Use only when the user invokes $seal:bundle; do not execute a reviewer, create a Verdict, collect S2, or complete.
 ---
 
-# Harness Bundle escape hatch
+# Seal Bundle escape hatch
 
 Activate only for the namespaced invocation. If the exact Task ID, Run ID, or
 target repository is missing, stop this turn. Ask the user to invoke
-`$harness:bundle` again with the missing input; do not rely on an untagged reply.
+`$seal:bundle` again with the missing input; do not rely on an untagged reply.
 Perform only the requested Core operation. Require exact Task and Run IDs. Do
 not infer the latest Run or enter another lifecycle step.
 

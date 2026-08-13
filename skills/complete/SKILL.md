@@ -1,13 +1,13 @@
 ---
 name: complete
-description: Evaluate completion for one explicitly identified Harness Task and Run after final confirmation. Use only when the user invokes $harness:complete; never infer the latest Run or retry after failure.
+description: Evaluate completion for one explicitly identified Outcome Harness Core Task and Run after final confirmation. Use only when the user invokes $seal:complete; never infer the latest Run or retry after failure.
 ---
 
-# Harness Complete escape hatch
+# Seal Complete escape hatch
 
 Activate only for the namespaced invocation. If an exact ID or final
 confirmation is missing, stop this turn. Ask the user to invoke
-`$harness:complete` again with the missing ID or confirmation; do not rely on an
+`$seal:complete` again with the missing ID or confirmation; do not rely on an
 untagged reply.
 Perform only the requested Core operation. Require exact Task and Run IDs;
 never infer a latest identity. An invocation that names both IDs and explicitly

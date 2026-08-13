@@ -1,21 +1,21 @@
 ---
-name: harness
-description: Manage a Harness workflow for a coding outcome by drafting and adopting a Task, creating it, letting the coding Agent implement freely, running one pre-approved verification, preparing one conditional reviewed-profile bundle, and carrying the exact Evidence identity to a separately confirmed completion evaluation. Use only for an explicit $harness end-to-end request, an explicitly selected @Harness Plugin paired with an executable coding outcome, or an unambiguous confirmation or resume reply in the same conversation after this Skill requested it; never start Core for ordinary coding, discussion, planning, audit, review, or status requests.
+name: seal
+description: Manage a Seal Plugin workflow for a coding outcome by drafting and adopting a Task, creating it, letting the coding Agent implement freely, running one pre-approved verification, preparing one conditional reviewed-profile bundle, and carrying the exact Evidence identity to a separately confirmed completion evaluation. Use only for an explicit $seal end-to-end request, an explicitly selected @Seal Plugin paired with an executable coding outcome, or an unambiguous confirmation or resume reply in the same conversation after this Skill requested it; never start Core for ordinary coding, discussion, planning, audit, review, or status requests.
 ---
 
-# Harness managed workflow
+# Seal managed workflow
 
-This Skill orchestrates conversation UX over public Harness Core commands. Core
-remains the only authority for Task normalization, Evidence, Verdict validation,
-source binding, and completion. The workflow does not monitor or authorize
-implementation steps.
+This Skill implements the product hierarchy Seal Plugin → public `harness`
+subprocess CLI → Outcome Harness Core. Core remains the only authority for Task
+normalization, Evidence, Verdict validation, source binding, and completion.
+The workflow does not monitor or authorize implementation steps.
 
 ## Activation
 
-Start the managed workflow only when `$harness` or an explicitly selected
-`@Harness` Plugin is paired with an executable end-to-end coding outcome. The
+Start the managed workflow only when `$seal` or an explicitly selected
+`@Seal` Plugin is paired with an executable end-to-end coding outcome. The
 invocation form never overrides that outcome requirement: Plugin selection
-alone and Harness discussion, explanation, planning, audit, review, or status
+alone and Seal discussion, explanation, planning, audit, review, or status
 requests do not activate Core. An
 unambiguous direct reply to this Skill's own first or final confirmation, drift
 re-adoption or new-Task choice, or an explicit request to use the carried
@@ -31,7 +31,7 @@ separate from this conversational workflow.
 
 ## User-facing presentation
 
-Lead with a compact status summary before the contract detail. For a Harness
+Lead with a compact status summary before the contract detail. For a Seal
 discussion, explanation, plan, audit, review, or status request that does not
 activate Core, the first user-visible content, including any commentary or
 progress update, must begin exactly `Mode: Analysis only` and state that Core
@@ -220,7 +220,7 @@ instead of carrying them forward.
 
 ## Let the coding Agent implement
 
-Use normal coding-agent judgment, tools, tests, and iteration. Harness does not
+Use normal coding-agent judgment, tools, tests, and iteration. Seal does not
 prescribe tool order, implementation method, worktree strategy, or subagent
 topology. The one-Run limit applies to `harness verify`, not ordinary
 development tests.
@@ -233,7 +233,7 @@ whether to create a new Task.
 ## Verify exactly once
 
 When there is a completion candidate, repeat preflight and show the captured
-Task. Then run exactly once, without another Harness confirmation because the
+Task. Then run exactly once, without another Seal confirmation because the
 first confirmation covered it:
 
 ~~~bash
@@ -319,7 +319,7 @@ only when explicitly requested.
 For every blocked, aborted, or nonzero Core stop, lead with a compact failure
 summary before the raw stdout and stderr:
 
-- `Status: Harness stopped`;
+- `Status: Seal stopped`;
 - `Failure stage`: the operation that did not complete;
 - `Core result`: the exact command, exit code, and whether stdout or stderr was
   empty when a Core command ran, or `not run` plus the reason when none ran;

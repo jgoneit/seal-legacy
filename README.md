@@ -1,25 +1,29 @@
-# Harness
+# Seal
 
 Language: English | [한국어](README.ko.md)
 
-> **Verify whether a completion claim is supported by evidence, without
-> controlling how an Agent works.**
+> **Evidence-backed completion for coding agents**
 
-Harness is an experimental local CLI that saves a Task snapshot, product
-changes, check results, and source identity as a reviewable Evidence Run.
+Seal is an optional Codex Plugin over the public Outcome Harness Core CLI:
+`Seal Plugin → public harness subprocess CLI → Outcome Harness Core`.
+Outcome Harness Core is an experimental local CLI that saves a Task snapshot,
+product changes, check results, and source identity as a reviewable Evidence
+Run.
 
-The latest Experimental release is `v0.2.1`. It supports source-bound
-verification Evidence v2 only. Historical v0.1.x Evidence is not upgraded in
-place; see
+The latest Outcome Harness Core Experimental release is `v0.2.1`. It supports
+source-bound verification Evidence v2 only. Historical v0.1.x Evidence is not
+upgraded in place; see
 [Migrating verification Evidence to v0.2](docs/migration-v0.2.md).
 
 The current repository opens the Core `0.3.0.dev0` development line. Its first
-addition is a read-only, integrity-validated Run Summary command; the published
-`v0.2.1` Plugin and release artifacts remain unchanged.
+addition is a read-only, integrity-validated Run Summary command. This
+branding-only development change renames the current source Plugin to Seal
+while retaining manifest version `0.2.1`; the historical `v0.2.1` Plugin and
+release artifacts remain unchanged.
 
-## What Harness does
+## What Outcome Harness Core does
 
-Harness helps answer:
+Outcome Harness Core helps answer:
 
 > Does this saved Run support the claim that the current product source
 > completed the requested Task?
@@ -34,8 +38,9 @@ It records evidence that ordinary “tests passed” claims can omit:
 - an optional user-provided Manual Verdict; and
 - explicit completion policy results.
 
-Harness does not intercept tools, restrict implementation choices, call a
-model, execute an external verifier, repair code, or provide immutable storage.
+Outcome Harness Core does not intercept tools, restrict implementation choices,
+call a model, execute an external verifier, repair code, or provide immutable
+storage.
 
 ## Core CLI workflow
 
@@ -66,20 +71,20 @@ requested.
 - **Reviewed profile:** set `verifier.required` to `true`. `complete` also
   requires a separately prepared `pass` Manual Verdict with no blockers.
 
-Harness never selects or runs the reviewer. Bundle export only prepares
-historical Evidence for review.
+Outcome Harness Core never selects or runs the reviewer. Bundle export only
+prepares historical Evidence for review.
 
-## Codex Plugin managed workflow
+## Seal Codex Plugin managed workflow
 
 The Core CLI above remains a set of explicit, independent operations. The
-Codex Plugin adds a conversation-scoped UX for either a literal managed request
-or an executable coding outcome sent with the explicitly selected `@Harness`
+Seal Plugin adds a conversation-scoped UX for either a literal managed request
+or an executable coding outcome sent with the explicitly selected `@Seal`
 Plugin:
 
 ```text
-$harness Add Swagger/OpenAPI and verify the Korean API descriptions.
+$seal Add Swagger/OpenAPI and verify the Korean API descriptions.
 
-@Harness selected: Add Swagger/OpenAPI and verify the Korean API descriptions.
+@Seal selected: Add Swagger/OpenAPI and verify the Korean API descriptions.
 ```
 
 Both entry forms require an executable coding outcome. Regardless of entry
@@ -97,7 +102,7 @@ approval boundary is visible first.
 | `Mode: Analysis only` | Core was not started |
 | `Status: Core unavailable` | The managed invocation was recognized, but the compatible Core CLI is unavailable |
 | `Status: Evidence recorded` | `verify` recorded a Run; this is not a check-pass or completion result |
-| `Status: Harness stopped` | A stage failed or was blocked; no automatic repair or retry followed |
+| `Status: Seal stopped` | A stage failed or was blocked; no automatic repair or retry followed |
 | `Status: Review handoff ready` | A reviewed-profile bundle was exported; no reviewer or Verdict operation ran |
 
 These labels are presentation only. They do not add persisted workflow state or
@@ -122,7 +127,7 @@ The Plugin then:
    identity. It then branches only on the adopted saved Task profile: a basic
    profile shows the exact `complete` command and asks for final confirmation;
    a reviewed profile exports the one approved local bundle and pauses for an
-   independently prepared Verdict; and
+   separately prepared Verdict; and
 5. records a separately supplied Verdict only on an explicit request, then asks
    for final confirmation immediately before `complete`. The retained IDs do
    not need to be copied again in the same conversation.
@@ -135,7 +140,7 @@ invocation, external sharing, `complete`, or a replacement for normal Codex
 permission prompts.
 An unambiguous reply to the Plugin's own pending confirmation may resume the
 same workflow; unrelated approvals and ordinary coding requests do not
-activate Harness.
+activate Seal.
 
 If Task creation, verification, bundle, Verdict recording, or completion fails,
 the managed flow stops. It does not repair source, replace Evidence, choose an
@@ -157,17 +162,17 @@ identity.
 Use the low-level Skills as recovery and advanced escape hatches:
 
 ```text
-$harness:task      create or inspect one Task
-$harness:verify    record one verification Run
-$harness:bundle    export one exact Task and Run
-$harness:complete  evaluate one exact Task and Run after final confirmation
+$seal:task      create or inspect one Task
+$seal:verify    record one verification Run
+$seal:bundle    export one exact Task and Run
+$seal:complete  evaluate one exact Task and Run after final confirmation
 ```
 
 Each low-level Skill is explicit-only. If it needs a missing adoption, ID,
 path, or confirmation, repeat the same namespaced invocation in the follow-up;
 an untagged reply does not activate an escape hatch.
 
-If `$harness:bundle` omits an output path, the Plugin chooses a unique absolute
+If `$seal:bundle` omits an output path, the Plugin chooses a unique absolute
 path outside the confirmed target repository whose final directory does not
 exist, then passes it to Core's required `--output` argument.
 
@@ -192,7 +197,7 @@ Install the `v0.2.1` tag:
 
 ```bash
 python3 -m pip install \
-  "git+https://github.com/jgoneit/harness.git@v0.2.1"
+  "git+https://github.com/jgoneit/seal.git@v0.2.1"
 harness --version
 ```
 
@@ -207,17 +212,17 @@ Requirements:
 - Python 3.11 or later
 - Git
 
-The Python distribution name is `outcome-harness`; the console command and
-Codex Plugin name are `harness`.
+The Python distribution name is `outcome-harness`; the console command is
+`harness`, and the current Codex Plugin name is `seal`.
 
 ### Codex Plugin
 
-The managed Plugin workflow documented here is part of `v0.2.1`. A personal
-marketplace entry that points to this checkout still installs or refreshes the
-Plugin separately from the Core package:
+The source Plugin manifest remains `0.2.1` for this branding-only development
+change; this is not a new release. A personal marketplace entry that points to
+this checkout installs or refreshes the Plugin separately from the Core package:
 
 ```bash
-codex plugin add harness@personal
+codex plugin add seal@personal
 ```
 
 Codex caches Plugin contents. Start a new Codex task after installation or an
@@ -392,6 +397,8 @@ claim.
 
 ## Trust and security boundaries
 
+- Seal is Plugin branding, not a signature, remote attestation, immutable or
+  tamper-proof store, non-repudiation guarantee, or external trust anchor.
 - The Run Manifest detects missing or modified mechanical files by raw-byte
   size and SHA-256. It is not a signature or a defense against a local user who
   rewrites both Evidence and the manifest.
@@ -429,7 +436,7 @@ public imports, and packaged contract resources.
 
 - [Architecture](docs/architecture.md)
 - [Adapter CLI contract](docs/adapter-contract.md)
-- [Harness Codex UI smoke](docs/harness-ui-smoke.md)
+- [Seal Codex UI smoke](docs/seal-ui-smoke.md)
 - [Exit codes](docs/exit-codes.md)
 - [Credential boundary](docs/credential-boundary.md)
 - [v0.2 Evidence migration](docs/migration-v0.2.md)

@@ -28,8 +28,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jgoneit/harness"
-Repository = "https://github.com/jgoneit/harness"
+Homepage = "https://github.com/jgoneit/seal"
+Repository = "https://github.com/jgoneit/seal"
 
 [project.scripts]
 harness = "harness.cli:main"

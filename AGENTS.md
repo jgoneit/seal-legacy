@@ -1,4 +1,4 @@
-# Harness repository instructions
+# Seal repository instructions
 
 ## Core boundaries
 

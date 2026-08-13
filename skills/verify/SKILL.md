@@ -1,12 +1,12 @@
 ---
 name: verify
-description: Run one Harness verification for an explicitly identified existing Task and report the saved Evidence identity. Use only when the user invokes $harness:verify; never repair, retry, bundle, or complete automatically.
+description: Run one Outcome Harness Core verification for an explicitly identified existing Task and report the saved Evidence identity. Use only when the user invokes $seal:verify; never repair, retry, bundle, or complete automatically.
 ---
 
-# Harness Verify escape hatch
+# Seal Verify escape hatch
 
 Activate only for the namespaced invocation. If the exact Task ID is missing,
-stop this turn. Ask the user to invoke `$harness:verify` again with the missing
+stop this turn. Ask the user to invoke `$seal:verify` again with the missing
 ID; do not rely on an untagged reply.
 Perform only the requested Core operation. Require the exact Task ID; never
 infer a latest Task or resume a managed lifecycle implicitly.
