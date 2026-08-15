@@ -1,4 +1,4 @@
-# Seal repository instructions
+# Seal Legacy repository instructions
 
 ## Core boundaries
 

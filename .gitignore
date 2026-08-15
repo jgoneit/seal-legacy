@@ -35,7 +35,11 @@ coverage.xml
 !.env.example
 .envrc
 
-# Local Harness records are generated per repository and are not plugin source.
+# Local Seal Legacy records are generated per repository and are not plugin source.
+.seal/
+
+# Historical Outcome Harness records may still belong to older Core versions.
+# Keep them untouched and ignored; current Seal Legacy Core (Python) does not read or migrate them.
 .harness/
 
 # Local Codex plugin state. Keep .codex-plugin/plugin.json as tracked source.

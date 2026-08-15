@@ -12,7 +12,7 @@ A failed work result and damaged Evidence are also distinct states. Even when a 
 
 ## Decision
 
-- Make `harness.run_validator.validate_run(task_id, run_id, cwd=...)` the canonical entry point for stored Run integrity.
+- Make `seal_legacy.run_validator.validate_run(task_id, run_id, cwd=...)` the canonical entry point for stored Run integrity.
 - The validator checks the existence, readability, identity, and mutual consistency of the saved Task snapshot, the Run's `task.json`, `changed-files.json`, `diff.patch`, `checks.json`, `verification.json`, and check logs, then returns an immutable `ValidatedRun`.
 - The validator rejects Evidence path traversal, absolute paths, duplicate paths, and symlink escapes outside the Run directory.
 - The validator does not treat a failed check, timeout, Scope violation, or `mechanical_result="fail"` as corruption. A failed Run is still a `ValidatedRun` when its structure is consistent.
@@ -46,7 +46,7 @@ policy step.
 ## Read-only Run Summary amendment
 
 Core `0.3.0.dev0` adds
-`harness run show <TASK_ID> --run-id <RUN_ID>` as a separate read-only consumer
+`seal-legacy run show <TASK_ID> --run-id <RUN_ID>` as a separate read-only consumer
 of this authority. The command calls `validate_run()` once and projects only
 the returned immutable `ValidatedRun` into the transient
 `validated-run-summary/v1` stdout envelope. It does not add a persisted

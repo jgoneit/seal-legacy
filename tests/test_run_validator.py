@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SOURCE_ROOT))
 
-from harness.verdict_validator import VerdictValidationError, validate_verdict
+from seal_legacy.verdict_validator import VerdictValidationError, validate_verdict
 
 
 class VerdictRuntimeValidatorTests(unittest.TestCase):
@@ -141,11 +141,11 @@ class VerdictContractCoherenceTests(unittest.TestCase):
         pairs = (
             (
                 PROJECT_ROOT / "schemas" / "verdict.schema.json",
-                PROJECT_ROOT / "src" / "harness" / "resources" / "verdict.schema.json",
+                PROJECT_ROOT / "src" / "seal_legacy" / "resources" / "verdict.schema.json",
             ),
             (
                 PROJECT_ROOT / "prompts" / "verifier.md",
-                PROJECT_ROOT / "src" / "harness" / "resources" / "verifier.md",
+                PROJECT_ROOT / "src" / "seal_legacy" / "resources" / "verifier.md",
             ),
         )
         for root, packaged in pairs:
@@ -153,7 +153,7 @@ class VerdictContractCoherenceTests(unittest.TestCase):
                 self.assertEqual(root.read_bytes(), packaged.read_bytes())
 
     def test_packaged_schema_and_prompt_are_available_as_resources(self) -> None:
-        resource_root = files("harness").joinpath("resources")
+        resource_root = files("seal_legacy").joinpath("resources")
         self.assertTrue(resource_root.joinpath("verdict.schema.json").is_file())
         self.assertTrue(resource_root.joinpath("verifier.md").is_file())
 
@@ -210,9 +210,9 @@ class VerdictContractCoherenceTests(unittest.TestCase):
             self.assertEqual(sync.returncode, 0, sync.stdout + sync.stderr)
             self.assertEqual(
                 canonical_schema.read_bytes(),
-                (root / "src" / "harness" / "resources" / "verdict.schema.json").read_bytes(),
+                (root / "src" / "seal_legacy" / "resources" / "verdict.schema.json").read_bytes(),
             )
             self.assertEqual(
                 canonical_prompt.read_bytes(),
-                (root / "src" / "harness" / "resources" / "verifier.md").read_bytes(),
+                (root / "src" / "seal_legacy" / "resources" / "verifier.md").read_bytes(),
             )

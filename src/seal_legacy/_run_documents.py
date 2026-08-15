@@ -10,7 +10,7 @@ from typing import Any
 
 from ._path_policy import (
     change_is_within_scope as _change_is_within_scope,
-    is_harness_metadata_path as _is_harness_metadata_path,
+    is_seal_metadata_path as _is_seal_metadata_path,
 )
 from ._run_artifact_io import (
     RunArtifactPathError,
@@ -668,7 +668,7 @@ def _validate_changed_files(
         for index, value in enumerate(raw_changes)
     ]
     product_changes = [
-        change for change in changes if not _is_harness_metadata_change(change)
+        change for change in changes if not _is_seal_metadata_change(change)
     ]
     expected_violations = [
         change for change in product_changes if not change["in_scope"]
@@ -744,12 +744,12 @@ def _validate_file_change(
     return dict(value)
 
 
-def _is_harness_metadata_change(change: Mapping[str, Any]) -> bool:
+def _is_seal_metadata_change(change: Mapping[str, Any]) -> bool:
     paths = [change["path"]]
     previous_path = change["previous_path"]
     if previous_path is not None:
         paths.append(previous_path)
-    return all(_is_harness_metadata_path(path) for path in paths)
+    return all(_is_seal_metadata_path(path) for path in paths)
 
 
 def _safe_evidence_relative_path(

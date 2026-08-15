@@ -266,7 +266,7 @@ def _read_verifier_instructions() -> str:
     """Read the installed package's versioned verifier instruction resource."""
     try:
         return (
-            resources.files("harness")
+            resources.files("seal_legacy")
             .joinpath("resources", "verifier.md")
             .read_text(encoding="utf-8")
         )

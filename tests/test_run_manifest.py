@@ -17,16 +17,16 @@ from unittest.mock import patch
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from harness.bundle import BundleEvidenceError, create_verification_bundle
-from harness.evidence import CompletionEvidenceError, complete_task, verify_task
-from harness.run_manifest import (
+from seal_legacy.bundle import BundleEvidenceError, create_verification_bundle
+from seal_legacy.evidence import CompletionEvidenceError, complete_task, verify_task
+from seal_legacy.run_manifest import (
     RUN_MANIFEST_FILENAME,
     RunManifestError,
     create_run_manifest,
 )
-from harness.run_validator import RunValidationError, validate_run
-from harness.task import create_task
-from harness.verdict import VerdictEvidenceError, record_verdict, show_verdict
+from seal_legacy.run_validator import RunValidationError, validate_run
+from seal_legacy.task import create_task
+from seal_legacy.verdict import VerdictEvidenceError, record_verdict, show_verdict
 from tests._evidence_fixtures import rewrite_failed_check_as_timeout
 
 
@@ -39,14 +39,14 @@ class RunManifestTests(unittest.TestCase):
         self.repository = self.root / "repository"
         self.repository.mkdir()
         self._git("init", "--quiet")
-        self._write(".harness/checks.json", '{"checks": []}\n')
+        self._write(".seal/checks.json", '{"checks": []}\n')
         self._write("src/example.txt", "before\n")
         self._git("add", ".")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -199,7 +199,7 @@ class RunManifestTests(unittest.TestCase):
             return "2026-07-23T00:00:00.000000Z"
 
         with patch(
-            "harness.run_manifest._utc_timestamp",
+            "seal_legacy.run_manifest._utc_timestamp",
             side_effect=remove_evidence_directory,
         ):
             with self.assertRaisesRegex(

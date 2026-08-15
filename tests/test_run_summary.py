@@ -19,10 +19,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SOURCE_ROOT))
 
-from harness import cli
-from harness.evidence import verify_task
-from harness.run_validator import validate_run
-from harness.task import create_task
+from seal_legacy import cli
+from seal_legacy.evidence import verify_task
+from seal_legacy.run_validator import validate_run
+from seal_legacy.task import create_task
 from tests._evidence_fixtures import rewrite_failed_check_as_timeout
 
 
@@ -61,14 +61,14 @@ class ValidatedRunSummaryCommandTests(unittest.TestCase):
         self.repository = self.root / "repository"
         self.repository.mkdir()
         self._git("init", "--quiet")
-        self._write(".harness/checks.json", '{"checks": []}\n')
+        self._write(".seal/checks.json", '{"checks": []}\n')
         self._write("src/example.txt", "before\n")
         self._git("add", ".")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -148,7 +148,7 @@ class ValidatedRunSummaryCommandTests(unittest.TestCase):
         if existing_pythonpath:
             environment["PYTHONPATH"] += os.pathsep + existing_pythonpath
         return subprocess.run(
-            [sys.executable, "-m", "harness", *arguments],
+            [sys.executable, "-m", "seal_legacy", *arguments],
             cwd=self.repository if cwd is None else cwd,
             check=False,
             capture_output=True,
@@ -191,10 +191,10 @@ class ValidatedRunSummaryCommandTests(unittest.TestCase):
         return summary
 
     def _artifact_bytes(self) -> dict[str, bytes]:
-        harness_root = self.repository / ".harness"
+        seal_root = self.repository / ".seal"
         return {
-            path.relative_to(harness_root).as_posix(): path.read_bytes()
-            for path in sorted(harness_root.rglob("*"))
+            path.relative_to(seal_root).as_posix(): path.read_bytes()
+            for path in sorted(seal_root.rglob("*"))
             if path.is_file() and not path.is_symlink()
         }
 
@@ -372,7 +372,7 @@ class ValidatedRunSummaryCommandTests(unittest.TestCase):
             checks=[
                 {
                     "name": "unstartable",
-                    "argv": ["harness-command-that-does-not-exist"],
+                    "argv": ["seal-command-that-does-not-exist"],
                     "required": True,
                 }
             ]
@@ -486,7 +486,7 @@ class ValidatedRunSummaryCommandTests(unittest.TestCase):
         run = verify_task("TASK-FIRST", cwd=self.repository)
         copied_run = (
             self.repository
-            / ".harness"
+            / ".seal"
             / "evidence"
             / "TASK-SECOND"
             / run.run_id

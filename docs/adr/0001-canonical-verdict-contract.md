@@ -6,14 +6,14 @@ Accepted
 
 ## Context
 
-If the public JSON Schema for Manual Verdicts, the verifier prompt, and a hand-written Python validator define different structures, the same Harness version may produce or accept different Verdicts across environments. In particular, if the prompt instructs a reviewer to use verdict values or finding fields that differ from the Schema, the runtime may reject JSON that appears valid to the person reviewing the bundle.
+If the public JSON Schema for Manual Verdicts, the verifier prompt, and a hand-written Python validator define different structures, the same Seal Legacy Core (Python) version may produce or accept different Verdicts across environments. In particular, if the prompt instructs a reviewer to use verdict values or finding fields that differ from the Schema, the runtime may reject JSON that appears valid to the person reviewing the bundle.
 
 Verdicts are also used in installed-package environments, so arbitrary files from the source tree or repository-specific prompt overrides cannot serve as the runtime contract. Structural validation should be performed by the public Schema rather than by repetitive Python conditionals.
 
 ## Decision
 
 - Keep `schemas/verdict.schema.json` and `prompts/verifier.md` at the repository root as human-edited canonical sources.
-- Treat the Verdict Schema and prompt in `src/harness/resources` as generated mirrors; `scripts/sync_contracts.py` and CI verify byte-for-byte synchronization.
+- Treat the Verdict Schema and prompt in `src/seal_legacy/resources` as generated mirrors; `scripts/sync_contracts.py` and CI verify byte-for-byte synchronization.
 - At runtime, read the packaged Verdict Schema through `importlib.resources` and validate structure and formats with a Draft 2020-12 validator and `FormatChecker`.
 - Remove the hand-written Python structural validator, enum lists, exact-key checks, and timestamp-format checks.
 - After Schema validation, the validator performs only expected-identity checks as contextual validation to bind the Verdict to a specific Task and run.

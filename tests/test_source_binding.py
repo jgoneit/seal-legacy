@@ -1,6 +1,6 @@
 """End-to-end regression coverage for source-bound Evidence Runs.
 
-These tests deliberately use disposable Git repositories and public Harness
+These tests deliberately use disposable Git repositories and public Seal Legacy
 entry points.  They protect the contract between verification-time snapshots,
 stored Run validation, portable bundles, and completion-time source binding.
 """
@@ -24,17 +24,17 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SOURCE_ROOT))
 
-from harness.bundle import create_verification_bundle
-import harness.evidence as evidence_module
-from harness.evidence import (
+from seal_legacy.bundle import create_verification_bundle
+import seal_legacy.evidence as evidence_module
+from seal_legacy.evidence import (
     CompletionError,
     EvidenceRepositoryError,
     complete_task,
     verify_task,
 )
-from harness.run_manifest import create_run_manifest
-from harness.run_validator import RunValidationError, validate_run
-from harness.task import create_task
+from seal_legacy.run_manifest import create_run_manifest
+from seal_legacy.run_validator import RunValidationError, validate_run
+from seal_legacy.task import create_task
 from tests._evidence_fixtures import rewrite_failed_check_as_timeout
 
 
@@ -50,7 +50,7 @@ SOURCE_MISMATCH_EXIT_CODE = 9
 
 
 class SourceBindingIntegrationTests(unittest.TestCase):
-    """Exercise v2 source binding without relying on the Harness repository."""
+    """Exercise v2 source binding without relying on the Seal Legacy repository."""
 
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
@@ -67,7 +67,7 @@ class SourceBindingIntegrationTests(unittest.TestCase):
         repository.mkdir()
         self._git(repository, "init", "--quiet")
         self._write(repository, ".gitignore", "ignored/\n")
-        self._write(repository, ".harness/checks.json", '{"checks": []}\n')
+        self._write(repository, ".seal/checks.json", '{"checks": []}\n')
         self._write(repository, "src/example.txt", "baseline\n")
         self._write(repository, "src/delete.txt", "delete baseline\n")
         self._write(repository, "src/rename.txt", "rename baseline\n")
@@ -138,9 +138,9 @@ class SourceBindingIntegrationTests(unittest.TestCase):
         self._git(
             repository,
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -178,7 +178,7 @@ class SourceBindingIntegrationTests(unittest.TestCase):
         if existing_pythonpath:
             environment["PYTHONPATH"] += os.pathsep + existing_pythonpath
         return subprocess.run(
-            [sys.executable, "-m", "harness", *arguments],
+            [sys.executable, "-m", "seal_legacy", *arguments],
             cwd=repository,
             check=False,
             capture_output=True,
@@ -440,13 +440,13 @@ class SourceBindingIntegrationTests(unittest.TestCase):
             after["snapshot_sha256"],
         )
 
-    def test_ignored_and_harness_metadata_mutations_do_not_change_source(self) -> None:
+    def test_ignored_and_seal_metadata_mutations_do_not_change_source(self) -> None:
         repository = self._new_repository()
         program = (
             "from pathlib import Path; "
             "Path('ignored').mkdir(exist_ok=True); "
             "Path('ignored/generated.txt').write_text('ignored\\n', encoding='utf-8'); "
-            "Path('.harness/lessons.md').write_text('metadata\\n', encoding='utf-8')"
+            "Path('.seal/lessons.md').write_text('metadata\\n', encoding='utf-8')"
         )
         task_id = self._create_task(
             repository,
@@ -476,7 +476,7 @@ class SourceBindingIntegrationTests(unittest.TestCase):
             ],
         )
         task_path = (
-            repository / ".harness" / "tasks" / f"{task_id}.json"
+            repository / ".seal" / "tasks" / f"{task_id}.json"
         )
         task = self._read_json(task_path)
         task["baseline"] = "refs/heads/missing-baseline"
@@ -487,7 +487,7 @@ class SourceBindingIntegrationTests(unittest.TestCase):
 
         self.assertFalse(marker.exists())
         self.assertFalse(
-            (repository / ".harness" / "evidence" / task_id).exists()
+            (repository / ".seal" / "evidence" / task_id).exists()
         )
 
     @unittest.skipUnless(hasattr(os, "mkfifo"), "requires FIFO support")
@@ -507,7 +507,7 @@ class SourceBindingIntegrationTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 3, result.stderr)
         self.assertEqual(result.stdout, "")
-        evidence_root = repository / ".harness" / "evidence" / task_id
+        evidence_root = repository / ".seal" / "evidence" / task_id
         run_directories = [path for path in evidence_root.iterdir() if path.is_dir()]
         self.assertEqual(len(run_directories), 1)
         incomplete = run_directories[0]
@@ -534,7 +534,7 @@ class SourceBindingIntegrationTests(unittest.TestCase):
             with self.assertRaises(EvidenceRepositoryError):
                 verify_task(task_id, cwd=repository)
 
-        evidence_root = repository / ".harness" / "evidence" / task_id
+        evidence_root = repository / ".seal" / "evidence" / task_id
         run_directories = [path for path in evidence_root.iterdir() if path.is_dir()]
         self.assertEqual(len(run_directories), 1)
         incomplete = run_directories[0]

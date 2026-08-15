@@ -28,7 +28,7 @@ class CommandLineTests(unittest.TestCase):
             [
                 sys.executable,
                 "-c",
-                "from harness.cli import main; raise SystemExit(main())",
+                "from seal_legacy.cli import main; raise SystemExit(main())",
                 *arguments,
             ],
             capture_output=True,
@@ -45,9 +45,12 @@ class CommandLineTests(unittest.TestCase):
         pyproject = tomllib.loads(
             (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
         )
-        self.assertEqual(pyproject["project"]["scripts"]["harness"], "harness.cli:main")
+        self.assertEqual(
+            pyproject["project"]["scripts"]["seal-legacy"],
+            "seal_legacy.cli:main",
+        )
 
-    def test_harness_help(self) -> None:
+    def test_seal_help(self) -> None:
         result = self._run_command("--help")
 
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -72,7 +75,7 @@ class CommandLineTests(unittest.TestCase):
         self.assertEqual(verifier_help.stderr, "")
         self.assertIn("{record,show,bundle}", verifier_help.stdout)
 
-    def test_harness_version(self) -> None:
+    def test_seal_version(self) -> None:
         result = self._run_command("--version")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "0.3.0.dev0\n")
@@ -86,7 +89,7 @@ class CommandLineTests(unittest.TestCase):
             environment["PYTHONPATH"] += os.pathsep + existing_pythonpath
 
         result = subprocess.run(
-            [sys.executable, "-m", "harness", "--help"],
+            [sys.executable, "-m", "seal_legacy", "--help"],
             capture_output=True,
             text=True,
             check=False,
@@ -102,7 +105,7 @@ class CommandLineTests(unittest.TestCase):
             environment["PYTHONPATH"] += os.pathsep + existing_pythonpath
 
         evidence_import = """
-from harness.evidence import (
+from seal_legacy.evidence import (
     COMPLETION_SCHEMA_VERSION,
     VERIFICATION_SCHEMA_VERSION,
     CompletionError,
@@ -127,7 +130,7 @@ from harness.evidence import (
 )
 """
         validator_import = """
-from harness.run_validator import (
+from seal_legacy.run_validator import (
     RUN_EVIDENCE_SCHEMA_VERSION,
     RUN_ID_CHARACTERS,
     RunEvidenceError,
@@ -139,10 +142,10 @@ from harness.run_validator import (
 )
 """
         private_boundary_assertions = """
-import harness.bundle as bundle_module
-import harness.run_manifest as manifest_module
-import harness.run_validator as validator_module
-import harness.verdict as verdict_module
+import seal_legacy.bundle as bundle_module
+import seal_legacy.run_manifest as manifest_module
+import seal_legacy.run_validator as validator_module
+import seal_legacy.verdict as verdict_module
 
 assert callable(ValidatedRun.read_log_bytes)
 assert not hasattr(validator_module, "validate_run_documents")

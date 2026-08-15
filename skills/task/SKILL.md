@@ -1,22 +1,22 @@
 ---
 name: task
-description: Create or inspect one Outcome Harness Core Task as an explicit low-level operation. Use only when the user invokes $seal:task for Task drafting, creation, adoption, or lookup; do not continue into implementation or verification.
+description: Create or inspect one Seal Legacy Core (Python) Task as an explicit low-level operation. Use only when the user invokes $seal-legacy:task for Task drafting, creation, adoption, or lookup; do not continue into implementation or verification.
 ---
 
-# Seal Task escape hatch
+# Seal Legacy Task escape hatch
 
 Activate only for the namespaced invocation. If required input or Task adoption
-is missing, stop this turn. Ask the user to invoke `$seal:task` again with
+is missing, stop this turn. Ask the user to invoke `$seal-legacy:task` again with
 the missing input or confirmation; do not rely on an untagged reply.
 Perform only the requested Core operation. Do not continue into implementation,
 verification, bundle export, Verdict handling, or completion.
 
-Before every operation, run `harness --version` and support Core
+Before every operation, run `seal-legacy --version` and support Core
 `>=0.3.0.dev0,<0.4.0`. Do not install a missing or unsupported Core. Run commands as
 subprocesses from a confirmed target Git repository with a current HEAD. Do not
 import Core or reproduce its validation.
 
-For creation, confirm `.harness/checks.json` exists. Draft only
+For creation, confirm `.seal/checks.json` exists. Draft only
 `schema_version`, `id`, `type`, `objective`, `scope`, `checks`, `risk`, and
 `verifier.required`. Set `type` to exactly one public Task Schema value:
 `bugfix`, `feature`, `refactor`, `test`, `docs`, or `config-infra`. Use `docs`
@@ -33,13 +33,13 @@ After explicit adoption, write the temporary input outside the target
 repository and run once without `--force`:
 
 ~~~bash
-harness task create --file <TASK_JSON>
+seal-legacy task create --file <TASK_JSON>
 ~~~
 
 For lookup, require an exact ID and run:
 
 ~~~bash
-harness task show <TASK_ID>
+seal-legacy task show <TASK_ID>
 ~~~
 
 Report successful stdout JSON exactly, including the authoritative normalized

@@ -1,29 +1,37 @@
-# Seal
+# Seal Legacy
 
 Language: English | [한국어](README.ko.md)
 
 > **Evidence-backed completion for coding agents**
 
-Seal is an optional Codex Plugin over the public Outcome Harness Core CLI:
-`Seal Plugin → public harness subprocess CLI → Outcome Harness Core`.
-Outcome Harness Core is an experimental local CLI that saves a Task snapshot,
+Seal Legacy Plugin is an optional Codex Plugin over the public Seal Legacy Core (Python) CLI:
+`Seal Legacy Plugin → public seal-legacy subprocess CLI → Seal Legacy Core (Python)`.
+Seal Legacy Core (Python) is an experimental local CLI that saves a Task snapshot,
 product changes, check results, and source identity as a reviewable Evidence
 Run.
 
-The latest Outcome Harness Core Experimental release is `v0.2.1`. It supports
-source-bound verification Evidence v2 only. Historical v0.1.x Evidence is not
-upgraded in place; see
-[Migrating verification Evidence to v0.2](docs/migration-v0.2.md).
-
-The current repository uses Core development version `0.3.0.dev0` and source
-Plugin development version `0.3.0-dev.0`. The source Plugin supports Core
+This repository freezes the current Python implementation under the Seal Legacy
+identity as the protocol-preserving baseline for a future Go rewrite. That
+rewrite is not implemented here. The frozen line is Seal Legacy Core (Python)
+`0.3.0.dev0` with source Plugin `0.3.0-dev.0`. Current Core supports
+source-bound verification Evidence v2
+only. The source Plugin supports Core
 `>=0.3.0.dev0,<0.4.0` and adopts its read-only, integrity-validated Run Summary
-command. The latest published Core and Plugin release remains `v0.2.1`; its
-tag, artifacts, release notes, and historical Plugin behavior remain unchanged.
+command.
 
-## What Outcome Harness Core does
+The latest published historical Outcome Harness Core release is `v0.2.1`.
+Historical v0.1.x Evidence is not upgraded in place; see
+[Migrating verification Evidence to v0.2](docs/migration-v0.2.md). The
+`v0.2.1` tag, artifacts, release notes, CLI identity, and historical Plugin
+behavior remain unchanged.
 
-Outcome Harness Core helps answer:
+Seal Legacy Core (Python) v0.3 reads only the `.seal` state root. It does not read or migrate
+historical `.harness` Tasks, Runs, or Evidence; retain those records for the
+matching historical CLI.
+
+## What Seal Legacy Core (Python) does
+
+Seal Legacy Core (Python) helps answer:
 
 > Does this saved Run support the claim that the current product source
 > completed the requested Task?
@@ -38,7 +46,7 @@ It records evidence that ordinary “tests passed” claims can omit:
 - an optional user-provided Manual Verdict; and
 - explicit completion policy results.
 
-Outcome Harness Core does not intercept tools, restrict implementation choices,
+Seal Legacy Core (Python) does not intercept tools, restrict implementation choices,
 call a model, execute an external verifier, repair code, or provide immutable
 storage.
 
@@ -46,12 +54,12 @@ storage.
 
 ```text
 Task Spec
-   │ harness task create
+   │ seal-legacy task create
    ▼
 Task snapshot + full baseline commit
    │ implementation
    ▼
-harness verify: S0 → checks → S1
+seal-legacy verify: S0 → checks → S1
    ▼
 Saved Evidence v2
    ├── run show              read-only validated state query
@@ -72,20 +80,20 @@ requested.
 - **Reviewed profile:** set `verifier.required` to `true`. `complete` also
   requires a separately prepared `pass` Manual Verdict with no blockers.
 
-Outcome Harness Core never selects or runs the reviewer. Bundle export only
+Seal Legacy Core (Python) never selects or runs the reviewer. Bundle export only
 prepares historical Evidence for review.
 
-## Seal Codex Plugin managed workflow
+## Seal Legacy Plugin managed workflow
 
 The Core CLI above remains a set of explicit, independent operations. The
-Seal Plugin adds a conversation-scoped UX for either a literal managed request
-or an executable coding outcome sent with the explicitly selected `@Seal`
+Seal Legacy Plugin adds a conversation-scoped UX for either a literal managed request
+or an executable coding outcome sent with the explicitly selected `@Seal Legacy`
 Plugin:
 
 ```text
-$seal Add Swagger/OpenAPI and verify the Korean API descriptions.
+$seal-legacy Add Swagger/OpenAPI and verify the Korean API descriptions.
 
-@Seal selected: Add Swagger/OpenAPI and verify the Korean API descriptions.
+@Seal Legacy selected: Add Swagger/OpenAPI and verify the Korean API descriptions.
 ```
 
 Both entry forms require an executable coding outcome. Regardless of entry
@@ -103,7 +111,7 @@ approval boundary is visible first.
 | `Mode: Analysis only` | Core was not started |
 | `Status: Core unavailable` | The managed invocation was recognized, but the compatible Core CLI is unavailable |
 | `Status: Evidence recorded` | `verify` recorded a Run; this is not a check-pass or completion result |
-| `Status: Seal stopped` | A stage failed or was blocked; no automatic repair or retry followed |
+| `Status: Seal Legacy stopped` | A stage failed or was blocked; no automatic repair or retry followed |
 | `Status: Review handoff ready` | A reviewed-profile bundle was exported; no reviewer or Verdict operation ran |
 
 These labels are presentation only. They do not add persisted workflow state or
@@ -132,7 +140,7 @@ The Plugin then:
    from the approved draft and preview, it stops for explicit re-adoption first;
 4. runs the approved verification once, binds the exact Run ID and opaque
    Evidence path to the same repository root, re-resolves that root, and runs
-   `harness run show <TASK_ID> --run-id <RUN_ID>` exactly once without another
+   `seal-legacy run show <TASK_ID> --run-id <RUN_ID>` exactly once without another
    question. It accepts only the exact `validated-run-summary/v1` object, shows
    the Evidence digest, mechanical, Scope, required-check, source-stability,
    violation, and per-check state, and never reads raw `verification.json`;
@@ -153,7 +161,7 @@ record/show, reviewer invocation, external sharing, `complete`, retry, repair,
 a replacement Run, or a replacement for normal Codex permission prompts.
 An unambiguous reply to the Plugin's own pending confirmation may resume the
 same workflow; unrelated approvals and ordinary coding requests do not
-activate Seal.
+activate Seal Legacy.
 
 If Task creation, verification, `run show`, bundle, Verdict recording, or
 completion fails, the managed flow stops. It does not repair source, replace
@@ -179,22 +187,22 @@ identity.
 Use the low-level Skills as recovery and advanced escape hatches:
 
 ```text
-$seal:task      create or inspect one Task
-$seal:verify    record one verification Run, show that exact validated state, then stop
-$seal:bundle    export one exact Task and Run
-$seal:complete  evaluate one exact Task and Run after final confirmation
+$seal-legacy:task      create or inspect one Task
+$seal-legacy:verify    record one verification Run, show that exact validated state, then stop
+$seal-legacy:bundle    export one exact Task and Run
+$seal-legacy:complete  evaluate one exact Task and Run after final confirmation
 ```
 
 Each low-level Skill is explicit-only. If it needs a missing adoption, ID,
 path, or confirmation, repeat the same namespaced invocation in the follow-up;
 an untagged reply does not activate an escape hatch.
 
-`$seal:verify` is a bounded sequence: existing preflight and exact Task lookup,
+`$seal-legacy:verify` is a bounded sequence: existing preflight and exact Task lookup,
 one `verify`, one `run show` for the returned exact Run, then an Evidence
 identity and validated stored-state report. It never continues into bundle,
 Verdict, completion, repair, retry, or a replacement Run.
 
-If `$seal:bundle` omits an output path, the Plugin chooses a unique absolute
+If `$seal-legacy:bundle` omits an output path, the Plugin chooses a unique absolute
 path outside the confirmed target repository whose final directory does not
 exist, then passes it to Core's required `--output` argument.
 
@@ -213,13 +221,25 @@ the input itself does not change verified product source.
 
 ## Installation
 
-### Core CLI
+### Current development Core CLI
+
+Install the current source checkout:
+
+```bash
+python3 -m pip install .
+seal-legacy --version
+```
+
+The current Python distribution is `seal-legacy-core`, its package is
+`seal_legacy`, and its console command is `seal-legacy`.
+
+### Historical v0.2.1 Core CLI
 
 Install the `v0.2.1` tag:
 
 ```bash
 python3 -m pip install \
-  "git+https://github.com/jgoneit/seal.git@v0.2.1"
+  "git+https://github.com/jgoneit/seal-legacy.git@v0.2.1"
 harness --version
 ```
 
@@ -234,8 +254,8 @@ Requirements:
 - Python 3.11 or later
 - Git
 
-The Python distribution name is `outcome-harness`; the console command is
-`harness`, and the current Codex Plugin name is `seal`.
+That historical Python distribution is `outcome-harness` and its console
+command is `harness`. The current Codex Plugin name is `seal-legacy`.
 
 ### Codex Plugin
 
@@ -246,7 +266,7 @@ marketplace entry that points to this checkout installs or refreshes the Plugin
 separately from the Core package:
 
 ```bash
-codex plugin add seal@personal
+codex plugin add seal-legacy@personal
 ```
 
 Codex caches Plugin contents. Start a new Codex task after installation or an
@@ -256,7 +276,7 @@ update so the refreshed Skills and metadata are loaded.
 
 ### 1. Configure checks
 
-Create `.harness/checks.json`:
+Create `.seal/checks.json`:
 
 ```json
 {
@@ -298,8 +318,8 @@ Create `task.json`:
 Save the normalized Task snapshot and current full Git baseline:
 
 ```bash
-harness task create --file task.json
-harness task show TASK-001
+seal-legacy task create --file task.json
+seal-legacy task show TASK-001
 ```
 
 ### 3. Verify
@@ -307,14 +327,14 @@ harness task show TASK-001
 After implementing the change:
 
 ```bash
-harness verify TASK-001
+seal-legacy verify TASK-001
 ```
 
 Successful Evidence recording prints:
 
 ```json
 {
-  "evidence_path": "/path/to/repository/.harness/evidence/TASK-001/<RUN_ID>",
+  "evidence_path": "/path/to/repository/.seal/evidence/TASK-001/<RUN_ID>",
   "run_id": "<RUN_ID>"
 }
 ```
@@ -332,7 +352,7 @@ On the `0.3.0.dev0` development line, inspect one exact stored Run without
 reading raw `verification.json`:
 
 ```bash
-harness run show TASK-001 --run-id <RUN_ID>
+seal-legacy run show TASK-001 --run-id <RUN_ID>
 ```
 
 The command returns the exact `validated-run-summary/v1` envelope documented in
@@ -343,8 +363,8 @@ its failed state in JSON; missing or corrupt Evidence returns exit 8. It does
 not rerun checks, collect S2, inspect Verdict or completion state, invoke a
 reviewer, retry, repair, or recommend a next action.
 
-The source Seal Plugin `0.3.0-dev.0` automatically issues this exact command
-once for the Run returned by its one successful managed or `$seal:verify`
+The source Seal Legacy Plugin `0.3.0-dev.0` automatically issues this exact command
+once for the Run returned by its one successful managed or `$seal-legacy:verify`
 verification. It validates the envelope before displaying stored state and
 does not consume raw `verification.json`.
 
@@ -353,7 +373,7 @@ does not consume raw `verification.json`.
 Export a portable review bundle:
 
 ```bash
-harness verifier bundle TASK-001 \
+seal-legacy verifier bundle TASK-001 \
   --run-id <RUN_ID> \
   --output <OUTPUT_DIR_OUTSIDE_REPOSITORY>
 ```
@@ -366,17 +386,17 @@ product source after verification.
 Record and show a separately prepared Manual Verdict:
 
 ```bash
-harness verifier record TASK-001 \
+seal-legacy verifier record TASK-001 \
   --run-id <RUN_ID> \
   --file <VERDICT_JSON_OUTSIDE_REPOSITORY>
 
-harness verifier show TASK-001 --run-id <RUN_ID>
+seal-legacy verifier show TASK-001 --run-id <RUN_ID>
 ```
 
 Evaluate completion:
 
 ```bash
-harness complete TASK-001 --run-id <RUN_ID>
+seal-legacy complete TASK-001 --run-id <RUN_ID>
 ```
 
 Completion validates stored Evidence and any recorded Verdict, collects current
@@ -386,7 +406,7 @@ required-check gates.
 ## Evidence v2
 
 ```text
-.harness/
+.seal/
 ├── checks.json
 ├── tasks/
 │   └── TASK-001.json
@@ -419,14 +439,14 @@ whose source binding fails because S0 differs from S1 or S1 differs from S2.
 
 ## v0.1.x compatibility
 
-Harness v0.2.x does not read v0.1.x verification Runs. Use the CLI from the
-corresponding v0.1.x tag to read that Evidence. There is no in-place migration;
-create a new Evidence v2 Run with a v0.2.x CLI for a source-bound completion
-claim.
+Outcome Harness v0.2.x does not read v0.1.x verification Runs. Use the CLI
+from the corresponding v0.1.x tag to read that Evidence. There is no in-place
+migration; create a new Evidence v2 Run with the historical v0.2.x CLI for a
+source-bound completion claim.
 
 ## Trust and security boundaries
 
-- Seal is Plugin branding, not a signature, remote attestation, immutable or
+- Seal Legacy is Plugin branding, not a signature, remote attestation, immutable or
   tamper-proof store, non-repudiation guarantee, or external trust anchor.
 - The Run Manifest detects missing or modified mechanical files by raw-byte
   size and SHA-256. It is not a signature or a defense against a local user who
@@ -438,14 +458,14 @@ claim.
 - Check logs may contain sensitive values. Inspect a bundle before sharing it.
 - `complete` validates saved check results; it does not rerun checks or redact
   secrets.
-- Source binding is a local bounded observation. Harness does not lock the
+- Source binding is a local bounded observation. Seal Legacy Core (Python) does not lock the
   filesystem after S2 is collected or after `complete` returns.
 - Recording a Manual Verdict binds it to a Task and Run; it does not establish
   that the reviewer was actually independent.
 - Local Evidence is not an immutable central audit store, and v0.2.x does not
   claim support for every special Git state.
 - Repository-local Codex credential policy is documented separately; it is not
-  a Harness Core feature.
+  a Seal Legacy Core (Python) feature.
 
 ## Development verification
 
@@ -465,7 +485,7 @@ public imports, and packaged contract resources.
 
 - [Architecture](docs/architecture.md)
 - [Adapter CLI contract](docs/adapter-contract.md)
-- [Seal Codex UI smoke](docs/seal-ui-smoke.md)
+- [Seal Legacy Codex UI smoke](docs/seal-legacy-ui-smoke.md)
 - [Exit codes](docs/exit-codes.md)
 - [Credential boundary](docs/credential-boundary.md)
 - [v0.2 Evidence migration](docs/migration-v0.2.md)

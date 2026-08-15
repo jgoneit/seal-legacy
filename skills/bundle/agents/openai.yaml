@@ -1,6 +1,6 @@
 interface:
-  display_name: "Seal Bundle"
+  display_name: "Seal Legacy Bundle"
   short_description: "Prepare a verifier bundle"
-  default_prompt: "$seal:bundle 지정한 Task와 Run의 verifier bundle을 준비해줘"
+  default_prompt: "$seal-legacy:bundle 지정한 Task와 Run의 verifier bundle을 준비해줘"
 policy:
   allow_implicit_invocation: false

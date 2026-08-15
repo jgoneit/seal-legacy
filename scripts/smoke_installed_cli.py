@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the installed Harness CLI lifecycle in a disposable repository.
+"""Exercise the installed Core CLI lifecycle in a disposable repository.
 
 The recorded Verdict is an explicit same-context contract fixture with
 ``fresh_context=false``. It verifies persistence and completion plumbing only;
@@ -29,17 +29,17 @@ class InstalledCliSmokeError(RuntimeError):
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the lifecycle smoke and return a process exit code."""
     parser = argparse.ArgumentParser(
-        description="Smoke-test an installed Outcome Harness CLI.",
+        description="Smoke-test an installed Core CLI.",
     )
     parser.add_argument(
-        "harness",
-        help="path to the installed harness executable",
+        "cli",
+        help="path to the installed Core executable",
     )
     arguments = parser.parse_args(argv)
 
     try:
-        harness = Path(arguments.harness).resolve(strict=True)
-        summary = _exercise_lifecycle(harness)
+        cli = Path(arguments.cli).resolve(strict=True)
+        summary = _exercise_lifecycle(cli)
     except (InstalledCliSmokeError, OSError, ValueError) as error:
         print(f"installed CLI lifecycle smoke failed: {error}", file=sys.stderr)
         return 1
@@ -48,8 +48,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
-    with tempfile.TemporaryDirectory(prefix="harness-installed-cli-") as temporary:
+def _exercise_lifecycle(cli: Path) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="installed-cli-") as temporary:
         root = Path(temporary)
         repository = root / "repository"
         repository.mkdir()
@@ -66,7 +66,7 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
             "timeout_seconds": 60,
         }
         _write_json(
-            repository / ".harness" / "checks.json",
+            repository / ".seal" / "checks.json",
             {
                 "schema_version": 1,
                 "checks": [check_definition],
@@ -80,9 +80,9 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
             (
                 "git",
                 "-c",
-                "user.name=Harness Installed CLI Smoke",
+                "user.name=Installed Core CLI Smoke",
                 "-c",
-                "user.email=harness-smoke@example.invalid",
+                "user.email=core-cli-smoke@example.invalid",
                 "commit",
                 "--quiet",
                 "-m",
@@ -99,7 +99,7 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
                 "schema_version": 1,
                 "id": TASK_ID,
                 "type": "test",
-                "objective": "Exercise the installed Harness CLI lifecycle.",
+                "objective": "Exercise the installed Core CLI lifecycle.",
                 "scope": ["src"],
                 "checks": ["installed-cli-smoke"],
                 "risk": "low",
@@ -107,7 +107,7 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
             },
         )
         task = _run_json(
-            (str(harness), "task", "create", "--file", str(task_file)),
+            (str(cli), "task", "create", "--file", str(task_file)),
             cwd=repository,
         )
         _require_exact_keys(
@@ -141,7 +141,7 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
 
         source_path.write_text("after\n", encoding="utf-8")
         verification_result = _run_json(
-            (str(harness), "verify", TASK_ID),
+            (str(cli), "verify", TASK_ID),
             cwd=repository,
         )
         _require_exact_keys(
@@ -158,11 +158,11 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
             )
         )
         _require(evidence_path.is_dir(), "verify did not create its Evidence directory")
-        harness_bytes_before_run_show = _directory_file_bytes(
-            repository / ".harness"
+        state_bytes_before_run_show = _directory_file_bytes(
+            repository / ".seal"
         )
         run_summary = _run_json(
-            (str(harness), "run", "show", TASK_ID, "--run-id", run_id),
+            (str(cli), "run", "show", TASK_ID, "--run-id", run_id),
             cwd=repository,
         )
         _require_exact_keys(
@@ -227,9 +227,9 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
             "run show returned an unexpected check result",
         )
         _require(
-            _directory_file_bytes(repository / ".harness")
-            == harness_bytes_before_run_show,
-            "run show changed persisted Harness artifacts",
+            _directory_file_bytes(repository / ".seal")
+            == state_bytes_before_run_show,
+            "run show changed persisted .seal artifacts",
         )
         verification = _read_json_object(
             evidence_path / "verification.json",
@@ -265,7 +265,7 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
         bundle_path = root / "bundle"
         bundle_result = _run_json(
             (
-                str(harness),
+                str(cli),
                 "verifier",
                 "bundle",
                 TASK_ID,
@@ -364,7 +364,7 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
         _write_json(verdict_file, verdict)
         record_result = _run_json(
             (
-                str(harness),
+                str(cli),
                 "verifier",
                 "record",
                 TASK_ID,
@@ -397,7 +397,7 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
 
         shown_verdict = _run_json(
             (
-                str(harness),
+                str(cli),
                 "verifier",
                 "show",
                 TASK_ID,
@@ -412,7 +412,7 @@ def _exercise_lifecycle(harness: Path) -> dict[str, Any]:
         )
 
         completion_result = _run_json(
-            (str(harness), "complete", TASK_ID, "--run-id", run_id),
+            (str(cli), "complete", TASK_ID, "--run-id", run_id),
             cwd=repository,
         )
         _require_exact_keys(

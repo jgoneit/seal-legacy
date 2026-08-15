@@ -14,9 +14,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from harness import gitdiff
-from harness._path_policy import change_is_within_scope
-from harness.gitdiff import GitDiffRepositoryError, collect_changes
+from seal_legacy import gitdiff
+from seal_legacy._path_policy import change_is_within_scope, is_seal_metadata_path
+from seal_legacy.gitdiff import GitDiffRepositoryError, collect_changes
 
 
 class GitDiffIntegrationTests(unittest.TestCase):
@@ -35,9 +35,9 @@ class GitDiffIntegrationTests(unittest.TestCase):
         self._git("add", ".")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -225,13 +225,13 @@ class GitDiffIntegrationTests(unittest.TestCase):
         self.assertIn("visible.txt", paths)
         self.assertNotIn("generated.ignored", paths)
 
-    def test_excludes_all_harness_metadata_paths_from_product_changes(self) -> None:
+    def test_excludes_all_seal_metadata_paths_from_product_changes(self) -> None:
         metadata_paths = {
-            ".harness/tasks/TASK-001.json",
-            ".harness/evidence/TASK-001/check.txt",
-            ".harness/runs.jsonl",
-            ".harness/lessons.md",
-            ".harness/config.json",
+            ".seal/tasks/TASK-001.json",
+            ".seal/evidence/TASK-001/check.txt",
+            ".seal/runs.jsonl",
+            ".seal/lessons.md",
+            ".seal/config.json",
         }
         for path in metadata_paths:
             self._write(path, "metadata\n")
@@ -249,14 +249,19 @@ class GitDiffIntegrationTests(unittest.TestCase):
             {"src/foo/product.txt"},
         )
 
+    def test_historical_harness_paths_are_not_seal_metadata(self) -> None:
+        self.assertFalse(is_seal_metadata_path(".harness/tasks/TASK-001.json"))
+        self.assertFalse(is_seal_metadata_path(".harness/evidence/TASK-001/run"))
+        self.assertFalse(is_seal_metadata_path(".harness/runs.jsonl"))
+
     def test_collects_committed_changes_from_the_task_baseline(self) -> None:
         self._write("src/foo/committed.txt", "committed\n")
         self._git("add", "src/foo/committed.txt")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",

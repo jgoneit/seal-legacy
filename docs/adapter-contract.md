@@ -1,25 +1,28 @@
-# Harness Adapter CLI Contract
+# Seal Legacy Adapter CLI Contract
 
 This document defines the public subprocess contract for a thin adapter. The
-current Core development line is `0.3.0.dev0`; the current source Seal Plugin
-development version is `0.3.0-dev.0`; and the latest published Core and Plugin
-release remains `v0.2.1`. An adapter must not
+current Core development line is `0.3.0.dev0`; the current source Seal Legacy Plugin
+development version is `0.3.0-dev.0`; and Seal Legacy Core (Python) is not yet published. An
+adapter must not
 import the Core Python package. It uses only the CLI and stdout JSON described
 below.
+
+The current CLI reads only the v0.3 state root. An adapter must not infer a
+legacy fallback or perform state-root conversion or migration on Core's behalf.
 
 ## Public CLI
 
 | Command | Required arguments |
 | --- | --- |
-| `harness --version` | None |
-| `harness task create` | `--file <TASK_JSON>` |
-| `harness task show` | `<TASK_ID>` |
-| `harness verify` | `<TASK_ID>` |
-| `harness run show` | `<TASK_ID> --run-id <RUN_ID>` |
-| `harness verifier bundle` | `<TASK_ID> --run-id <RUN_ID> --output <DIR>` |
-| `harness verifier record` | `<TASK_ID> --run-id <RUN_ID> --file <VERDICT_JSON>` |
-| `harness verifier show` | `<TASK_ID> --run-id <RUN_ID>` |
-| `harness complete` | `<TASK_ID> --run-id <RUN_ID>` |
+| `seal-legacy --version` | None |
+| `seal-legacy task create` | `--file <TASK_JSON>` |
+| `seal-legacy task show` | `<TASK_ID>` |
+| `seal-legacy verify` | `<TASK_ID>` |
+| `seal-legacy run show` | `<TASK_ID> --run-id <RUN_ID>` |
+| `seal-legacy verifier bundle` | `<TASK_ID> --run-id <RUN_ID> --output <DIR>` |
+| `seal-legacy verifier record` | `<TASK_ID> --run-id <RUN_ID> --file <VERDICT_JSON>` |
+| `seal-legacy verifier show` | `<TASK_ID> --run-id <RUN_ID>` |
+| `seal-legacy complete` | `<TASK_ID> --run-id <RUN_ID>` |
 
 Core does not support `verify --base-ref`, a hidden alias, or an
 environment fallback. Supplying `--base-ref` is invalid argparse input and
@@ -53,7 +56,7 @@ Path fields may contain local absolute paths in the repository where the command
 The public envelope identifier is `validated-run-summary/v1`.
 
 Core `0.3.0.dev0` defines this exact transient success envelope for
-`harness run show <TASK_ID> --run-id <RUN_ID>`:
+`seal-legacy run show <TASK_ID> --run-id <RUN_ID>`:
 
 ```json
 {
@@ -105,7 +108,7 @@ Missing, malformed, contradictory, unsupported, or unsafe Evidence returns exit
 
 ## stderr and exit codes
 
-A successful result returns exit code `0` together with stdout JSON. A handled error writes `error: <message>` to stderr and does not mix success JSON into stdout. Input rejected by argparse—including forms that omit a required command or subcommand, such as `harness`, `harness task`, or `harness verifier`—must write usage text to stderr and return exit `2`. In this case, stdout contains no JSON.
+A successful result returns exit code `0` together with stdout JSON. A handled error writes `error: <message>` to stderr and does not mix success JSON into stdout. Input rejected by argparse—including forms that omit a required command or subcommand, such as `seal-legacy`, `seal-legacy task`, or `seal-legacy verifier`—must write usage text to stderr and return exit `2`. In this case, stdout contains no JSON.
 
 An adapter must not assume that a failed command returns partial success JSON. In particular, if `verify` fails partway through, an evidence directory may remain, but the adapter must treat the nonzero exit as failure and must not consume stdout JSON as a result.
 
@@ -142,7 +145,7 @@ must not create or modify these files.
 
 | Location | Documented purpose and fields |
 | --- | --- |
-| `.harness/tasks/<TASK_ID>.json` | Task snapshot; the same Task JSON fields as `task create`/`task show` |
+| `.seal/tasks/<TASK_ID>.json` | Task snapshot; the same Task JSON fields as `task create`/`task show` |
 | `<evidence_path>/verification.json` | Source-bound Run identity and stored mechanical outcome using verification schema version 2; a direct read is diagnostic artifact access, not stored-Run validation |
 | `<evidence_path>/source-before-checks.json` | Required pre-check S0 product-source Snapshot using Source Snapshot schema version 1 |
 | `<evidence_path>/source-after-checks.json` | Required post-check S1 product-source Snapshot using Source Snapshot schema version 1 |
@@ -172,9 +175,9 @@ completion operations all call the canonical stored-Run validator.
 ## Managed adapter lifecycle
 
 An adapter may connect existing public commands into a managed,
-conversation-scoped workflow only after a literal Seal Skill invocation or
-an explicitly selected Seal Plugin paired with an executable coding
-outcome. Plugin selection alone, Seal discussion, explanation, planning,
+conversation-scoped workflow only after a literal Seal Legacy Skill invocation or
+an explicitly selected Seal Legacy Plugin paired with an executable coding
+outcome. Plugin selection alone, Seal Legacy discussion, explanation, planning,
 audit, review, status requests, and ordinary unselected coding requests do not
 activate Core. This changes adapter UX, not Core command semantics or
 authority.
@@ -243,13 +246,13 @@ conversation requires explicit identities.
 A nonzero command result stops the covered sequence. Partial stdout is not a
 result. Successful public `verify` stdout continues to supply exactly `run_id`
 and `evidence_path`; extending it would break the published adapter contract
-and mix Evidence recording with a state query. The source Seal Plugin
+and mix Evidence recording with a state query. The source Seal Legacy Plugin
 `0.3.0-dev.0` resolves the canonical repository again after successful
 verification, checks the retained Task, returned Run, and repository binding,
 and issues exactly one read-only command without another question:
 
 ```text
-harness run show <TASK_ID> --run-id <RUN_ID>
+seal-legacy run show <TASK_ID> --run-id <RUN_ID>
 ```
 
 The Plugin accepts exit-zero stdout only when it is the exact
@@ -282,7 +285,7 @@ is presentation only and is not persisted adapter state. In a new
 conversation, the user must explicitly supply the repository, Task ID, and Run
 ID from that capsule.
 
-A nonzero `run show` result uses `Status: Seal stopped` and identifies `run
+A nonzero `run show` result uses `Status: Seal Legacy stopped` and identifies `run
 show` as the failure stage. The Plugin reports the exact command, stdout,
 stderr, and exit code; preserves only repository, Task, Run, and Evidence
 identity already obtained from successful earlier stdout; and does not run a
@@ -307,7 +310,7 @@ still requires an explicit request. Bundle preparation validates the stored
 Run's integrity, but a successful export does not establish mechanical pass or
 completion eligibility. It does not run or select a reviewer.
 
-The explicit `$seal:verify` escape hatch performs only its bounded sequence:
+The explicit `$seal-legacy:verify` escape hatch performs only its bounded sequence:
 the existing version, repository, and exact Task preflight; one `verify`; one
 `run show` for the returned identity; then an Evidence identity and validated
 stored-state report or exact failure. It stops without a bundle, Verdict,
@@ -340,7 +343,7 @@ replacement Evidence, another Run, reverification, retry, or rollback.
 
 An adapter must not depend on any of the following:
 
-- modules inside `src/harness` or direct Python imports
+- modules inside `src/seal_legacy` or direct Python imports
 - private functions, Python exception classes, or undocumented dataclasses
 - internal Git commands or subprocess implementations
 - undocumented Evidence fields, temporary filenames, or atomic-write implementations
@@ -348,6 +351,6 @@ An adapter must not depend on any of the following:
 
 This separation keeps Core's responsibility for deterministic local Evidence
 distinct from an adapter's UI, model, network, credential, and retry policies.
-Harness Core does not call model APIs or external verifier CLIs.
+Seal Legacy Core (Python) does not call model APIs or external verifier CLIs.
 See [Migrating verification Evidence to v0.2](migration-v0.2.md) for the
 historical Evidence boundary.

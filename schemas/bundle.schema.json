@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Outcome Harness Verifier Bundle Manifest",
+  "title": "Seal Legacy Core (Python) Verifier Bundle Manifest",
   "description": "Manifest for payload files in a portable verifier bundle. manifest.json is excluded from files to avoid a self-referential hash.",
   "type": "object",
   "additionalProperties": false,

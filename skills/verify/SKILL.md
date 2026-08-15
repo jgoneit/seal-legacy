@@ -1,23 +1,23 @@
 ---
 name: verify
-description: Run one Outcome Harness Core verification for an explicitly identified existing Task, show that exact Run once through Core's validated summary, report the Evidence identity and stored state, then stop. Use only when the user invokes $seal:verify; never repair, retry, bundle, create a Verdict, or complete automatically.
+description: Run one Seal Legacy Core (Python) verification for an explicitly identified existing Task, show that exact Run once through Core's validated summary, report the Evidence identity and stored state, then stop. Use only when the user invokes $seal-legacy:verify; never repair, retry, bundle, create a Verdict, or complete automatically.
 ---
 
-# Seal Verify escape hatch
+# Seal Legacy Verify escape hatch
 
 Activate only for the namespaced invocation. If the exact Task ID is missing,
-stop this turn. Ask the user to invoke `$seal:verify` again with the missing ID;
+stop this turn. Ask the user to invoke `$seal-legacy:verify` again with the missing ID;
 do not rely on an untagged reply. Perform only the requested bounded Core
 sequence. Require the exact Task ID; never infer a latest Task or Run or resume
 a managed lifecycle implicitly.
 
-Run `harness --version` and support Core `>=0.3.0.dev0,<0.4.0`. Do not install a
+Run `seal-legacy --version` and support Core `>=0.3.0.dev0,<0.4.0`. Do not install a
 missing or unsupported Core. From the confirmed target Git repository with a
 current HEAD, resolve and retain the canonical root, then run exactly one
 preflight lookup:
 
 ~~~bash
-harness task show <TASK_ID>
+seal-legacy task show <TASK_ID>
 ~~~
 
 Require successful Task stdout to identify the exact requested Task. Use only
@@ -27,7 +27,7 @@ reproduce Evidence interpretation.
 Run exactly once per explicit request and do not pass `--base-ref`:
 
 ~~~bash
-harness verify <TASK_ID>
+seal-legacy verify <TASK_ID>
 ~~~
 
 A nonzero exit is failure. Ignore partial stdout and any partial Evidence
@@ -43,7 +43,7 @@ require it to equal the retained root. For the retained Task ID and the exact
 Run ID returned by `verify`, run exactly once:
 
 ~~~bash
-harness run show <TASK_ID> --run-id <RUN_ID>
+seal-legacy run show <TASK_ID> --run-id <RUN_ID>
 ~~~
 
 Do not read `<evidence_path>/verification.json` to report an outcome or choose
@@ -81,7 +81,7 @@ state. None means completion acceptance or eligibility. A valid failed check,
 timeout, Scope violation, or source instability remains stored state returned
 with `run show` exit 0; report it and stop.
 
-If either command exits nonzero, report `Status: Seal stopped`, the exact
+If either command exits nonzero, report `Status: Seal Legacy stopped`, the exact
 failure stage and command, stdout, stderr, and numeric exit code, then stop. For
 `run show`, preserve only the Task/Run/Evidence identity obtained from the
 successful earlier commands. Preserve exit 2 for input or identity, 3 for

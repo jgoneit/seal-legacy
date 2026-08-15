@@ -20,8 +20,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SOURCE_ROOT))
 
-from harness import cli
-from harness.bundle import (
+from seal_legacy import cli
+from seal_legacy.bundle import (
     BundleEvidenceError,
     BundleInputError,
     _path_replacements,
@@ -31,9 +31,9 @@ from harness.bundle import (
     _sanitize_value,
     create_verification_bundle,
 )
-from harness.evidence import verify_task
-from harness.run_validator import validate_run
-from harness.task import create_task
+from seal_legacy.evidence import verify_task
+from seal_legacy.run_validator import validate_run
+from seal_legacy.task import create_task
 
 try:
     from jsonschema import Draft202012Validator, FormatChecker
@@ -62,14 +62,14 @@ class VerifierBundleTests(unittest.TestCase):
         self.repository.mkdir()
         self._git("init", "--quiet")
         self._write(".gitignore", "ignored.txt\n")
-        self._write(".harness/checks.json", '{"checks": []}\n')
+        self._write(".seal/checks.json", '{"checks": []}\n')
         self._write("src/example.txt", "before\n")
         self._git("add", ".")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -176,7 +176,7 @@ class VerifierBundleTests(unittest.TestCase):
         self.assertEqual(check_records[0]["cwd"], ".")
         self.assertEqual(
             (bundle.bundle_path / "verifier.md").read_text(encoding="utf-8"),
-            (PROJECT_ROOT / "src" / "harness" / "resources" / "verifier.md").read_text(
+            (PROJECT_ROOT / "src" / "seal_legacy" / "resources" / "verifier.md").read_text(
                 encoding="utf-8"
             ),
         )
@@ -189,7 +189,7 @@ class VerifierBundleTests(unittest.TestCase):
 
         self.assertEqual(
             (bundle.bundle_path / "verifier.md").read_text(encoding="utf-8"),
-            (PROJECT_ROOT / "src" / "harness" / "resources" / "verifier.md").read_text(
+            (PROJECT_ROOT / "src" / "seal_legacy" / "resources" / "verifier.md").read_text(
                 encoding="utf-8"
             ),
         )
@@ -229,7 +229,7 @@ class VerifierBundleTests(unittest.TestCase):
         self._create_task(task_id="TASK-FIRST")
         self._create_task(task_id="TASK-SECOND")
         run = self._run("TASK-FIRST")
-        copied_run = self.repository / ".harness" / "evidence" / "TASK-SECOND" / run.run_id
+        copied_run = self.repository / ".seal" / "evidence" / "TASK-SECOND" / run.run_id
         copied_run.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(run.evidence_path, copied_run)
 
@@ -244,11 +244,11 @@ class VerifierBundleTests(unittest.TestCase):
                     "from pathlib import Path; "
                     "print(Path.home()); "
                     "print(Path.cwd()); "
-                    "print(next((Path.cwd() / '.harness/evidence/TASK-BUNDLE').iterdir()))",
+                    "print(next((Path.cwd() / '.seal/evidence/TASK-BUNDLE').iterdir()))",
                 )
             ]
         )
-        environment_name = "OUTCOME_HARNESS_BUNDLE_TEST_SECRET"
+        environment_name = "SEAL_CORE_BUNDLE_TEST_SECRET"
         environment_value = "must-not-be-serialized"
         previous = os.environ.get(environment_name)
         os.environ[environment_name] = environment_value
@@ -270,7 +270,7 @@ class VerifierBundleTests(unittest.TestCase):
         self.assertNotIn(environment_name, contents)
         self.assertNotIn(environment_value, contents)
         self.assertIn("<HOME>", contents)
-        self.assertIn("./.harness/evidence/TASK-BUNDLE/", contents)
+        self.assertIn("./.seal/evidence/TASK-BUNDLE/", contents)
         self.assertNotIn("<ABSOLUTE_PATH>", contents)
 
     def test_preserves_nonlocal_path_literals_in_json_diff_and_check_logs(self) -> None:
@@ -391,10 +391,10 @@ class VerifierBundleTests(unittest.TestCase):
                         f'"{replacement}"',
                     )
 
-        alias_root = Path("/var/folders/harness-c0/repository")
+        alias_root = Path("/var/folders/seal-c0/repository")
         spellings = _path_spellings(alias_root)
-        self.assertIn("/var/folders/harness-c0/repository", spellings)
-        self.assertIn("/private/var/folders/harness-c0/repository", spellings)
+        self.assertIn("/var/folders/seal-c0/repository", spellings)
+        self.assertIn("/private/var/folders/seal-c0/repository", spellings)
         for spelling in spellings:
             with self.subTest(alias_spelling=spelling):
                 separator = "\\" if "\\" in spelling else "/"
@@ -476,7 +476,7 @@ class VerifierBundleTests(unittest.TestCase):
             return validated_run
 
         with mock.patch(
-            "harness.bundle.validate_run",
+            "seal_legacy.bundle.validate_run",
             side_effect=swap_log_after_validation,
         ):
             with self.assertRaises(BundleEvidenceError):
@@ -545,8 +545,8 @@ class BundleSchemaParityTests(unittest.TestCase):
             repository = root / "repository"
             repository.mkdir()
             subprocess.run(["git", "init", "--quiet"], cwd=repository, check=True)
-            (repository / ".harness").mkdir()
-            (repository / ".harness" / "checks.json").write_text('{"checks": []}\n')
+            (repository / ".seal").mkdir()
+            (repository / ".seal" / "checks.json").write_text('{"checks": []}\n')
             (repository / "src").mkdir()
             (repository / "src" / "example.txt").write_text("fixture\n", encoding="utf-8")
             subprocess.run(["git", "add", "."], cwd=repository, check=True)
@@ -554,9 +554,9 @@ class BundleSchemaParityTests(unittest.TestCase):
                 [
                     "git",
                     "-c",
-                    "user.name=Harness Test",
+                    "user.name=Seal Legacy Test",
                     "-c",
-                    "user.email=harness-test@example.invalid",
+                    "user.email=seal-test@example.invalid",
                     "commit",
                     "--quiet",
                     "-m",

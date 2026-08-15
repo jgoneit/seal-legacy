@@ -13,17 +13,17 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
 
-from harness import __version__
-from harness.checks import DEFAULT_CHECK_TIMEOUT_SECONDS
+from seal_legacy import __version__
+from seal_legacy.checks import DEFAULT_CHECK_TIMEOUT_SECONDS
 
 
 PYPROJECT = REPOSITORY_ROOT / "pyproject.toml"
 SDIST_MANIFEST = REPOSITORY_ROOT / "MANIFEST.in"
 PLUGIN_MANIFEST = REPOSITORY_ROOT / ".codex-plugin" / "plugin.json"
-CHECK_CATALOG = REPOSITORY_ROOT / ".harness" / "checks.json"
+CHECK_CATALOG = REPOSITORY_ROOT / ".seal" / "checks.json"
 CI_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
 RELEASE_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
-SKILL_NAMES = ("seal", "task", "verify", "bundle", "complete")
+SKILL_NAMES = ("seal-legacy", "task", "verify", "bundle", "complete")
 SKILLS = tuple(
     REPOSITORY_ROOT / "skills" / name / "SKILL.md" for name in SKILL_NAMES
 )
@@ -77,12 +77,11 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertIn("version", self.pyproject["project"]["dynamic"])
         self.assertEqual(
             self.pyproject["tool"]["setuptools"]["dynamic"]["version"],
-            {"attr": "harness.__version__"},
+            {"attr": "seal_legacy.__version__"},
         )
 
     def test_release_workflow_matches_distribution_and_version(self) -> None:
-        distribution = self.pyproject["project"]["name"].replace("-", "_")
-        artifact_stem = f"{distribution}-{PUBLISHED_RELEASE_VERSION}"
+        artifact_stem = f"outcome_harness-{PUBLISHED_RELEASE_VERSION}"
         expected_note = f"docs/releases/v{PUBLISHED_RELEASE_VERSION}.md"
 
         self.assertIn(f'- "v{PUBLISHED_RELEASE_VERSION}"', self.workflow)
@@ -132,7 +131,7 @@ class ReleaseContractTests(unittest.TestCase):
         expected_assertions = (
             (
                 self.ci_workflow,
-                'test "$("$RUNNER_TEMP/clean-install/bin/harness" --version)" '
+                'test "$("$RUNNER_TEMP/clean-install/bin/seal-legacy" --version)" '
                 f'= "{CORE_DEVELOPMENT_VERSION}"',
             ),
             (
@@ -155,13 +154,15 @@ class ReleaseContractTests(unittest.TestCase):
 
         self.assertIn("prune tests", directives)
 
-    def test_readme_pair_matches_current_release_and_install_artifacts(self) -> None:
+    def test_readme_pair_preserves_historical_release_install_artifacts(self) -> None:
         english_claim = re.search(
-            r"The latest Outcome Harness Core Experimental release is `v([^`]+)`",
+            r"The latest published historical Outcome Harness Core release is "
+            r"`v([^`]+)`",
             self.readme,
         )
         korean_claim = re.search(
-            r"최신 Outcome Harness Core Experimental release는 `v([^`]+)`",
+            r"마지막으로 배포된 역사적 Outcome Harness Core 릴리스는 "
+            r"`v([^`]+)`",
             self.korean_readme,
         )
         self.assertIsNotNone(english_claim)
@@ -170,16 +171,16 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertEqual(korean_claim.group(1), PUBLISHED_RELEASE_VERSION)
 
         install_ref = (
-            "git+https://github.com/jgoneit/seal.git@"
+            "git+https://github.com/jgoneit/seal-legacy.git@"
             f"v{PUBLISHED_RELEASE_VERSION}"
         )
-        distribution = self.pyproject["project"]["name"].replace("-", "_")
         wheel_name = (
-            f"{distribution}-{PUBLISHED_RELEASE_VERSION}-py3-none-any.whl"
+            f"outcome_harness-{PUBLISHED_RELEASE_VERSION}-py3-none-any.whl"
         )
         for document in (self.readme, self.korean_readme):
             self.assertIn(install_ref, document)
             self.assertIn(wheel_name, document)
+            self.assertIn("harness --version", document)
 
     def test_skills_support_only_the_core_v0_3_development_range(self) -> None:
         for name, contents in self.skills.items():
@@ -191,7 +192,7 @@ class ReleaseContractTests(unittest.TestCase):
                 self.assertNotIn("git+https://", contents)
                 self.assertNotRegex(
                     contents,
-                    r"(?m)^\s*(?:from|import)\s+harness",
+                    r"(?m)^\s*(?:from|import)\s+(?:seal_legacy|seal|harness)\b",
                 )
 
     def test_current_contract_docs_do_not_retain_retired_release_dev_version(self) -> None:

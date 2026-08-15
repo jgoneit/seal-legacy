@@ -63,7 +63,7 @@ become authorities for the current Working Tree.
 A check that creates, modifies, deletes, renames, or changes the executable mode
 of product source makes S0 differ from S1 and leaves a structurally valid failed
 Run when Evidence persistence succeeds. Gitignored untracked files and
-canonical Harness metadata remain outside Snapshot identity.
+canonical `.seal` metadata remain outside Snapshot identity.
 
 After verification, a content, path, mode, symlink-target, or binary-byte change
 that makes S2 differ from S1 prevents completion. Moving unchanged final source

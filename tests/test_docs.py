@@ -10,7 +10,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = REPOSITORY_ROOT / "docs"
 README = REPOSITORY_ROOT / "README.md"
 KOREAN_README = REPOSITORY_ROOT / "README.ko.md"
-SKILL = REPOSITORY_ROOT / "skills" / "seal" / "SKILL.md"
+SKILL = REPOSITORY_ROOT / "skills" / "seal-legacy" / "SKILL.md"
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 
 
@@ -42,12 +42,12 @@ class PublicDocumentationTest(unittest.TestCase):
         korean_lines = KOREAN_README.read_text(encoding="utf-8").splitlines()
 
         self.assertEqual(english_lines[:3], [
-            "# Seal",
+            "# Seal Legacy",
             "",
             "Language: English | [한국어](README.ko.md)",
         ])
         self.assertEqual(korean_lines[:3], [
-            "# Seal",
+            "# Seal Legacy",
             "",
             "Language: [English](README.md) | 한국어",
         ])
@@ -90,7 +90,7 @@ class PublicDocumentationTest(unittest.TestCase):
         self.assertIn("# Harness Codex UI smoke", contents)
         self.assertIn("Select the installed `@Harness` Plugin", contents)
         self.assertIn("creating the `v0.2.1` release tag", contents)
-        self.assertNotIn("$seal", contents)
+        self.assertNotIn("$seal-legacy", contents)
 
     def test_current_contract_docs_do_not_claim_v1_compatibility(self) -> None:
         current_documents = (
@@ -124,7 +124,10 @@ class PublicDocumentationTest(unittest.TestCase):
         self.assertNotIn(">=0.1.0", contents)
         self.assertNotIn("v0.1.1", contents)
         self.assertNotIn("git+https://", contents)
-        self.assertNotRegex(contents, r"(?m)^\s*(?:from|import)\s+harness")
+        self.assertNotRegex(
+            contents,
+            r"(?m)^\s*(?:from|import)\s+(?:seal_legacy|seal|harness)\b",
+        )
 
     def test_v0_3_validated_run_summary_contract_is_documented(self) -> None:
         adapter_contract = (DOCS_ROOT / "adapter-contract.md").read_text(
@@ -137,7 +140,7 @@ class PublicDocumentationTest(unittest.TestCase):
             README.read_text(encoding="utf-8"),
             KOREAN_README.read_text(encoding="utf-8"),
         ):
-            self.assertIn("harness run show TASK-001 --run-id <RUN_ID>", contents)
+            self.assertIn("seal-legacy run show TASK-001 --run-id <RUN_ID>", contents)
             self.assertIn("validated-run-summary/v1", contents)
             self.assertIn("0.3.0-dev.0", contents)
             self.assertIn("0.3.0.dev0", contents)
@@ -146,7 +149,7 @@ class PublicDocumentationTest(unittest.TestCase):
             self.assertIn("completion", contents.lower())
 
         self.assertIn(
-            "harness run show <TASK_ID> --run-id <RUN_ID>",
+            "seal-legacy run show <TASK_ID> --run-id <RUN_ID>",
             adapter_contract,
         )
         self.assertIn("validated-run-summary/v1", adapter_contract)

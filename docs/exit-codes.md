@@ -1,4 +1,4 @@
-# Harness exit codes
+# Seal Legacy Core (Python) exit codes
 
 The exit codes below describe the `0.3.0.dev0` Core development line and are
 part of its public CLI contract. Existing numeric meanings remain stable from
@@ -16,9 +16,9 @@ the published `v0.2.1` release.
 | 8 | evidence missing or corrupt | Required Evidence files are missing, JSON is unreadable, the verification schema version is unsupported, or stored records contradict one another |
 | 9 | source binding not satisfied | S0 differs from S1, or current S2 differs from the validated post-check S1 |
 
-## `harness run show` state query
+## `seal-legacy run show` state query
 
-`harness run show <TASK_ID> --run-id <RUN_ID>` calls the canonical
+`seal-legacy run show <TASK_ID> --run-id <RUN_ID>` calls the canonical
 `validate_run()` exactly once and returns a transient Validated Run Summary. It
 does not run checks, collect S2, inspect current source, read Verdict or
 completion state, write files, or infer a latest Run.
@@ -37,9 +37,9 @@ stdout and empty stderr. Handled errors have empty stdout and an
 `error: <message>` diagnostic on stderr; argparse errors use its normal usage
 and error text on stderr.
 
-## `harness complete` decision process
+## `seal-legacy complete` decision process
 
-`harness complete <TASK_ID> --run-id <RUN_ID>` does not rerun checks or
+`seal-legacy complete <TASK_ID> --run-id <RUN_ID>` does not rerun checks or
 regenerate the Git diff. First, the canonical `validate_run()` checks only the
 stored Task/Run identity, artifact paths, check results, scope, mechanical
 result, versioned Source Snapshot Evidence, and raw-byte digest integrity in
@@ -93,13 +93,13 @@ boundary. A manifest mismatch is Evidence corruption with exit 8 and does not
 repair or roll back files. An S1/S2 identity mismatch is valid Evidence with an
 unsatisfied binding and therefore returns exit 9.
 
-Because `harness verify` records check and Source Snapshot results as Evidence,
+Because `seal-legacy verify` records check and Source Snapshot results as Evidence,
 it returns exit 0 if Evidence recording itself succeeds, even when a required
 check fails, times out, or changes product source. S0 or S1 collection failure
 does not produce a valid manifest or successful stdout result. A later
-`harness complete` expresses refusal through the exit codes above.
+`seal-legacy complete` expresses refusal through the exit codes above.
 
 Source Binding is a bounded observation. Exit 0 means S2 matched the validated
-post-check S1 when `complete` collected it; Harness does not lock the filesystem
+post-check S1 when `complete` collected it; Seal Legacy Core (Python) does not lock the filesystem
 or guarantee that source remains unchanged after that observation or after the
 command returns.

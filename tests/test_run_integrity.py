@@ -16,21 +16,21 @@ from pathlib import Path, PurePosixPath
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from harness.bundle import BundleEvidenceError, create_verification_bundle
-from harness.evidence import (
+from seal_legacy.bundle import BundleEvidenceError, create_verification_bundle
+from seal_legacy.evidence import (
     CompletionEvidenceError,
     CompletionRequiredCheckFailureError,
     complete_task,
     verify_task,
 )
-from harness.run_validator import (
+from seal_legacy.run_validator import (
     RunEvidenceError,
     RunValidationError,
     ValidatedRun,
     validate_run,
 )
-from harness.task import create_task
-from harness.verdict import VerdictEvidenceError, record_verdict
+from seal_legacy.task import create_task
+from seal_legacy.verdict import VerdictEvidenceError, record_verdict
 from tests._evidence_fixtures import rewrite_failed_check_as_timeout
 
 
@@ -43,14 +43,14 @@ class CanonicalRunIntegrityTests(unittest.TestCase):
         self.repository = self.root / "repository"
         self.repository.mkdir()
         self._git("init", "--quiet")
-        self._write(".harness/checks.json", '{"checks": []}\n')
+        self._write(".seal/checks.json", '{"checks": []}\n')
         self._write("src/example.txt", "before\n")
         self._git("add", ".")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -504,7 +504,7 @@ class CanonicalRunIntegrityTests(unittest.TestCase):
         metadata_change = next(
             change
             for change in original_changed["changes"]
-            if change["path"].startswith(".harness/")
+            if change["path"].startswith(".seal/")
         )
         verification = copy.deepcopy(original_verification)
         verification["changed_files"].append(metadata_change)

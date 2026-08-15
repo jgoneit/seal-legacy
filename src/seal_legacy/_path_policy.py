@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 
-HARNESS_METADATA_DIRECTORIES = (
-    ".harness/tasks",
-    ".harness/evidence",
+SEAL_METADATA_DIRECTORIES = (
+    ".seal/tasks",
+    ".seal/evidence",
 )
-HARNESS_METADATA_FILES = frozenset(
+SEAL_METADATA_FILES = frozenset(
     {
-        ".harness/runs.jsonl",
-        ".harness/lessons.md",
-        ".harness/config.json",
+        ".seal/runs.jsonl",
+        ".seal/lessons.md",
+        ".seal/config.json",
     }
 )
 
@@ -52,11 +52,11 @@ def change_is_within_scope(
     )
 
 
-def is_harness_metadata_path(path: str) -> bool:
-    """Classify one normalized repository path as Harness-owned metadata."""
-    if path in HARNESS_METADATA_FILES:
+def is_seal_metadata_path(path: str) -> bool:
+    """Classify one normalized repository path as Seal Legacy-owned metadata."""
+    if path in SEAL_METADATA_FILES:
         return True
     return any(
         path_is_within(path, directory)
-        for directory in HARNESS_METADATA_DIRECTORIES
+        for directory in SEAL_METADATA_DIRECTORIES
     )

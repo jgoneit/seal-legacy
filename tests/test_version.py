@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from harness import __version__
+from seal_legacy import __version__
 
 
 class VersionTests(unittest.TestCase):
