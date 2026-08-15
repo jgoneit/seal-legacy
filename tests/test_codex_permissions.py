@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 import shutil
 import subprocess
 import sys
@@ -113,14 +115,23 @@ class CodexCredentialProfileContractTest(unittest.TestCase):
 @unittest.skipUnless(shutil.which("codex"), "Codex CLI is unavailable")
 class CodexCredentialProfileSandboxTest(unittest.TestCase):
     def test_sandbox_denies_credentials_and_allows_env_example(self) -> None:
-        with tempfile.TemporaryDirectory(
-            prefix="credential-boundary-", dir=REPOSITORY_ROOT
-        ) as temporary_directory:
+        with (
+            tempfile.TemporaryDirectory(prefix="codex-home-") as codex_home,
+            tempfile.TemporaryDirectory(
+                prefix="credential-boundary-", dir=REPOSITORY_ROOT
+            ) as temporary_directory,
+        ):
+            codex_home_path = Path(codex_home)
+            (codex_home_path / "config.toml").write_text(
+                f"[projects.{json.dumps(str(REPOSITORY_ROOT), ensure_ascii=False)}]\n"
+                'trust_level = "trusted"\n',
+                encoding="utf-8",
+            )
             fixture_root = Path(temporary_directory)
             example_sentinel = "synthetic-.env.example"
             example = fixture_root / ".env.example"
             example.write_text(example_sentinel, encoding="utf-8")
-            control = self._sandbox_read(example)
+            control = self._sandbox_read(example, codex_home_path)
             if "sandbox_apply: Operation not permitted" in control.stderr:
                 self.skipTest("the current process cannot start a nested macOS sandbox")
             self.assertEqual(control.returncode, 0, control.stderr)
@@ -129,7 +140,7 @@ class CodexCredentialProfileSandboxTest(unittest.TestCase):
             nested_example = fixture_root / "nested" / "project" / ".env.example"
             nested_example.parent.mkdir(parents=True)
             nested_example.write_text(example_sentinel, encoding="utf-8")
-            nested_control = self._sandbox_read(nested_example)
+            nested_control = self._sandbox_read(nested_example, codex_home_path)
             self.assertEqual(nested_control.returncode, 0, nested_control.stderr)
             self.assertEqual(nested_control.stdout, example_sentinel)
 
@@ -164,11 +175,15 @@ class CodexCredentialProfileSandboxTest(unittest.TestCase):
                     fixture = fixture_root / name
                     fixture.parent.mkdir(parents=True, exist_ok=True)
                     fixture.write_text(sentinel, encoding="utf-8")
-                    result = self._sandbox_read(fixture)
+                    result = self._sandbox_read(fixture, codex_home_path)
                     self.assertNotEqual(result.returncode, 0)
                     self.assertNotIn(sentinel, result.stdout)
 
-    def _sandbox_read(self, path: Path) -> subprocess.CompletedProcess[str]:
+    def _sandbox_read(
+        self, path: Path, codex_home: Path
+    ) -> subprocess.CompletedProcess[str]:
+        environment = os.environ.copy()
+        environment["CODEX_HOME"] = str(codex_home)
         return subprocess.run(
             [
                 "codex",
@@ -185,6 +200,7 @@ class CodexCredentialProfileSandboxTest(unittest.TestCase):
             ],
             check=False,
             capture_output=True,
+            env=environment,
             text=True,
             timeout=30,
         )
