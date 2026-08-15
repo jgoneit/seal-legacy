@@ -1,21 +1,21 @@
 ---
-name: seal
-description: Manage a Seal Plugin workflow for a coding outcome by drafting and adopting a Task, creating it, letting the coding Agent implement freely, running one pre-approved verification, showing that exact Run through one Core-validated summary query, preparing one conditional reviewed-profile bundle, and carrying the exact Evidence identity to a separately confirmed completion evaluation. Use only for an explicit $seal end-to-end request, an explicitly selected @Seal Plugin paired with an executable coding outcome, or an unambiguous confirmation or resume reply in the same conversation after this Skill requested it; never start Core for ordinary coding, discussion, planning, audit, review, or status requests.
+name: seal-legacy
+description: "For an explicitly selected `@Seal Legacy` discussion, plan, audit, review, or status request, the first user-visible content must begin exactly `Mode: Analysis only`; use that same label as the Skill-use announcement, state that Core was not started, and emit no file-read or tool-progress commentary before it. For an activated coding outcome, run `seal-legacy --version` preflight before any user-visible content or Skill-use announcement. If it is missing, unparseable, or unsupported, first user-visible content must begin exactly `Status: Core unavailable`; use that status as the Skill-use announcement, and do not emit `Mode: Managed execution`, a preamble, or tool-progress commentary before it. Only after the preflight succeeds with a supported version may managed output begin with `Mode: Managed execution`. Manage Seal Legacy end-to-end for explicit `$seal-legacy`, selected `@Seal Legacy` outcomes, or an unambiguous confirmation or resume reply in the same conversation. Never start Core for ordinary coding."
 ---
 
-# Seal managed workflow
+# Seal Legacy managed workflow
 
-This Skill implements the product hierarchy Seal Plugin → public `harness`
-subprocess CLI → Outcome Harness Core. Core remains the only authority for Task
+This Skill implements the product hierarchy Seal Legacy Plugin → public `seal-legacy`
+subprocess CLI → Seal Legacy Core (Python). Core remains the only authority for Task
 normalization, Evidence, Verdict validation, source binding, and completion.
 The workflow does not monitor or authorize implementation steps.
 
 ## Activation
 
-Start the managed workflow only when `$seal` or an explicitly selected
-`@Seal` Plugin is paired with an executable end-to-end coding outcome. The
+Start the managed workflow only when `$seal-legacy` or an explicitly selected
+`@Seal Legacy` Plugin is paired with an executable end-to-end coding outcome. The
 invocation form never overrides that outcome requirement: Plugin selection
-alone and Seal discussion, explanation, planning, audit, review, or status
+alone and Seal Legacy discussion, explanation, planning, audit, review, or status
 requests do not activate Core. An
 unambiguous direct reply to this Skill's own first or final confirmation, drift
 re-adoption or new-Task choice, or an explicit request to use the carried
@@ -24,7 +24,7 @@ the same workflow in the same conversation. Do not treat an unrelated approval
 or ordinary unselected coding request as activation. Within an activation case
 above, if the user requests only one operation on an existing Task or Run,
 perform that one operation and do not silently enter the managed workflow. The
-explicit `$seal:verify` escape hatch is the sole bounded exception: its one
+explicit `$seal-legacy:verify` escape hatch is the sole bounded exception: its one
 requested verification operation includes one `verify` followed by one exact
 `run show`, as defined by the Verify Skill.
 
@@ -34,8 +34,8 @@ separate from this conversational workflow.
 
 ## User-facing presentation
 
-Lead with a compact status summary before the contract detail. For a Seal
-discussion, explanation, plan, audit, review, or status request that does not
+Lead with a compact status summary before the contract detail. For a Seal Legacy
+discussion, plan, audit, review, or status request that does not
 activate Core, the first user-visible content, including any commentary or
 progress update, must begin exactly `Mode: Analysis only` and state that Core
 was not started. Do not emit a Skill-use announcement, preamble, or
@@ -79,11 +79,11 @@ baseline, or dirty-tree disclosure that this Skill requires. These display
 labels are presentation only and are not persisted lifecycle state, Core
 results, approvals, or additional authority.
 
-If `harness --version` is missing, unparseable, or unsupported, the
+If `seal-legacy --version` is missing, unparseable, or unsupported, the
 Core-unavailable response must begin exactly `Status: Core unavailable`. Do not
 put `Mode: Managed execution`, a preamble, or another status ahead of it. State
 that the selected Plugin does not install or bundle Core and that the Core CLI
-is installed separately. Report the exact `harness --version` command, stdout,
+is installed separately. Report the exact `seal-legacy --version` command, stdout,
 stderr, and numeric exit code. Point to the README Installation section. Quote
 the original managed request verbatim in the repeat guidance and render it
 after `Original request to repeat (verbatim):`. Do not replace it with `the
@@ -106,7 +106,7 @@ refused.
 Before each Core operation or bounded `verify` → `run show` sequence, run:
 
 ~~~bash
-harness --version
+seal-legacy --version
 ~~~
 
 Support Core `>=0.3.0.dev0,<0.4.0`. If the command is missing, do not install it
@@ -126,11 +126,11 @@ Core operation, resolve the selected repository root again and compare it with
 the retained root. If it differs from the retained root, stop without running
 Core. Do not reuse or search for those IDs in another repository.
 
-Before Task creation, confirm `.harness/checks.json` exists. Before an operation
+Before Task creation, confirm `.seal/checks.json` exists. Before an operation
 on an existing Task, run:
 
 ~~~bash
-harness task show <TASK_ID>
+seal-legacy task show <TASK_ID>
 ~~~
 
 Do not create configuration, Tasks, Evidence, or Verdict files merely to
@@ -192,7 +192,7 @@ the draft and ask again before any Core write.
 After confirmation, Task creation itself captures the authoritative saved
 baseline. Do not compare the current HEAD with the displayed HEAD before Task
 creation. If HEAD changed after adoption but the canonical repository is
-unchanged and a current HEAD exists, run `harness task create` exactly once.
+unchanged and a current HEAD exists, run `seal-legacy task create` exactly once.
 Treat the saved baseline from successful `task create` stdout as the only
 post-adoption drift decision point. Existing preflight failures for Core
 version, repository identity, current HEAD existence, or check-catalog
@@ -201,7 +201,7 @@ existence still stop before Task creation.
 Run:
 
 ~~~bash
-harness task create --file <TASK_JSON>
+seal-legacy task create --file <TASK_JSON>
 ~~~
 
 Capture the exact successful `task create` stdout `id`, baseline, and checks.
@@ -236,9 +236,9 @@ instead of carrying them forward.
 
 ## Let the coding Agent implement
 
-Use normal coding-agent judgment, tools, tests, and iteration. Seal does not
+Use normal coding-agent judgment, tools, tests, and iteration. Seal Legacy does not
 prescribe tool order, implementation method, worktree strategy, or subagent
-topology. The one-Run limit applies to `harness verify`, not ordinary
+topology. The one-Run limit applies to `seal-legacy verify`, not ordinary
 development tests.
 
 If implementation is blocked or aborted, do not consume the approved
@@ -249,11 +249,11 @@ whether to create a new Task.
 ## Verify once and show that exact validated Run once
 
 When there is a completion candidate, repeat preflight and show the captured
-Task. Then run exactly once, without another Seal confirmation because the
+Task. Then run exactly once, without another Seal Legacy confirmation because the
 first confirmation covered the bounded pair:
 
 ~~~bash
-harness verify <TASK_ID>
+seal-legacy verify <TASK_ID>
 ~~~
 
 Do not pass `--base-ref`. A nonzero `verify` result is a failed command even if
@@ -280,7 +280,7 @@ binding fails, stop without querying another repository or identity. Otherwise
 run exactly once:
 
 ~~~bash
-harness run show <TASK_ID> --run-id <RUN_ID>
+seal-legacy run show <TASK_ID> --run-id <RUN_ID>
 ~~~
 
 Use only that public subprocess command's stdout JSON, stderr, and exit code.
@@ -353,7 +353,7 @@ outside the target repository whose final directory does not already exist,
 then run:
 
 ~~~bash
-harness verifier bundle <TASK_ID> --run-id <RUN_ID> --output <OUTPUT_DIR>
+seal-legacy verifier bundle <TASK_ID> --run-id <RUN_ID> --output <OUTPUT_DIR>
 ~~~
 
 Report the exact IDs, Evidence path, and bundle path. Bundle success does not
@@ -384,8 +384,8 @@ Record or show that separately supplied Verdict only through Core and only on
 an explicit request to resume:
 
 ~~~bash
-harness verifier record <TASK_ID> --run-id <RUN_ID> --file <VERDICT_JSON>
-harness verifier show <TASK_ID> --run-id <RUN_ID>
+seal-legacy verifier record <TASK_ID> --run-id <RUN_ID> --file <VERDICT_JSON>
+seal-legacy verifier show <TASK_ID> --run-id <RUN_ID>
 ~~~
 
 Keep the Verdict input outside the target repository. If the user supplies
@@ -405,7 +405,7 @@ only when explicitly requested.
 For every blocked, aborted, or nonzero Core stop, lead with a compact failure
 summary before the raw stdout and stderr:
 
-- `Status: Seal stopped`;
+- `Status: Seal Legacy stopped`;
 - `Failure stage`: the operation that did not complete;
 - `Core result`: the exact command, exit code, and whether stdout or stderr was
   empty when a Core command ran, or `not run` plus the reason when none ran;
@@ -419,7 +419,7 @@ Do not put partial stdout, a partial Evidence directory, an inferred latest ID,
 or a proposed replacement Run in `Preserved identity`. The summary must not
 imply that a retry, repair, or replacement operation is authorized.
 
-If `run show` exits nonzero, lead with `Status: Seal stopped`, set `Failure
+If `run show` exits nonzero, lead with `Status: Seal Legacy stopped`, set `Failure
 stage` to `run show`, and report the exact command, complete stdout, complete
 stderr, and numeric exit code. Preserve only the canonical repository, Task ID,
 Run ID, and opaque Evidence path already obtained from successful `task create`
@@ -460,7 +460,7 @@ claim a recorded Verdict state unless the user separately requested
 `complete`:
 
 ~~~bash
-harness complete <TASK_ID> --run-id <RUN_ID>
+seal-legacy complete <TASK_ID> --run-id <RUN_ID>
 ~~~
 
 The initial confirmation does not authorize `complete`. Final confirmation
@@ -490,7 +490,7 @@ retry completion, or roll back. Report the refusal and stop.
 
 Within an activation case above, perform only the explicitly requested public Core operation for a request concerning an existing Task or Run. Require exact IDs, repeat preflight, preserve the same failure stops, and do not chain
 implementation, verification, bundle, Verdict, or completion operations unless
-the user explicitly resumes the managed workflow. `$seal:verify` remains the
+the user explicitly resumes the managed workflow. `$seal-legacy:verify` remains the
 documented bounded exception: one exact `verify`, its one exact `run show`, then
 stop.
 

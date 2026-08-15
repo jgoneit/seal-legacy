@@ -123,7 +123,7 @@ def normalize_task_spec(
 
 def load_check_catalog(repository: str | Path) -> dict[str, dict[str, Any]]:
     """Load and validate the repository-level check catalog."""
-    catalog_path = Path(repository) / ".harness" / "checks.json"
+    catalog_path = Path(repository) / ".seal" / "checks.json"
     if not catalog_path.is_file():
         raise TaskValidationError(
             f"Check catalog is missing: {catalog_path.relative_to(repository)}."
@@ -392,7 +392,7 @@ def _require_nonempty_string(value: object, context: str) -> str:
 
 
 def _task_path(repository: Path, task_id: str) -> Path:
-    return repository / ".harness" / "tasks" / f"{task_id}.json"
+    return repository / ".seal" / "tasks" / f"{task_id}.json"
 
 
 def _load_json_object(path: Path, context: str) -> dict[str, Any]:

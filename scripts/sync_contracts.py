@@ -11,11 +11,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_MIRRORS = (
     (
         PROJECT_ROOT / "schemas" / "verdict.schema.json",
-        PROJECT_ROOT / "src" / "harness" / "resources" / "verdict.schema.json",
+        PROJECT_ROOT / "src" / "seal_legacy" / "resources" / "verdict.schema.json",
     ),
     (
         PROJECT_ROOT / "prompts" / "verifier.md",
-        PROJECT_ROOT / "src" / "harness" / "resources" / "verifier.md",
+        PROJECT_ROOT / "src" / "seal_legacy" / "resources" / "verifier.md",
     ),
 )
 

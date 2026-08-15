@@ -13,7 +13,7 @@ from unittest import mock
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from harness import checks
+from seal_legacy import checks
 
 
 WINDOWS_OS = SimpleNamespace(name="nt")

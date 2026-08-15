@@ -17,10 +17,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SOURCE_ROOT))
 
-from harness import cli
-from harness.evidence import verify_task
-from harness.task import create_task
-from harness.verdict import (
+from seal_legacy import cli
+from seal_legacy.evidence import verify_task
+from seal_legacy.task import create_task
+from seal_legacy.verdict import (
     VerdictEvidenceError,
     VerdictInputError,
     load_recorded_verdict,
@@ -55,14 +55,14 @@ class ManualVerdictTests(unittest.TestCase):
         self.repository = self.root / "repository"
         self.repository.mkdir()
         self._git("init", "--quiet")
-        self._write(".harness/checks.json", '{"checks": []}\n')
+        self._write(".seal/checks.json", '{"checks": []}\n')
         self._write("src/example.txt", "fixture\n")
         self._git("add", ".")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",

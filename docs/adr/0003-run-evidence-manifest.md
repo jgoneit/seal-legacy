@@ -24,7 +24,7 @@ Verifier Verdicts and completion are created by separate commands after verifica
 
 Because bundle creation, Verdict record/show, and completion pass through the existing canonical validator, they consistently reject the same manifest mismatch. A required-check failure, timeout, or Scope violation remains a validly stored failed Run when its manifest is accurate and remains available as input for external review.
 
-The manifest is a local consistency identifier. It is not a signature, remote attestation, immutable storage, completion authority, or external trust anchor. It does not prevent an attack in which the same local user rewrites all Evidence and the manifest. When Harness encounters a mismatch, it does not automatically repair or roll back source or Evidence.
+The manifest is a local consistency identifier. It is not a signature, remote attestation, immutable storage, completion authority, or external trust anchor. It does not prevent an attack in which the same local user rewrites all Evidence and the manifest. When Seal Legacy Core (Python) encounters a mismatch, it does not automatically repair or roll back source or Evidence.
 
 ## Rejected alternatives
 

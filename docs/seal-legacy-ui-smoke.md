@@ -1,6 +1,6 @@
-# Seal Codex UI smoke
+# Seal Legacy Codex UI smoke
 
-This document defines the manual smoke protocol for the Seal Codex Plugin.
+This document defines the manual smoke protocol for the Seal Legacy Plugin.
 Repository tests do not prove selected-plugin routing, prompt presentation, or
 conversation carry-forward in the Codex app. Do not mark a scenario passed
 without fresh UI execution and recorded observations.
@@ -9,12 +9,12 @@ without fresh UI execution and recorded observations.
 
 - Run each scenario in a fresh Codex task so no conversational Task or Run
   identity can leak from another scenario.
-- Select the installed `@Seal` Plugin through the Codex UI for every
-  selected-plugin scenario. A literal `$seal` prompt is a different routing
-  path and is not substitute evidence. A copied `plugin://seal@personal`
+- Select the installed `@Seal Legacy` Plugin through the Codex UI for every
+  selected-plugin scenario. A literal `$seal-legacy` prompt is a different routing
+  path and is not substitute evidence. A copied `plugin://seal-legacy@personal`
   link or `codex exec` prompt is not evidence of selected-plugin routing.
 - Use disposable Git repositories with a current HEAD and an explicit
-  `.harness/checks.json`. Never use production repositories or secrets.
+  `.seal/checks.json`. Never use production repositories or secrets.
 - Record the Codex app build, installed Plugin manifest version, Core version or
   intentional absence, canonical repository root, HEAD, prompt, response,
   commands observed, exit codes, and post-scenario `git status`.
@@ -38,7 +38,7 @@ commit both files before opening the fresh Codex task:
       "argv": [
         "python3",
         "-c",
-        "from pathlib import Path; assert Path('README.md').read_text(encoding='utf-8').endswith('Seal UI smoke fixture\\n')"
+        "from pathlib import Path; assert Path('README.md').read_text(encoding='utf-8').endswith('Seal Legacy UI smoke fixture\\n')"
       ],
       "required": true,
       "timeout_seconds": 30
@@ -47,15 +47,15 @@ commit both files before opening the fresh Codex task:
 }
 ```
 
-After selecting `@Seal`, copy one of these prompts exactly:
+After selecting `@Seal Legacy`, copy one of these prompts exactly:
 
-- Basic: `Append the exact line "Seal UI smoke fixture" to README.md only.
+- Basic: `Append the exact line "Seal Legacy UI smoke fixture" to README.md only.
   Use Scope ["README.md"], the readme-line check, risk low, and the Basic
   profile with verifier.required=false, then verify it.`
-- Reviewed: `Append the exact line "Seal UI smoke fixture" to README.md
+- Reviewed: `Append the exact line "Seal Legacy UI smoke fixture" to README.md
   only. Use Scope ["README.md"], the readme-line check, risk low, and the
   Reviewed profile with verifier.required=true, then verify it.`
-- Discussion: `Explain the Seal UX advantages, disadvantages, and an
+- Discussion: `Explain the Seal Legacy UX advantages, disadvantages, and an
   improvement plan only. Do not implement anything.`
 
 The adoption draft must retain type `docs`, Scope `["README.md"]`, the named
@@ -84,13 +84,13 @@ Pass criteria:
 
 - the first user-visible content, including commentary, leads with the exact
   label `Mode: Analysis only` and no preamble appears before it;
-- no Outcome Harness Core command runs and no Task, Run, bundle, or Verdict is created;
+- no Seal Legacy Core (Python) command runs and no Task, Run, bundle, or Verdict is created;
 - the response answers the discussion request without asking for Task adoption.
 
 ## UI-02 Managed request with Core unavailable
 
 Use the shared fixture and exact Basic prompt in a test environment where the
-Plugin is installed but `harness --version` is intentionally unavailable.
+Plugin is installed but `seal-legacy --version` is intentionally unavailable.
 
 If the Codex app environment cannot safely exclude Core without changing the
 host installation, record this scenario as blocked instead of simulating the
@@ -116,7 +116,7 @@ Pass criteria:
   confirmation`, `Not included in this confirmation`, and `Local records`
   before the full Task JSON and check preview;
 - Task creation, ordinary implementation, and exactly one `verify` occur;
-- the successful `verify` is followed by exactly one `harness run show
+- the successful `verify` is followed by exactly one `seal-legacy run show
   <TASK_ID> --run-id <RUN_ID>` for its returned exact identity, with no question
   between them;
 - the result is labeled `Status: Evidence recorded`, not verification passed,
@@ -178,9 +178,9 @@ Pass criteria:
 
 ## UI-07 Nonzero Core stop
 
-In a clean shared fixture, make `.harness/evidence` a regular file before any
+In a clean shared fixture, make `.seal/evidence` a regular file before any
 Task or Evidence exists so a Run directory cannot be created. Start a fresh
-Codex task, select `@Seal`, submit the shared Basic prompt, and approve the
+Codex task, select `@Seal Legacy`, submit the shared Basic prompt, and approve the
 displayed Task once. This keeps the scenario inside the supported managed
 end-to-end activation while forcing the covered first `verify` to fail.
 
@@ -188,7 +188,7 @@ Pass criteria:
 
 - Task creation succeeds once, `README.md` is changed once, and exactly one
   covered `verify` runs without another adoption;
-- the nonzero `verify` produces `Status: Seal stopped` with the failure
+- the nonzero `verify` produces `Status: Seal Legacy stopped` with the failure
   stage, exact command and exit code, canonical repository and Task ID retained
   from successful `task create` stdout, and later operations not run;
 - Run ID and Evidence path are reported as not created rather than inferred
@@ -217,7 +217,7 @@ Pass criteria:
 ## UI-09 Ordinary unselected coding stays inactive
 
 Start a fresh Codex task in a clean shared fixture without selecting
-`@Seal` or any Seal Skill. Do not include `$seal`, a Plugin link, or Seal
+`@Seal Legacy` or any Seal Legacy Skill. Do not include `$seal-legacy`, a Plugin link, or Seal Legacy
 lifecycle terms in the request. Keep the compatible Core and check
 catalog available so this tests routing rather than missing setup. Submit
 exactly:
@@ -228,13 +228,13 @@ Append the exact line "Ordinary coding smoke fixture" to README.md only.
 
 Pass criteria:
 
-- the captured submission state shows that no Seal Plugin or Skill was
+- the captured submission state shows that no Seal Legacy Plugin or Skill was
   selected;
 - the request is handled as ordinary coding and only `README.md` changes;
-- no Seal mode or status summary appears, including `Mode: Analysis only`,
-  `Mode: Managed execution`, or any Seal `Status:` label; no Seal-specific
+- no Seal Legacy mode or status summary appears, including `Mode: Analysis only`,
+  `Mode: Managed execution`, or any Seal Legacy `Status:` label; no Seal Legacy-specific
   lifecycle language, Core preflight, Task draft, or adoption prompt appears,
-  and no Outcome Harness Core command runs; and
+  and no Seal Legacy Core (Python) command runs; and
 - no Task, Run, Evidence, bundle, Verdict, or completion artifact is created.
 
 ## UI-10 Valid required-check failure
@@ -273,7 +273,7 @@ Pass criteria:
 
 ## UI-12 Corrupt or unsafe Evidence fail-stop
 
-Run two fresh disposable variants. Use an external test-only `harness` wrapper
+Run two fresh disposable variants. Use an external test-only `seal-legacy` wrapper
 outside the target repository that delegates every command to the exact Core
 CLI. Immediately before delegating the first `run show`, variant A corrupts the
 returned Run's `verification.json`; variant B replaces the returned Run
@@ -285,18 +285,18 @@ Pass criteria for each variant:
 - Task creation and exactly one `verify` succeed, then the Plugin invokes the
   exact returned identity's `run show` exactly once;
 - Core returns exit 8 with empty success stdout and the real stderr diagnostic;
-- the response leads with `Status: Seal stopped`, identifies `run show` as the
+- the response leads with `Status: Seal Legacy stopped`, identifies `run show` as the
   failure stage, and reports the exact command, stdout, stderr, and exit code;
 - only the canonical repository and Task/Run/Evidence identity returned before
   failure are preserved;
 - no raw-Evidence fallback, retry, repair, replacement Run, bundle, Verdict
   operation, or `complete` occurs.
 
-## UI-13 Explicit `$seal:verify` bounded sequence
+## UI-13 Explicit `$seal-legacy:verify` bounded sequence
 
 Create an exact saved Basic Task in a fresh disposable repository with Core,
 then make the in-Scope product change without creating a Run. Start a fresh
-Codex task and invoke `$seal:verify` with the canonical repository and exact
+Codex task and invoke `$seal-legacy:verify` with the canonical repository and exact
 Task ID.
 
 Pass criteria:
@@ -312,13 +312,9 @@ Pass criteria:
 ## Current-source interpretation
 
 All thirteen required scenarios must each record a fresh Observed result of `pass`
-before claiming that the current Seal selected-Plugin and ordinary-unselected
+before claiming that the current Seal Legacy selected-Plugin and ordinary-unselected
 routing contract passed. Any `fail`, `blocked`, or `not run` result keeps that
-current-source acceptance gate open. Static contract tests, literal `$seal`
+current-source acceptance gate open. Static contract tests, literal `$seal-legacy`
 execution, package smoke tests, historical `v0.2.1` release evidence, or a
 previously observed Codex task are useful supporting evidence but do not
 replace this UI smoke.
-
-PR2 implementation record: selected-Plugin UI smoke was not run. UI-01 through
-UI-13 remain `not run`; no scenario is recorded as passed by this document
-update.

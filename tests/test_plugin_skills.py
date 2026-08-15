@@ -1,4 +1,4 @@
-"""Contract coverage for the Seal Codex Plugin skills."""
+"""Contract coverage for the Seal Legacy Plugin skills."""
 
 from __future__ import annotations
 
@@ -12,11 +12,11 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SKILLS_ROOT = REPOSITORY_ROOT / "skills"
 PLUGIN_MANIFEST = REPOSITORY_ROOT / ".codex-plugin" / "plugin.json"
 ADAPTER_CONTRACT = REPOSITORY_ROOT / "docs" / "adapter-contract.md"
-UI_SMOKE = REPOSITORY_ROOT / "docs" / "seal-ui-smoke.md"
+UI_SMOKE = REPOSITORY_ROOT / "docs" / "seal-legacy-ui-smoke.md"
 TASK_SCHEMA = REPOSITORY_ROOT / "schemas" / "task.schema.json"
 README = REPOSITORY_ROOT / "README.md"
 KOREAN_README = REPOSITORY_ROOT / "README.ko.md"
-EXPECTED_SKILLS = ("seal", "task", "verify", "bundle", "complete")
+EXPECTED_SKILLS = ("seal-legacy", "task", "verify", "bundle", "complete")
 
 
 def _skill_text(name: str) -> str:
@@ -29,9 +29,19 @@ def _agent_metadata(name: str) -> str:
     )
 
 
-def _frontmatter_name(contents: str) -> str | None:
-    match = re.search(r"(?m)^name:\s*([^\n]+)$", contents)
+def _frontmatter_field(contents: str, field: str) -> str | None:
+    _, separator, remainder = contents.partition("---\n")
+    if not separator:
+        return None
+    frontmatter, separator, _ = remainder.partition("\n---\n")
+    if not separator:
+        return None
+    match = re.search(rf"(?m)^{re.escape(field)}:\s*([^\n]+)$", frontmatter)
     return None if match is None else match.group(1).strip().strip('"\'')
+
+
+def _frontmatter_name(contents: str) -> str | None:
+    return _frontmatter_field(contents, "name")
 
 
 def _normalized(contents: str) -> str:
@@ -49,21 +59,21 @@ class PluginSkillContractTests(unittest.TestCase):
 
                 self.assertEqual(_frontmatter_name(_skill_text(name)), name)
                 metadata = _agent_metadata(name)
-                expected_policy = "true" if name == "seal" else "false"
+                expected_policy = "true" if name == "seal-legacy" else "false"
                 self.assertIn(
                     f"policy:\n  allow_implicit_invocation: {expected_policy}",
                     metadata,
                 )
-                invocation = "$seal" if name == "seal" else f"$seal:{name}"
+                invocation = "$seal-legacy" if name == "seal-legacy" else f"$seal-legacy:{name}"
                 self.assertIn(invocation, metadata)
 
         self.assertIn(
             "unambiguous confirmation or resume reply in the same conversation",
-            _normalized(_skill_text("seal")),
+            _normalized(_skill_text("seal-legacy")),
         )
-        managed = _normalized(_skill_text("seal"))
+        managed = _normalized(_skill_text("seal-legacy"))
         self.assertIn(
-            "Start the managed workflow only when `$seal` or an explicitly selected `@Seal` Plugin is paired with an executable end-to-end coding outcome",
+            "Start the managed workflow only when `$seal-legacy` or an explicitly selected `@Seal Legacy` Plugin is paired with an executable end-to-end coding outcome",
             managed,
         )
         self.assertIn(
@@ -86,7 +96,7 @@ class PluginSkillContractTests(unittest.TestCase):
             with self.subTest(explicit_follow_up=name):
                 contents = _normalized(_skill_text(name))
                 self.assertIn(
-                    f"Ask the user to invoke `$seal:{name}` again",
+                    f"Ask the user to invoke `$seal-legacy:{name}` again",
                     contents,
                 )
                 self.assertIn(
@@ -95,10 +105,10 @@ class PluginSkillContractTests(unittest.TestCase):
                 )
 
     def test_managed_skill_defines_one_approved_initial_verification(self) -> None:
-        contents = _normalized(_skill_text("seal"))
+        contents = _normalized(_skill_text("seal-legacy"))
         required_fragments = (
-            "`$seal`",
-            "explicitly selected `@Seal` Plugin",
+            "`$seal-legacy`",
+            "explicitly selected `@Seal Legacy` Plugin",
             "one conversational confirmation",
             "Task creation, ordinary implementation, the first `verify` exactly once, and one `run show` exactly once",
             "first `verify` exactly once",
@@ -126,7 +136,7 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("docs", task_types)
 
         documents = {
-            "managed skill": _normalized(_skill_text("seal")),
+            "managed skill": _normalized(_skill_text("seal-legacy")),
             "task skill": _normalized(_skill_text("task")),
             "adapter contract": _normalized(
                 ADAPTER_CONTRACT.read_text(encoding="utf-8")
@@ -162,7 +172,7 @@ class PluginSkillContractTests(unittest.TestCase):
                 )
 
     def test_managed_skill_preserves_failure_and_review_boundaries(self) -> None:
-        contents = _normalized(_skill_text("seal"))
+        contents = _normalized(_skill_text("seal-legacy"))
         required_fragments = (
             "blocked or aborted",
             (
@@ -187,7 +197,7 @@ class PluginSkillContractTests(unittest.TestCase):
                 self.assertIn(fragment, contents)
 
     def test_verify_results_adopt_only_the_exact_validated_run_summary(self) -> None:
-        for name in ("seal", "verify"):
+        for name in ("seal-legacy", "verify"):
             with self.subTest(skill=name):
                 contents = _normalized(_skill_text(name))
                 self.assertIn(
@@ -203,7 +213,7 @@ class PluginSkillContractTests(unittest.TestCase):
                     contents,
                 )
                 self.assertIn(
-                    "harness run show <TASK_ID> --run-id <RUN_ID>",
+                    "seal-legacy run show <TASK_ID> --run-id <RUN_ID>",
                     contents,
                 )
                 self.assertIn("validated-run-summary/v1", contents)
@@ -214,10 +224,10 @@ class PluginSkillContractTests(unittest.TestCase):
                 self.assertIn("adapter contract failure", contents)
                 self.assertIn("fall back to raw Evidence", contents)
 
-        managed = _normalized(_skill_text("seal"))
-        verify_position = managed.index("harness verify <TASK_ID>")
+        managed = _normalized(_skill_text("seal-legacy"))
+        verify_position = managed.index("seal-legacy verify <TASK_ID>")
         run_show_position = managed.index(
-            "harness run show <TASK_ID> --run-id <RUN_ID>"
+            "seal-legacy run show <TASK_ID> --run-id <RUN_ID>"
         )
         self.assertLess(verify_position, run_show_position)
 
@@ -265,7 +275,7 @@ class PluginSkillContractTests(unittest.TestCase):
         )
 
     def test_managed_profile_handoff_preserves_final_confirmation(self) -> None:
-        managed = _normalized(_skill_text("seal"))
+        managed = _normalized(_skill_text("seal-legacy"))
         required_fragments = (
             "When `verifier.required=false`, do not create a bundle",
             "continue immediately to the final completion confirmation",
@@ -288,7 +298,7 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("reviewed profile exports exactly one approved local bundle", contract)
 
     def test_managed_skill_leads_with_compact_user_facing_status(self) -> None:
-        managed = _normalized(_skill_text("seal"))
+        managed = _normalized(_skill_text("seal-legacy"))
         required_fragments = (
             "## User-facing presentation",
             "Mode: Analysis only",
@@ -353,7 +363,7 @@ class PluginSkillContractTests(unittest.TestCase):
             "Mode: Analysis only",
             "Status: Core unavailable",
             "Status: Evidence recorded",
-            "Status: Seal stopped",
+            "Status: Seal Legacy stopped",
             "Status: Review handoff ready",
             "Included in this confirmation",
             "Not included in this confirmation",
@@ -366,7 +376,7 @@ class PluginSkillContractTests(unittest.TestCase):
                     self.assertIn(label, contents)
 
     def test_analysis_and_core_unavailable_responses_have_exact_leads(self) -> None:
-        managed = _normalized(_skill_text("seal"))
+        managed = _normalized(_skill_text("seal-legacy"))
         start = managed.index("## User-facing presentation")
         end = managed.index("## Core boundary and preflight", start)
         presentation = managed[start:end]
@@ -385,7 +395,7 @@ class PluginSkillContractTests(unittest.TestCase):
                 "Do not put `Mode: Managed execution`, a preamble, or another "
                 "status ahead of it"
             ),
-            "the exact `harness --version` command, stdout, stderr, and numeric exit code",
+            "the exact `seal-legacy --version` command, stdout, stderr, and numeric exit code",
             "Quote the original managed request verbatim in the repeat guidance",
             "`Original request to repeat (verbatim):`",
             "Do not replace it with `the same request` or a generic paraphrase",
@@ -394,8 +404,65 @@ class PluginSkillContractTests(unittest.TestCase):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, presentation)
 
+    def test_analysis_only_lead_is_front_loaded_before_skill_body_reads(self) -> None:
+        description = _frontmatter_field(_skill_text("seal-legacy"), "description")
+        self.assertIsNotNone(description)
+        assert description is not None
+        description = _normalized(description)
+
+        self.assertTrue(
+            description.startswith(
+                "For an explicitly selected `@Seal Legacy` discussion"
+            )
+        )
+        required_fragments = (
+            "the first user-visible content must begin exactly `Mode: Analysis only`",
+            "use that same label as the Skill-use announcement",
+            "state that Core was not started",
+            "no file-read or tool-progress commentary before it",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, description)
+
+        self.assertLess(
+            description.index("`Mode: Analysis only`"),
+            description.index("Manage Seal Legacy end-to-end"),
+        )
+
+    def test_core_unavailable_lead_is_front_loaded_before_skill_body_reads(self) -> None:
+        description = _frontmatter_field(_skill_text("seal-legacy"), "description")
+        self.assertIsNotNone(description)
+        assert description is not None
+        description = _normalized(description)
+
+        required_fragments = (
+            "run `seal-legacy --version` preflight before any user-visible content or Skill-use announcement",
+            "missing, unparseable, or unsupported",
+            "first user-visible content must begin exactly `Status: Core unavailable`",
+            "use that status as the Skill-use announcement",
+            "do not emit `Mode: Managed execution`, a preamble, or tool-progress commentary before it",
+            "Only after the preflight succeeds with a supported version may managed output begin with `Mode: Managed execution`",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, description)
+
+        self.assertLess(
+            description.index("`Mode: Analysis only`"),
+            description.index("`seal-legacy --version`"),
+        )
+        self.assertLess(
+            description.index("`seal-legacy --version`"),
+            description.index("`Status: Core unavailable`"),
+        )
+        self.assertLess(
+            description.index("`Status: Core unavailable`"),
+            description.index("`Mode: Managed execution`"),
+        )
+
     def test_first_adoption_presentation_has_one_explicit_block_order(self) -> None:
-        contents = _skill_text("seal")
+        contents = _skill_text("seal-legacy")
         start = contents.index("For every first-adoption response")
         end = contents.index("The three approval", start)
         section = _normalized(contents[start:end])
@@ -421,10 +488,10 @@ class PluginSkillContractTests(unittest.TestCase):
         )
 
     def test_managed_failures_and_review_handoffs_include_resume_capsules(self) -> None:
-        managed = _normalized(_skill_text("seal"))
+        managed = _normalized(_skill_text("seal-legacy"))
         required_fragments = (
             "## Report failures and handoffs",
-            "Status: Seal stopped",
+            "Status: Seal Legacy stopped",
             "Failure stage",
             "Preserved identity",
             "Not run",
@@ -442,7 +509,7 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("must not imply that a retry is authorized", contract)
 
     def test_managed_identity_is_bound_to_the_original_repository_root(self) -> None:
-        managed = _normalized(_skill_text("seal"))
+        managed = _normalized(_skill_text("seal-legacy"))
         required_fragments = (
             "canonical repository root",
             "Bind the exact Task ID",
@@ -450,7 +517,7 @@ class PluginSkillContractTests(unittest.TestCase):
             "resolve the selected repository root again",
             "differs from the retained root",
             "require the successful `verify` identity to equal the retained Task ID plus the returned Run ID",
-            "harness run show <TASK_ID> --run-id <RUN_ID>",
+            "seal-legacy run show <TASK_ID> --run-id <RUN_ID>",
             "Do not reuse or search for those IDs in another repository",
         )
         for fragment in required_fragments:
@@ -496,7 +563,7 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("Core's required `--output` argument", contract)
 
     def test_bundle_success_is_not_reported_as_mechanical_pass(self) -> None:
-        for name in ("seal", "bundle"):
+        for name in ("seal-legacy", "bundle"):
             with self.subTest(skill=name):
                 contents = _normalized(_skill_text(name))
                 self.assertIn("bundle success does not mean", contents.lower())
@@ -510,7 +577,7 @@ class PluginSkillContractTests(unittest.TestCase):
         )
 
     def test_completion_prompt_does_not_infer_recorded_verdict_state(self) -> None:
-        managed = _normalized(_skill_text("seal"))
+        managed = _normalized(_skill_text("seal-legacy"))
         self.assertIn("saved Task's `verifier.required` setting", managed)
         self.assertIn(
             "Do not inspect or claim a recorded Verdict state unless the user separately requested `verifier show`",
@@ -524,7 +591,7 @@ class PluginSkillContractTests(unittest.TestCase):
         )
 
     def test_managed_completion_preserves_the_raw_core_process_result(self) -> None:
-        managed = _normalized(_skill_text("seal"))
+        managed = _normalized(_skill_text("seal-legacy"))
         start = managed.index("## Ask for final completion confirmation")
         end = managed.index("## Explicit single-operation mode", start)
         completion = managed[start:end]
@@ -554,7 +621,7 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
 
     def test_task_drafts_do_not_invent_optional_check_timeouts(self) -> None:
-        for name in ("seal", "task"):
+        for name in ("seal-legacy", "task"):
             with self.subTest(skill=name):
                 contents = _normalized(_skill_text(name))
                 self.assertIn("catalog-derived check preview", contents)
@@ -566,7 +633,7 @@ class PluginSkillContractTests(unittest.TestCase):
                 self.assertIn("do not infer a numeric default", contents)
 
     def test_verdict_input_does_not_mutate_verified_product_source(self) -> None:
-        contents = _normalized(_skill_text("seal"))
+        contents = _normalized(_skill_text("seal-legacy"))
         self.assertIn("Verdict input outside the target repository", contents)
         self.assertIn("inline Verdict JSON", contents)
         self.assertIn("Do not move or delete a repository-local Verdict", contents)
@@ -578,7 +645,7 @@ class PluginSkillContractTests(unittest.TestCase):
                 )
 
     def test_managed_creation_reconciles_the_approved_preview(self) -> None:
-        contents = _normalized(_skill_text("seal"))
+        contents = _normalized(_skill_text("seal-legacy"))
         required_fragments = (
             "saved baseline differs from the displayed HEAD",
             "saved Task fields differ from the approved draft",
@@ -602,7 +669,7 @@ class PluginSkillContractTests(unittest.TestCase):
         )
 
     def test_post_adoption_head_drift_is_reconciled_after_task_create(self) -> None:
-        managed = _normalized(_skill_text("seal"))
+        managed = _normalized(_skill_text("seal-legacy"))
         start = managed.index("## Create and carry the Task identity")
         end = managed.index("## Let the coding Agent implement", start)
         creation = managed[start:end]
@@ -611,7 +678,7 @@ class PluginSkillContractTests(unittest.TestCase):
             "Do not compare the current HEAD with the displayed HEAD before Task creation",
             (
                 "If HEAD changed after adoption but the canonical repository is "
-                "unchanged and a current HEAD exists, run `harness task create` "
+                "unchanged and a current HEAD exists, run `seal-legacy task create` "
                 "exactly once"
             ),
             (
@@ -626,7 +693,7 @@ class PluginSkillContractTests(unittest.TestCase):
                 self.assertIn(fragment, creation)
 
         ordered_fragments = (
-            "run `harness task create` exactly once",
+            "run `seal-legacy task create` exactly once",
             "saved baseline from successful `task create` stdout",
             "compare the saved baseline with the displayed HEAD",
         )
@@ -642,23 +709,23 @@ class PluginSkillContractTests(unittest.TestCase):
             with self.subTest(document=document.name):
                 contents = document.read_text(encoding="utf-8")
                 self.assertIn("### Codex Plugin", contents)
-                self.assertIn("codex plugin add seal@personal", contents)
+                self.assertIn("codex plugin add seal-legacy@personal", contents)
                 self.assertIn(boundary, contents)
 
     def test_escape_hatches_name_only_their_core_operation(self) -> None:
         expected_commands = {
             "task": (
-                "harness task create --file <TASK_JSON>",
-                "harness task show <TASK_ID>",
+                "seal-legacy task create --file <TASK_JSON>",
+                "seal-legacy task show <TASK_ID>",
             ),
             "verify": (
-                "harness verify <TASK_ID>",
-                "harness run show <TASK_ID> --run-id <RUN_ID>",
+                "seal-legacy verify <TASK_ID>",
+                "seal-legacy run show <TASK_ID> --run-id <RUN_ID>",
             ),
             "bundle": (
-                "harness verifier bundle <TASK_ID> --run-id <RUN_ID> --output <OUTPUT_DIR>",
+                "seal-legacy verifier bundle <TASK_ID> --run-id <RUN_ID> --output <OUTPUT_DIR>",
             ),
-            "complete": ("harness complete <TASK_ID> --run-id <RUN_ID>",),
+            "complete": ("seal-legacy complete <TASK_ID> --run-id <RUN_ID>",),
         }
         for name, commands in expected_commands.items():
             with self.subTest(skill=name):
@@ -685,25 +752,25 @@ class PluginSkillContractTests(unittest.TestCase):
         manifest = json.loads(PLUGIN_MANIFEST.read_text(encoding="utf-8"))
         interface = manifest["interface"]
 
-        self.assertEqual(manifest["name"], "seal")
+        self.assertEqual(manifest["name"], "seal-legacy")
         self.assertEqual(manifest["version"], "0.3.0-dev.0")
-        self.assertEqual(interface["displayName"], "Seal")
+        self.assertEqual(interface["displayName"], "Seal Legacy")
         self.assertEqual(
             interface["shortDescription"],
             "Evidence-backed completion for coding agents",
         )
-        self.assertEqual(manifest["homepage"], "https://github.com/jgoneit/seal")
-        self.assertEqual(manifest["repository"], "https://github.com/jgoneit/seal")
-        self.assertEqual(interface["websiteURL"], "https://github.com/jgoneit/seal")
+        self.assertEqual(manifest["homepage"], "https://github.com/jgoneit/seal-legacy")
+        self.assertEqual(manifest["repository"], "https://github.com/jgoneit/seal-legacy")
+        self.assertEqual(interface["websiteURL"], "https://github.com/jgoneit/seal-legacy")
         self.assertIn("managed", manifest["description"].lower())
         self.assertIn("managed", interface["longDescription"].lower())
         self.assertIn("core-validated stored run state", interface["longDescription"].lower())
         prompts = interface["defaultPrompt"]
         self.assertLessEqual(len(prompts), 3)
-        self.assertTrue(any(prompt.startswith("$seal ") for prompt in prompts))
-        self.assertTrue(any(not prompt.startswith("$seal") for prompt in prompts))
+        self.assertTrue(any(prompt.startswith("$seal-legacy ") for prompt in prompts))
+        self.assertTrue(any(not prompt.startswith("$seal-legacy") for prompt in prompts))
         verify_prompts = [
-            prompt for prompt in prompts if prompt.startswith("$seal:verify ")
+            prompt for prompt in prompts if prompt.startswith("$seal-legacy:verify ")
         ]
         self.assertEqual(len(verify_prompts), 1)
         self.assertIn("<TASK_ID>", verify_prompts[0])
@@ -740,15 +807,15 @@ class PluginSkillContractTests(unittest.TestCase):
                 ):
                     self.assertNotIn(phrase, contents)
 
-        managed = _normalized(_skill_text("seal"))
+        managed = _normalized(_skill_text("seal-legacy"))
         self.assertIn(
-            "Seal Plugin → public `harness` subprocess CLI → Outcome Harness Core",
+            "Seal Legacy Plugin → public `seal-legacy` subprocess CLI → Seal Legacy Core (Python)",
             managed,
         )
         for document in (README, KOREAN_README):
             contents = _normalized(document.read_text(encoding="utf-8"))
             self.assertIn(
-                "Seal Plugin → public harness subprocess CLI → Outcome Harness Core",
+                "Seal Legacy Plugin → public seal-legacy subprocess CLI → Seal Legacy Core (Python)",
                 contents,
             )
             for non_claim in (
@@ -762,11 +829,11 @@ class PluginSkillContractTests(unittest.TestCase):
 
     def test_public_docs_separate_core_and_plugin_workflows(self) -> None:
         expected = (
-            (README, "## Core CLI workflow", "## Seal Codex Plugin managed workflow"),
+            (README, "## Core CLI workflow", "## Seal Legacy Plugin managed workflow"),
             (
                 KOREAN_README,
                 "## Core CLI workflow",
-                "## Seal Codex Plugin 관리형 workflow",
+                "## Seal Legacy Plugin 관리형 workflow",
             ),
         )
         for document, core_heading, plugin_heading in expected:
@@ -775,10 +842,10 @@ class PluginSkillContractTests(unittest.TestCase):
                 self.assertIn(core_heading, contents)
                 self.assertIn(plugin_heading, contents)
                 for invocation in (
-                    "$seal:task",
-                    "$seal:verify",
-                    "$seal:bundle",
-                    "$seal:complete",
+                    "$seal-legacy:task",
+                    "$seal-legacy:verify",
+                    "$seal-legacy:bundle",
+                    "$seal-legacy:complete",
                 ):
                     self.assertIn(invocation, contents)
 
@@ -795,7 +862,7 @@ class PluginSkillContractTests(unittest.TestCase):
             _normalized(KOREAN_README.read_text(encoding="utf-8")),
         )
         self.assertIn(
-            "selected `@Seal` Plugin",
+            "selected `@Seal Legacy` Plugin",
             _normalized(README.read_text(encoding="utf-8")),
         )
         self.assertIn(
@@ -803,7 +870,7 @@ class PluginSkillContractTests(unittest.TestCase):
             _normalized(README.read_text(encoding="utf-8")),
         )
         self.assertIn(
-            "선택한 `@Seal` Plugin",
+            "선택한 `@Seal Legacy` Plugin",
             _normalized(KOREAN_README.read_text(encoding="utf-8")),
         )
         self.assertIn(
@@ -831,7 +898,7 @@ class PluginSkillContractTests(unittest.TestCase):
             "UI-10 Valid required-check failure",
             "UI-11 Valid required-check timeout",
             "UI-12 Corrupt or unsafe Evidence fail-stop",
-            "UI-13 Explicit `$seal:verify` bounded sequence",
+            "UI-13 Explicit `$seal-legacy:verify` bounded sequence",
             "Observed result",
             "Pass criteria",
             "pass, fail, blocked, or not run",
@@ -843,12 +910,19 @@ class PluginSkillContractTests(unittest.TestCase):
             "regular-file setup is not removed or repaired",
             "does not run before a separate unambiguous final confirmation",
             "Any `fail`, `blocked`, or `not run` result keeps that current-source acceptance gate open",
-            "selected-Plugin UI smoke was not run",
-            "UI-01 through UI-13 remain `not run`",
         )
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, normalized)
+
+        for operational_record in (
+            "PR2 implementation record",
+            "Post-merge fresh-task record",
+            "019fffba-0513-7fc1-bfa7-87387c170af8",
+            "UI-01 was run and recorded",
+        ):
+            with self.subTest(operational_record=operational_record):
+                self.assertNotIn(operational_record, contents)
 
         scenario_ids = re.findall(r"(?m)^## (UI-\d{2}) ", contents)
         self.assertEqual(
@@ -883,7 +957,7 @@ class PluginSkillContractTests(unittest.TestCase):
         basic = scenario("UI-03 Basic profile happy path")
         self.assertIn("`Included in this confirmation`", basic)
         self.assertIn("exactly one `verify`", basic)
-        self.assertIn("exactly one `harness run show", basic)
+        self.assertIn("exactly one `seal-legacy run show", basic)
         self.assertIn("for its returned exact identity", basic)
         self.assertIn("`Status: Evidence recorded`", basic)
         self.assertIn("raw `verification.json`", basic)
@@ -935,16 +1009,16 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("accepted or refused by Core", completion)
 
         ordinary = scenario("UI-09 Ordinary unselected coding stays inactive")
-        self.assertIn("without selecting `@Seal` or any Seal Skill", ordinary)
+        self.assertIn("without selecting `@Seal Legacy` or any Seal Legacy Skill", ordinary)
         self.assertIn(
             'Append the exact line "Ordinary coding smoke fixture" to README.md only.',
             ordinary,
         )
         self.assertIn("tests routing rather than missing setup", ordinary)
-        self.assertIn("no Seal mode or status summary appears", ordinary)
+        self.assertIn("no Seal Legacy mode or status summary appears", ordinary)
         self.assertIn("including `Mode: Analysis only`", ordinary)
-        self.assertIn("no Seal-specific lifecycle language", ordinary)
-        self.assertIn("no Outcome Harness Core command runs", ordinary)
+        self.assertIn("no Seal Legacy-specific lifecycle language", ordinary)
+        self.assertIn("no Seal Legacy Core (Python) command runs", ordinary)
 
         failed_check = scenario("UI-10 Valid required-check failure")
         self.assertIn("exactly one `verify`", failed_check)
@@ -967,12 +1041,12 @@ class PluginSkillContractTests(unittest.TestCase):
         self.assertIn("variant A corrupts", corrupt)
         self.assertIn("variant B replaces", corrupt)
         self.assertIn("Core returns exit 8", corrupt)
-        self.assertIn("`Status: Seal stopped`", corrupt)
+        self.assertIn("`Status: Seal Legacy stopped`", corrupt)
         self.assertIn("`run show` as the failure stage", corrupt)
         self.assertIn("no raw-Evidence fallback", corrupt)
         self.assertIn("replacement Run", corrupt)
 
-        verify_escape = scenario("UI-13 Explicit `$seal:verify` bounded sequence")
+        verify_escape = scenario("UI-13 Explicit `$seal-legacy:verify` bounded sequence")
         self.assertIn("exact `task show`", verify_escape)
         self.assertIn("exactly one `verify`", verify_escape)
         self.assertIn("exactly one `run show`", verify_escape)
@@ -983,12 +1057,12 @@ class PluginSkillContractTests(unittest.TestCase):
         release = scenario("Current-source interpretation")
         self.assertIn("All thirteen required scenarios", release)
         self.assertIn("fresh Observed result of `pass`", release)
-        self.assertIn("current Seal selected-Plugin", release)
+        self.assertIn("current Seal Legacy selected-Plugin", release)
         self.assertIn("historical `v0.2.1` release evidence", release)
         self.assertNotIn("creating the `v0.2.1` release tag", release)
 
-        self.assertIn("Seal Codex UI smoke", README.read_text(encoding="utf-8"))
-        self.assertIn("Seal Codex UI smoke", KOREAN_README.read_text(encoding="utf-8"))
+        self.assertIn("Seal Legacy Codex UI smoke", README.read_text(encoding="utf-8"))
+        self.assertIn("Seal Legacy Codex UI smoke", KOREAN_README.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

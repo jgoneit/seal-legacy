@@ -17,8 +17,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from harness import cli
-from harness.task import (
+from seal_legacy import cli
+from seal_legacy.task import (
     TaskAlreadyExistsError,
     TaskValidationError,
     create_task,
@@ -51,7 +51,7 @@ def task_spec() -> dict[str, object]:
         "id": "TASK-001",
         "type": "bugfix",
         "objective": "Prevent duplicate notifications.",
-        "scope": ["./src//harness/", "tests\\unit"],
+        "scope": ["./src//seal_legacy/", "tests\\unit"],
         "checks": ["unit-test"],
         "risk": "medium",
         "verifier": {"required": True},
@@ -80,15 +80,15 @@ class TaskSpecTests(unittest.TestCase):
         self._git("add", "README.md")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
             "fixture",
         )
-        catalog_path = self.repository / ".harness" / "checks.json"
+        catalog_path = self.repository / ".seal" / "checks.json"
         catalog_path.parent.mkdir()
         catalog_path.write_text(json.dumps(CATALOG), encoding="utf-8")
 
@@ -120,10 +120,10 @@ class TaskSpecTests(unittest.TestCase):
     def test_creates_normalized_snapshot_from_catalog_reference(self) -> None:
         snapshot = self._create(task_spec())
 
-        self.assertEqual(snapshot["scope"], ["src/harness", "tests/unit"])
+        self.assertEqual(snapshot["scope"], ["src/seal_legacy", "tests/unit"])
         self.assertEqual(snapshot["checks"], CATALOG["checks"])
         stored = json.loads(
-            (self.repository / ".harness" / "tasks" / "TASK-001.json").read_text(
+            (self.repository / ".seal" / "tasks" / "TASK-001.json").read_text(
                 encoding="utf-8"
             )
         )
@@ -199,7 +199,7 @@ class TaskSpecTests(unittest.TestCase):
             )
 
         stored = json.loads(
-            (self.repository / ".harness" / "tasks" / "TASK-001.json").read_text(
+            (self.repository / ".seal" / "tasks" / "TASK-001.json").read_text(
                 encoding="utf-8"
             )
         )

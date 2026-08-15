@@ -3,8 +3,8 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "outcome-harness"
-description = "Experimental local CLI for evidence-based Task completion."
+name = "seal-legacy-core"
+description = "Seal Legacy Core (Python) for evidence-based Task completion."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -28,11 +28,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jgoneit/seal"
-Repository = "https://github.com/jgoneit/seal"
+Homepage = "https://github.com/jgoneit/seal-legacy"
+Repository = "https://github.com/jgoneit/seal-legacy"
 
 [project.scripts]
-harness = "harness.cli:main"
+seal-legacy = "seal_legacy.cli:main"
 
 [project.optional-dependencies]
 test = []
@@ -45,10 +45,10 @@ release = [
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
-harness = ["resources/*.md", "resources/*.json"]
+seal_legacy = ["resources/*.md", "resources/*.json"]
 
 [tool.setuptools.dynamic]
-version = {attr = "harness.__version__"}
+version = {attr = "seal_legacy.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]

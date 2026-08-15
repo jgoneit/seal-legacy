@@ -28,7 +28,7 @@ COMPLETION_SCHEMA_VERSION = 1
 
 
 class EvidenceError(TaskError):
-    """Raised when Harness cannot safely create or consume Run Evidence."""
+    """Raised when Seal Legacy cannot safely create or consume Run Evidence."""
 
 
 class CompletionError(EvidenceError):

@@ -378,7 +378,7 @@ def _create_windows_job() -> _WindowsJob:
 
     A child that explicitly requests breakaway remains outside this Job.  That
     preserves compatibility with tools that manage a nested Job themselves;
-    it also means intentionally breakaway descendants are outside Harness
+    it also means intentionally breakaway descendants are outside Seal Legacy
     cleanup by design.
     """
     import ctypes

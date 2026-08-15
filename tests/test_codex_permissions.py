@@ -11,7 +11,7 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CODEX_CONFIG = REPOSITORY_ROOT / ".codex" / "config.toml"
-PROFILE_NAME = "seal-credential-safe"
+PROFILE_NAME = "seal-legacy-credential-safe"
 READ_TEXT_SCRIPT = (
     "from pathlib import Path; import sys; "
     "sys.stdout.write(Path(sys.argv[1]).read_text(encoding='utf-8'))"

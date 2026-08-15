@@ -23,7 +23,7 @@ from typing import Any, Literal
 
 from ._path_policy import (
     git_path_sort_key as _path_sort_key,
-    is_harness_metadata_path,
+    is_seal_metadata_path,
 )
 from .gitdiff import (
     GitDiffError,
@@ -165,7 +165,7 @@ def _collect_snapshot_observation(
     product_gitlinks = [
         path
         for path in candidate_set.gitlink_paths
-        if not is_harness_metadata_path(path)
+        if not is_seal_metadata_path(path)
     ]
     if product_gitlinks:
         raise SourceSnapshotError(
@@ -199,7 +199,7 @@ def _collect_snapshot_observation(
 
     baseline_object_ids: set[str] = set()
     for candidate in candidates.values():
-        if is_harness_metadata_path(candidate.path):
+        if is_seal_metadata_path(candidate.path):
             continue
         _validate_candidate_modes(candidate)
         if candidate.current_present and candidate.baseline_mode is not None:
@@ -223,7 +223,7 @@ def _collect_snapshot_observation(
     ] = []
     for path in sorted(candidates, key=_path_sort_key):
         candidate = candidates[path]
-        if is_harness_metadata_path(candidate.path):
+        if is_seal_metadata_path(candidate.path):
             continue
         observed = (
             _observe_current_source(candidate_set.repository, candidate)
@@ -306,7 +306,7 @@ def _discover_nonregular_source_paths(
             relative_path = "/".join(parts)
             if not prefix and entry.name == ".git":
                 continue
-            if is_harness_metadata_path(relative_path):
+            if is_seal_metadata_path(relative_path):
                 continue
 
             try:
@@ -856,9 +856,9 @@ def _source_snapshot_from_document(
                 f"Source Snapshot entry {index} path must be a string."
             )
         _portable_path_parts(path)
-        if is_harness_metadata_path(path):
+        if is_seal_metadata_path(path):
             raise SourceSnapshotError(
-                f"Source Snapshot entry {index} contains Harness metadata."
+                f"Source Snapshot entry {index} contains Seal Legacy metadata."
             )
         try:
             sort_key = _path_sort_key(path)

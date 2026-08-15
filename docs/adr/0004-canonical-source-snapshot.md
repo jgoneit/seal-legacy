@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Harness records a Task baseline commit and can collect layered committed,
+Seal Legacy Core (Python) records a Task baseline commit and can collect layered committed,
 staged, unstaged, and untracked change metadata. Those layers are useful
 Evidence, but they do not provide one identity for the final product source
 represented by the current Working Tree. Moving unchanged bytes from unstaged
@@ -25,11 +25,11 @@ source identity must include product changes outside the Task Scope.
   its complete tree, one baseline-to-final-Working-Tree Git comparison, current
   tracked paths, and current non-ignored untracked paths. Git index hints and
   conversion settings such as `assume-unchanged`, `skip-worktree`,
-  `core.filemode`, and clean filters are not source-byte authority. Harness
+  `core.filemode`, and clean filters are not source-byte authority. Seal Legacy Core (Python)
   reads the actual supported Working Tree node and compares its raw bytes and
   normalized mode with the baseline blob so index-only intermediate states do
   not leak into the result.
-- Current Git ignore rules exclude untracked paths. The canonical Harness
+- Current Git ignore rules exclude untracked paths. The canonical `.seal`
   metadata predicate excludes Task, Evidence, runs, lessons, and config
   metadata, including metadata-only unmerged index paths. Product files outside
   Scope remain included, and an unmerged product path still fails closed.
@@ -41,7 +41,7 @@ source identity must include product changes outside the Task Scope.
 - Regular files use mode `100644` or `100755` and are hashed in bounded chunks.
   On POSIX, `100755` follows Git by requiring the owner-execute bit; group or
   other execute bits do not change Snapshot identity. Symlinks use mode
-  `120000`; Harness hashes the link-target bytes without following the target,
+  `120000`; Seal Legacy Core (Python) hashes the link-target bytes without following the target,
   including absolute, external, broken, or repository-relative targets.
 - Gitlinks/submodules, FIFOs, sockets, devices, and other unsupported source
   nodes fail with `SourceSnapshotError`. Static parent symlinks are not followed

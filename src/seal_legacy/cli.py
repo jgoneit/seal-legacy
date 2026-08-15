@@ -1,4 +1,4 @@
-"""Command-line interface for Outcome Harness."""
+"""Command-line interface for Seal Legacy Core (Python)."""
 
 from __future__ import annotations
 
@@ -21,10 +21,10 @@ _VALIDATED_RUN_SUMMARY_SCHEMA_VERSION = 1
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the Outcome Harness command-line parser."""
+    """Build the Seal Legacy Core (Python) command-line parser."""
     parser = argparse.ArgumentParser(
-        prog="harness",
-        description="Outcome Harness command-line interface.",
+        prog="seal-legacy",
+        description="Seal Legacy Core (Python) command-line interface.",
     )
     parser.add_argument(
         "--version",

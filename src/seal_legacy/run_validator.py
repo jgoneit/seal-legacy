@@ -1,4 +1,4 @@
-"""Canonical validation for stored Outcome Harness evidence Runs.
+"""Canonical validation for stored Seal Legacy Core (Python) evidence Runs.
 
 ``validate_run`` reads only one saved Task/run pair.  It never reruns checks,
 collects a new Git diff, compares the current source tree, or evaluates
@@ -277,7 +277,7 @@ def _read_saved_task_snapshot(
     repository: Path,
     task_id: str,
 ) -> dict[str, Any]:
-    path = repository / ".harness" / "tasks" / f"{task_id}.json"
+    path = repository / ".seal" / "tasks" / f"{task_id}.json"
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as error:
@@ -301,13 +301,13 @@ def _validated_evidence_directory(
     run_id: str,
 ) -> Path:
     logical_path = (
-        repository / ".harness" / "evidence" / task_id / run_id
+        repository / ".seal" / "evidence" / task_id / run_id
     )
     try:
         evidence_directories = (
-            repository / ".harness",
-            repository / ".harness" / "evidence",
-            repository / ".harness" / "evidence" / task_id,
+            repository / ".seal",
+            repository / ".seal" / "evidence",
+            repository / ".seal" / "evidence" / task_id,
             logical_path,
         )
         if (

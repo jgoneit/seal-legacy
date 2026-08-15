@@ -19,14 +19,14 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from harness import cli
-from harness.evidence import (
+from seal_legacy import cli
+from seal_legacy.evidence import (
     EvidenceRepositoryError,
     atomic_write_json,
     create_evidence_directory,
     verify_task,
 )
-from harness.task import create_task
+from seal_legacy.task import create_task
 
 try:
     from jsonschema import Draft202012Validator, FormatChecker
@@ -54,14 +54,14 @@ class VerificationEvidenceTests(unittest.TestCase):
         self.repository = self.root / "repository"
         self.repository.mkdir()
         self._git("init", "--quiet")
-        self._write(".harness/checks.json", '{"checks": []}\n')
+        self._write(".seal/checks.json", '{"checks": []}\n')
         self._write("src/example.txt", "before\n")
         self._git("add", ".")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -190,7 +190,7 @@ class VerificationEvidenceTests(unittest.TestCase):
         self.assertIn("src/example.txt", (run.evidence_path / "diff.patch").read_text(encoding="utf-8"))
 
     def test_evidence_does_not_serialize_the_process_environment(self) -> None:
-        environment_name = "OUTCOME_HARNESS_EVIDENCE_TEST_SECRET"
+        environment_name = "SEAL_CORE_EVIDENCE_TEST_SECRET"
         environment_value = "must-not-be-serialized"
         previous = os.environ.get(environment_name)
         os.environ[environment_name] = environment_value
@@ -392,7 +392,7 @@ class VerificationEvidenceTests(unittest.TestCase):
             f"Path({str(marker)!r}).write_text('ran', encoding='utf-8')"
         )
         self._create_task([self._python_check("must-not-run", program, required=True)])
-        task_path = self.repository / ".harness" / "tasks" / "TASK-VERIFY.json"
+        task_path = self.repository / ".seal" / "tasks" / "TASK-VERIFY.json"
         task = json.loads(task_path.read_text(encoding="utf-8"))
         task["baseline"] = "missing-task-baseline"
         task_path.write_text(json.dumps(task), encoding="utf-8")
@@ -401,7 +401,7 @@ class VerificationEvidenceTests(unittest.TestCase):
             verify_task("TASK-VERIFY", cwd=self.repository)
 
         self.assertFalse(marker.exists())
-        self.assertFalse((self.repository / ".harness" / "evidence" / "TASK-VERIFY").exists())
+        self.assertFalse((self.repository / ".seal" / "evidence" / "TASK-VERIFY").exists())
 
     def test_diff_patch_preserves_staged_change_reversed_in_worktree(self) -> None:
         self._create_task([self._python_check("ok", "print('ok')", required=True)])
@@ -428,9 +428,9 @@ class VerificationEvidenceTests(unittest.TestCase):
         self._git("add", "src/example.txt")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -528,9 +528,9 @@ class VerificationEvidenceTests(unittest.TestCase):
         self._git("add", ".gitattributes")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -555,9 +555,9 @@ class VerificationEvidenceTests(unittest.TestCase):
         self._git("add", "src/committed.txt")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -595,7 +595,7 @@ class VerificationEvidenceTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, 2)
         self.assertFalse(
-            (self.repository / ".harness" / "evidence" / "TASK-VERIFY").exists()
+            (self.repository / ".seal" / "evidence" / "TASK-VERIFY").exists()
         )
 
     def test_verification_schema_top_level_fields_match_emitted_document(self) -> None:
@@ -626,8 +626,8 @@ class VerificationSchemaParityTests(unittest.TestCase):
             repository = root / "repository"
             repository.mkdir()
             subprocess.run(["git", "init", "--quiet"], cwd=repository, check=True)
-            (repository / ".harness").mkdir()
-            (repository / ".harness" / "checks.json").write_text('{"checks": []}\n')
+            (repository / ".seal").mkdir()
+            (repository / ".seal" / "checks.json").write_text('{"checks": []}\n')
             (repository / "src").mkdir()
             (repository / "src" / "example.txt").write_text("fixture\n", encoding="utf-8")
             subprocess.run(["git", "add", "."], cwd=repository, check=True)
@@ -635,9 +635,9 @@ class VerificationSchemaParityTests(unittest.TestCase):
                 [
                     "git",
                     "-c",
-                    "user.name=Harness Test",
+                    "user.name=Seal Legacy Test",
                     "-c",
-                    "user.email=harness-test@example.invalid",
+                    "user.email=seal-test@example.invalid",
                     "commit",
                     "--quiet",
                     "-m",

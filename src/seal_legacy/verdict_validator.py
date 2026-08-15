@@ -28,7 +28,7 @@ def _verdict_validator() -> Draft202012Validator:
     """Load, self-check, and cache the packaged Verdict Schema."""
     try:
         contents = (
-            resources.files("harness")
+            resources.files("seal_legacy")
             .joinpath("resources", "verdict.schema.json")
             .read_text(encoding="utf-8")
         )

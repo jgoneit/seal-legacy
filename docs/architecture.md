@@ -1,15 +1,17 @@
-# Harness architecture
+# Seal Legacy architecture
 
 This document describes the `0.3.0.dev0` Core development line, which retains
-source-bound verification Evidence v2 only. The latest published release is
-`v0.2.1`. See
+source-bound verification Evidence v2 only. Seal Legacy Core (Python) is not yet published. See
 [Migrating verification Evidence to v0.2](migration-v0.2.md) for historical
 v0.1.x Evidence.
 
 ## Responsibility boundaries
 
-Harness is a local outcome-verification Core, not a command-control or
+Seal Legacy Core (Python) is a local outcome-verification Core, not a command-control or
 credential-enforcement layer.
+
+The v0.3 Core reads only its current state root. It has no legacy state-root
+fallback, converter, or migration path.
 
 | Boundary | Responsibility |
 | --- | --- |
@@ -30,35 +32,35 @@ partially validate the stored Evidence contract themselves.
 
 | Module | Responsibility |
 | --- | --- |
-| `harness.task` | Task parsing, check-catalog resolution, snapshot storage, and baseline capture |
-| `harness.checks` | Ordered argv-based check execution, timeout handling, and log capture |
-| `harness.gitdiff` | Canonical baseline-relative changed-file collection |
-| `harness.source_snapshot` | Canonical deterministic product-source identity |
-| `harness.evidence` | S0/check/S1 orchestration and atomic Evidence v2 persistence |
-| `harness._run_documents` | Persisted mechanical-document validation |
-| `harness._source_binding_documents` | Persisted S0/S1 parsing and cross-document consistency |
-| `harness.run_manifest` | Raw-byte manifest creation and validation |
-| `harness.run_validator` | Public stored-Run integrity facade |
-| `harness.bundle` | Portable validated-Run export |
-| `harness.verdict` | Manual Verdict record and retrieval |
-| `harness._source_binding` | Completion-time S2 collection and S0/S1/S2 comparison |
-| `harness._completion` | Completion policy and completion record |
-| `harness.cli` | Stable command, JSON stdout, stderr, exit-code mapping, and the private transient Run Summary projection |
+| `seal_legacy.task` | Task parsing, check-catalog resolution, snapshot storage, and baseline capture |
+| `seal_legacy.checks` | Ordered argv-based check execution, timeout handling, and log capture |
+| `seal_legacy.gitdiff` | Canonical baseline-relative changed-file collection |
+| `seal_legacy.source_snapshot` | Canonical deterministic product-source identity |
+| `seal_legacy.evidence` | S0/check/S1 orchestration and atomic Evidence v2 persistence |
+| `seal_legacy._run_documents` | Persisted mechanical-document validation |
+| `seal_legacy._source_binding_documents` | Persisted S0/S1 parsing and cross-document consistency |
+| `seal_legacy.run_manifest` | Raw-byte manifest creation and validation |
+| `seal_legacy.run_validator` | Public stored-Run integrity facade |
+| `seal_legacy.bundle` | Portable validated-Run export |
+| `seal_legacy.verdict` | Manual Verdict record and retrieval |
+| `seal_legacy._source_binding` | Completion-time S2 collection and S0/S1/S2 comparison |
+| `seal_legacy._completion` | Completion policy and completion record |
+| `seal_legacy.cli` | Stable command, JSON stdout, stderr, exit-code mapping, and the private transient Run Summary projection |
 
 `schemas/verdict.schema.json` and `prompts/verifier.md` are canonical human-facing
-contracts. Their mirrors in `src/harness/resources` are packaged, and
+contracts. Their mirrors in `src/seal_legacy/resources` are packaged, and
 `scripts/sync_contracts.py` checks byte-for-byte synchronization.
 
 ## Flow
 
 ```text
 Task Spec
-   │ harness task create
+   │ seal-legacy task create
    ▼
 Task snapshot + full baseline commit
    │ implementation
    ▼
-harness verify: collect S0 → run checks → collect S1
+seal-legacy verify: collect S0 → run checks → collect S1
    ▼
 Stored Evidence v2
    ├── run show: validate once → transient stored-state JSON
@@ -85,7 +87,7 @@ Run-level baseline override is not part of the current contract.
 A supported Run contains these mechanical files:
 
 ```text
-.harness/evidence/<TASK_ID>/<RUN_ID>/
+.seal/evidence/<TASK_ID>/<RUN_ID>/
 ├── task.json
 ├── changed-files.json
 ├── diff.patch
@@ -152,4 +154,4 @@ protection from a local user who rewrites both Evidence and its manifest.
 
 External models, vendor verifier CLIs, network retries, credential handling,
 and cost or latency policy remain outside Core. The public subprocess boundary
-is documented in [Harness Adapter CLI Contract](adapter-contract.md).
+is documented in [Seal Legacy Adapter CLI Contract](adapter-contract.md).

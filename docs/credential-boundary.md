@@ -2,14 +2,15 @@
 
 ## Purpose
 
-Harness does not control how a coding Agent works. When Codex's permission-profile
-path is active, credential confidentiality is therefore enforced outside Harness
-Core through the repository's profile in `.codex/config.toml`.
+Seal Legacy Plugin does not control how a coding Agent works. When Codex's
+permission-profile path is active, credential confidentiality is therefore
+enforced outside Seal Legacy Core (Python) through the repository's profile in
+`.codex/config.toml`.
 
 The profile extends Codex's built-in `:workspace` permissions. It preserves normal
 workspace inspection, editing, and command execution while denying reads and writes
 for a narrow set of credential-bearing paths. It does not add lifecycle hooks,
-command parsing, approval state, or a Harness runtime state machine.
+command parsing, approval state, or a Seal Legacy Core (Python) runtime state machine.
 
 ## Default-denied material
 
@@ -47,8 +48,8 @@ Codex's default case-insensitive environment filtering for names containing
 containing `CREDENTIAL`, `PASSWORD`, or `PASSWD`. Other environment variables are
 still inherited so ordinary build and test discovery remains available.
 
-This policy applies to subprocesses launched by Codex. Harness still records check
-stdout and stderr verbatim, so checks must not print secret values obtained from an
+This policy applies to subprocesses launched by Codex. Seal Legacy Core (Python)
+still records check stdout and stderr verbatim, so checks must not print secret values obtained from an
 external source.
 
 ## Activation and override boundary

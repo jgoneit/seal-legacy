@@ -1,16 +1,16 @@
 # Keep normal Codex workspace autonomy while carving credential material out of
 # the filesystem and subprocess environment. This is a project security
-# boundary, not part of the Harness Core completion contract.
+# boundary, not part of the Seal Legacy Core (Python) completion contract.
 # Compatibility requirement: remove legacy `sandbox_mode` and
 # `[sandbox_workspace_write]` settings from every loaded config, and do not pass
 # `--sandbox`. Otherwise Codex uses the legacy sandbox instead of this profile.
-default_permissions = "seal-credential-safe"
+default_permissions = "seal-legacy-credential-safe"
 
-[permissions.seal-credential-safe]
+[permissions.seal-legacy-credential-safe]
 description = "Workspace access with common credential material denied."
 extends = ":workspace"
 
-[permissions.seal-credential-safe.filesystem]
+[permissions.seal-legacy-credential-safe.filesystem]
 glob_scan_max_depth = 8
 "~/.aws/cli/cache" = "deny"
 "~/.aws/credentials" = "deny"
@@ -28,7 +28,7 @@ glob_scan_max_depth = 8
 "~/.pypirc" = "deny"
 "~/.ssh" = "deny"
 
-[permissions.seal-credential-safe.filesystem.":workspace_roots"]
+[permissions.seal-legacy-credential-safe.filesystem.":workspace_roots"]
 "**/.env" = "deny"
 "**/.envrc" = "deny"
 # Deny every non-empty `.env.<suffix>` except the exact `.env.example` name.

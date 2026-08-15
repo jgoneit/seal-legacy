@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Outcome Harness Task Spec",
+  "title": "Seal Legacy Core (Python) Task Spec",
   "type": "object",
   "additionalProperties": false,
   "required": [

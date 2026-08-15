@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path, PurePosixPath
 
-from harness.run_manifest import create_run_manifest
+from seal_legacy.run_manifest import create_run_manifest
 
 
 def rewrite_failed_check_as_timeout(

@@ -1,4 +1,4 @@
-"""Stable Outcome Harness command exit codes.
+"""Stable Seal Legacy Core (Python) command exit codes.
 
 These values are part of the public command-line contract from Phase 1c
 onward.  New commands may use a subset, but existing meanings must not be
@@ -11,7 +11,7 @@ from enum import IntEnum
 
 
 class ExitCode(IntEnum):
-    """Documented process exit codes for Outcome Harness."""
+    """Documented process exit codes for Seal Legacy Core (Python)."""
 
     SUCCESS = 0
     INVALID_INPUT_OR_SCHEMA = 2

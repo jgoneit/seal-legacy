@@ -1,4 +1,4 @@
-"""Module entry point for Outcome Harness."""
+"""Module entry point for Seal Legacy Core (Python)."""
 
 from .cli import main
 

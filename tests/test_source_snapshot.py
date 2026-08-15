@@ -20,9 +20,9 @@ from unittest import mock
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-import harness.gitdiff as gitdiff
-import harness.source_snapshot as source_snapshot
-from harness.source_snapshot import (
+import seal_legacy.gitdiff as gitdiff
+import seal_legacy.source_snapshot as source_snapshot
+from seal_legacy.source_snapshot import (
     SOURCE_HASH_CHUNK_SIZE,
     SourceSnapshot,
     SourceSnapshotEntry,
@@ -77,9 +77,9 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
     def _commit(self, message: str, *, allow_empty: bool = False) -> None:
         arguments = [
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -135,9 +135,9 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
             [
                 "git",
                 "-c",
-                "user.name=Harness Test",
+                "user.name=Seal Legacy Test",
                 "-c",
-                "user.email=harness-test@example.invalid",
+                "user.email=seal-test@example.invalid",
                 "merge",
                 "conflicting",
             ],
@@ -656,19 +656,19 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
 
     def test_excludes_ignored_git_and_canonical_metadata_only(self) -> None:
         excluded = (
-            ".harness/tasks/TASK-X.json",
-            ".harness/evidence/TASK-X/run.txt",
-            ".harness/runs.jsonl",
-            ".harness/lessons.md",
-            ".harness/config.json",
+            ".seal/tasks/TASK-X.json",
+            ".seal/evidence/TASK-X/run.txt",
+            ".seal/runs.jsonl",
+            ".seal/lessons.md",
+            ".seal/config.json",
             "generated.ignored",
         )
         for path in excluded:
             self._write(path, "excluded\n")
         self._write(".git/snapshot-private", "private\n")
         included = (
-            ".harness/tasks-extra/product.txt",
-            ".harness/checks.json",
+            ".seal/tasks-extra/product.txt",
+            ".seal/checks.json",
             "docs/outside.txt",
         )
         for path in included:
@@ -714,10 +714,10 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
         self.assertIn(filename, self._entries(snapshot))
         self.assertIn(b"\\udcff", document_bytes)
 
-    def test_collection_is_read_only_for_git_and_harness_state(self) -> None:
+    def test_collection_is_read_only_for_git_and_seal_state(self) -> None:
         self._write("src/base.txt", "changed\n")
         before_status = self._git_bytes("status", "--porcelain=v2", "-z")
-        self.assertFalse((self.repository / ".harness").exists())
+        self.assertFalse((self.repository / ".seal").exists())
 
         self._snapshot()
 
@@ -725,7 +725,7 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
             self._git_bytes("status", "--porcelain=v2", "-z"),
             before_status,
         )
-        self.assertFalse((self.repository / ".harness").exists())
+        self.assertFalse((self.repository / ".seal").exists())
 
     @unittest.skipUnless(hasattr(os, "symlink"), "symlinks are unavailable")
     def test_symlinks_hash_target_text_without_following_targets(self) -> None:
@@ -809,8 +809,8 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
 
     def test_metadata_only_merge_conflicts_do_not_change_source_identity(self) -> None:
         metadata_paths = (
-            ".harness/config.json",
-            ".harness/tasks/TASK-X.json",
+            ".seal/config.json",
+            ".seal/tasks/TASK-X.json",
         )
         for relative_path in metadata_paths:
             self._write(relative_path, f"baseline: {relative_path}\n")
@@ -825,8 +825,8 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
 
     def test_metadata_conflict_does_not_hide_product_lookalike_conflict(self) -> None:
         paths = (
-            ".harness/config.json",
-            ".harness/tasks-extra/product.txt",
+            ".seal/config.json",
+            ".seal/tasks-extra/product.txt",
         )
         for relative_path in paths:
             self._write(relative_path, f"baseline: {relative_path}\n")
@@ -837,7 +837,7 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             SourceSnapshotError,
-            "status 'U' for '.harness/tasks-extra/product.txt'",
+            "status 'U' for '.seal/tasks-extra/product.txt'",
         ):
             self._snapshot()
 
@@ -863,7 +863,7 @@ class SourceSnapshotRepositoryTests(unittest.TestCase):
         fifo.unlink()
 
         ignored = self.repository / "ignored.ignored"
-        metadata = self.repository / ".harness" / "tasks" / "metadata.fifo"
+        metadata = self.repository / ".seal" / "tasks" / "metadata.fifo"
         git_private = self.repository / ".git" / "private.fifo"
         metadata.parent.mkdir(parents=True)
         os.mkfifo(ignored)

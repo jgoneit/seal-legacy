@@ -12,11 +12,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ._path_policy import (
-    HARNESS_METADATA_DIRECTORIES,
-    HARNESS_METADATA_FILES,
+    SEAL_METADATA_DIRECTORIES,
+    SEAL_METADATA_FILES,
     change_is_within_scope as _change_is_within_scope,
     git_path_sort_key as _path_sort_key,
-    is_harness_metadata_path as _is_harness_metadata_path,
+    is_seal_metadata_path as _is_seal_metadata_path,
 )
 
 
@@ -246,7 +246,7 @@ def _collect_final_tree_candidates(
     product_unmerged_paths = frozenset(
         path
         for path in index_state.unmerged_paths
-        if not _is_harness_metadata_path(path)
+        if not _is_seal_metadata_path(path)
     )
     if product_unmerged_paths:
         path = min(product_unmerged_paths, key=_path_sort_key)
@@ -639,13 +639,13 @@ def _is_metadata_change(change: FileChange) -> bool:
     paths = [change.path]
     if change.previous_path is not None:
         paths.append(change.previous_path)
-    return all(is_harness_metadata_path(path) for path in paths)
+    return all(is_seal_metadata_path(path) for path in paths)
 
 
-def is_harness_metadata_path(path: str) -> bool:
-    """Return whether *path* is a Harness metadata path, using path boundaries."""
+def is_seal_metadata_path(path: str) -> bool:
+    """Return whether *path* is a Seal Legacy metadata path, using path boundaries."""
     normalized = _normalize_relative_path(path, "Git path")
-    return _is_harness_metadata_path(normalized)
+    return _is_seal_metadata_path(normalized)
 
 
 def _task_baseline(task: Mapping[str, object]) -> str:

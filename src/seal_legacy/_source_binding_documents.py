@@ -2,7 +2,7 @@
 
 This module reads and cross-checks the historical S0/S1 Snapshot artifacts.
 It deliberately does not inspect Git or the current Working Tree; complete-time
-S2 collection belongs to :mod:`harness._source_binding`.
+S2 collection belongs to :mod:`seal_legacy._source_binding`.
 """
 
 from __future__ import annotations

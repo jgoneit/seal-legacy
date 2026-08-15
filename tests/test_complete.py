@@ -16,10 +16,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SOURCE_ROOT))
 
-from harness.evidence import verify_task
-from harness.exit_codes import ExitCode
-from harness.task import create_task
-from harness.verdict import record_verdict
+from seal_legacy.evidence import verify_task
+from seal_legacy.exit_codes import ExitCode
+from seal_legacy.task import create_task
+from seal_legacy.verdict import record_verdict
 from tests._evidence_fixtures import rewrite_failed_check_as_timeout
 
 
@@ -32,14 +32,14 @@ class CompleteCommandTests(unittest.TestCase):
         self.repository = self.root / "repository"
         self.repository.mkdir()
         self._git("init", "--quiet")
-        self._write(".harness/checks.json", '{"checks": []}\n')
+        self._write(".seal/checks.json", '{"checks": []}\n')
         self._write("src/example.txt", "fixture\n")
         self._git("add", ".")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -116,7 +116,7 @@ class CompleteCommandTests(unittest.TestCase):
         if existing_pythonpath:
             environment["PYTHONPATH"] += os.pathsep + existing_pythonpath
         return subprocess.run(
-            [sys.executable, "-m", "harness", *arguments],
+            [sys.executable, "-m", "seal_legacy", *arguments],
             cwd=cwd if cwd is not None else self.repository,
             check=False,
             capture_output=True,
@@ -221,7 +221,7 @@ class CompleteCommandTests(unittest.TestCase):
         self._create_task(task_id="TASK-FIRST")
         self._create_task(task_id="TASK-SECOND")
         run = verify_task("TASK-FIRST", cwd=self.repository)
-        copied_run = self.repository / ".harness" / "evidence" / "TASK-SECOND" / run.run_id
+        copied_run = self.repository / ".seal" / "evidence" / "TASK-SECOND" / run.run_id
         copied_run.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(run.evidence_path, copied_run)
 
@@ -434,9 +434,9 @@ class CompleteCommandTests(unittest.TestCase):
         self._git("add", "docs/hidden.txt")
         self._git(
             "-c",
-            "user.name=Harness Test",
+            "user.name=Seal Legacy Test",
             "-c",
-            "user.email=harness-test@example.invalid",
+            "user.email=seal-test@example.invalid",
             "commit",
             "--quiet",
             "-m",
@@ -448,7 +448,7 @@ class CompleteCommandTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertEqual(result.stdout, "")
         self.assertFalse(
-            (self.repository / ".harness" / "evidence" / "TASK-COMPLETE").exists()
+            (self.repository / ".seal" / "evidence" / "TASK-COMPLETE").exists()
         )
 
     def test_non_repository_returns_git_repository_exit_code(self) -> None:

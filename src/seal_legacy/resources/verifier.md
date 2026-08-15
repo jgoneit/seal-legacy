@@ -17,7 +17,7 @@
 Bundle은 historical Evidence다. Bundle에는 저장된 S0과 S1만 있으며 current
 completion-time S2는 없다. S2가 없다는 이유만으로 unable을 사용하거나 current
 source match를 추측하지 않는다. Current-source-bound completion eligibility는
-Harness Core가 별도로 판정한다.
+Seal Legacy Core (Python)가 별도로 판정한다.
 
 수정안, 대체 코드, Markdown 설명을 작성하지 않는다. 근거가 충분하지 않으면
 추측 대신 unable을 사용한다.

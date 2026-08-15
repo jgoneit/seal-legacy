@@ -1,4 +1,4 @@
-"""Mechanical verification Evidence creation for Outcome Harness.
+"""Mechanical verification Evidence creation for Seal Legacy Core (Python).
 
 This module records checks, Git changes, and versioned Run artifacts.  The
 completion policy is implemented behind a separate internal boundary while
@@ -47,8 +47,8 @@ from ._source_binding_documents import (
 )
 from .checks import CheckExecutionError, run_checks
 from .gitdiff import (
-    HARNESS_METADATA_DIRECTORIES,
-    HARNESS_METADATA_FILES,
+    SEAL_METADATA_DIRECTORIES,
+    SEAL_METADATA_FILES,
     ChangeCollection,
     FileChange,
     GitDiffError,
@@ -56,7 +56,7 @@ from .gitdiff import (
     _git_command,
     collect_changes,
     find_repository_root,
-    is_harness_metadata_path,
+    is_seal_metadata_path,
 )
 from .run_manifest import RunManifestError, create_run_manifest
 from .source_snapshot import SourceSnapshotError, collect_source_snapshot
@@ -205,7 +205,7 @@ def verify_task(
 def create_evidence_directory(repository: str | Path, task_id: str) -> tuple[str, Path]:
     """Create and return a collision-free evidence directory for one run."""
     validate_task_id(task_id)
-    root = Path(repository).resolve() / ".harness" / "evidence" / task_id
+    root = Path(repository).resolve() / ".seal" / "evidence" / task_id
     root.mkdir(parents=True, exist_ok=True)
     for _ in range(100):
         run_id = generate_run_id()
@@ -268,7 +268,7 @@ def _write_diff_patch(
             {0, 1},
         )
         for change in changes.changes
-        if change.source == "untracked" and not is_harness_metadata_path(change.path)
+        if change.source == "untracked" and not is_seal_metadata_path(change.path)
     )
 
     wrote_patch = False
@@ -325,8 +325,8 @@ def _output_offset(output: BinaryIO) -> int:
 
 
 def _metadata_exclude_pathspecs() -> tuple[str, ...]:
-    directories = tuple(f":(exclude){path}/**" for path in HARNESS_METADATA_DIRECTORIES)
-    files = tuple(f":(exclude){path}" for path in sorted(HARNESS_METADATA_FILES))
+    directories = tuple(f":(exclude){path}/**" for path in SEAL_METADATA_DIRECTORIES)
+    files = tuple(f":(exclude){path}" for path in sorted(SEAL_METADATA_FILES))
     return directories + files
 
 
